@@ -1,0 +1,6 @@
+.sconsign.dblite
+tests/build/
+src/*.os
+src/*.o
+*.dylib
+deps/check-0.9.8
