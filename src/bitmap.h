@@ -30,8 +30,10 @@ cbloom_bitmap *bitmapFromFile(int fileno, size_t len);
  * If the file cannot be opened, NULL will be returned.
  * @arg fileno The fileno
  * @arg len The length of the bitmap in bytes.
+ * @arg create If 1, then the file will be created if it does not exist.
+ * @arg resize If 1, then the file will be expanded to len
  */
-cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create);
+cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create, int resize);
 
 /**
  * Returns the size of the bitmap in bits.
@@ -44,7 +46,7 @@ size_t bitmapBitsize(cbloom_bitmap *map);
  * a syncronous operation. It is a no-op for
  * ANONYMOUS bitmaps.
  * @arg map The bitmap
- * @returns 1 on success, 0 on failure.
+ * @returns 0 on success, negative failure.
  */
 int bitmapFlush(cbloom_bitmap *map);
 
@@ -53,16 +55,24 @@ int bitmapFlush(cbloom_bitmap *map);
  * a syncronous operation. It is a no-op for
  * ANONYMOUS bitmaps.
  * @arg map The bitmap
- * @returns 1 on success, 0 on failure.
+ * @returns 0 on success, negative on failure.
  */
 int bitmapClose(cbloom_bitmap *map);
 
+/**
+ * Returns the value of the bit at index idx for the
+ * cbloom_bitmap map
+ */
 #define BITMAP_GETBIT(map, idx) {                        \
             unsigned char byte = map->mmap[idx >> 3];    \
             unsigned char byte_off = 7 - idx % 8;        \
             return (byte >> byte_off) & 0x1;             \
         }                                                \
 
+/**
+ * Sets the value of the bit at index idx for the
+ * cbloom_bitmap map
+ */
 #define BITMAP_SETBIT(map, idx, val) {                   \
             unsigned char byte = map->mmap[idx >> 3];    \
             unsigned char byte_off = 7 - idx % 8;        \
@@ -72,7 +82,6 @@ int bitmapClose(cbloom_bitmap *map);
                 byte &= ~(1 << byte_off);                \
             }                                            \
             map->mmap[idx >> 3] = byte;                  \
-            return byte;                                 \
         }                                                \
 
 #endif

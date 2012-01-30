@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/errno.h>
+#include <sys/stat.h>
 #include "bitmap.h"
 
 /**
@@ -64,8 +65,10 @@ cbloom_bitmap *bitmapFromFile(int fileno, size_t len) {
  * If the file cannot be opened, NULL will be returned.
  * @arg fileno The fileno
  * @arg len The length of the bitmap in bytes.
+ * @arg create If 1, then the file will be created if it does not exist.
+ * @arg resize If 1, then the file will be expanded to len
  */
-cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create) {
+cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create, int resize) {
     // Get the flags
     int flags = O_RDWR;
     if (create) {
@@ -78,8 +81,25 @@ cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create) {
         return NULL;
     }
 
+    // Check if we need to resize
+    if (resize) {
+        struct stat buf;
+        int res = fstat(fileno, &buf);        
+        if (res != 0) {
+            perror("fstat failed on bitmap!");
+        }
+        if (buf.st_size < len) {
+            res = ftruncate(fileno, len);
+            if (res != 0) {
+                perror("ftrunctate failed on the bitmap!");
+                close(fileno);
+                return NULL;
+            }
+        }
+    }
+
     // Use the filehandler mode
-    cbloom_bitmap *map= bitmapFromFile(fileno, len); 
+    cbloom_bitmap *map = bitmapFromFile(fileno, len); 
 
     // Handle is dup'ed, we can close
     close(fileno);
