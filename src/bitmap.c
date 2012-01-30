@@ -42,9 +42,11 @@ cbloom_bitmap *bitmapFromFile(int fileno, size_t len) {
     }
 
     // Fault the memory in 
-    int res = madvise(addr, len, MADV_WILLNEED);
-    if (res != 0) {
-        perror("Failed to call madvise()");
+    if (mode == SHARED) {
+        int res = madvise(addr, len, MADV_WILLNEED);
+        if (res != 0) {
+            perror("Failed to call madvise()");
+        }
     }
 
     // Allocate space for the map
@@ -78,6 +80,7 @@ cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create, int re
     // Open the file
     int fileno = open(filename, flags);
     if (fileno == -1) {
+        perror("Failed to open the file");
         return NULL;
     }
 
@@ -112,6 +115,9 @@ cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create, int re
  * @arg map The bitmap
  */
 size_t bitmapBitsize(cbloom_bitmap *map) {
+    // Return if there is no map provided
+    if (map == NULL) return 0;
+
     return (*map).size * 8;
 }
 
@@ -124,6 +130,9 @@ size_t bitmapBitsize(cbloom_bitmap *map) {
  * @returns 0 on success, negative failure.
  */
 int bitmapFlush(cbloom_bitmap *map) {
+    // Return if there is no map provided
+    if (map == NULL) return -EINVAL;
+
     // Do nothing for anonymous maps
     if (map->flags == ANONYMOUS || map->mmap == NULL)
         return 0;
@@ -140,11 +149,15 @@ int bitmapFlush(cbloom_bitmap *map) {
 /**
  * Closes and flushes the bitmap. This is
  * a syncronous operation. It is a no-op for
- * ANONYMOUS bitmaps.
+ * ANONYMOUS bitmaps. The caller should free()
+ * the structure after.
  * @arg map The bitmap
  * @returns 0 on success, negative on failure.
  */
 int bitmapClose(cbloom_bitmap *map) {
+    // Return if there is no map provided
+    if (map == NULL) return -EINVAL;
+
     // Flush first
     int res = bitmapFlush(map);
     if (res != 0) return res;

@@ -51,9 +51,10 @@ size_t bitmapBitsize(cbloom_bitmap *map);
 int bitmapFlush(cbloom_bitmap *map);
 
 /**
- * Closes and flushes the bitmap. This is
+ * * Closes and flushes the bitmap. This is
  * a syncronous operation. It is a no-op for
- * ANONYMOUS bitmaps.
+ * ANONYMOUS bitmaps. The caller should free()
+ * the structure after.
  * @arg map The bitmap
  * @returns 0 on success, negative on failure.
  */
@@ -63,11 +64,7 @@ int bitmapClose(cbloom_bitmap *map);
  * Returns the value of the bit at index idx for the
  * cbloom_bitmap map
  */
-#define BITMAP_GETBIT(map, idx) {                        \
-            unsigned char byte = map->mmap[idx >> 3];    \
-            unsigned char byte_off = 7 - idx % 8;        \
-            return (byte >> byte_off) & 0x1;             \
-        }                                                \
+#define BITMAP_GETBIT(map, idx) ((map->mmap[idx >> 3] >> (7 - (idx % 8))) & 0x1)
 
 /**
  * Sets the value of the bit at index idx for the
