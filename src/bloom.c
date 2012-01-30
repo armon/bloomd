@@ -40,7 +40,7 @@ size_t bloomFilterSize(cbloom_bloomfilter *filter) {
  * Flushes the filter, and updates the metadata.
  * @return 0 on success, negative on failure.
  */
-int flush(cbloom_bloomfilter *filter) {
+int bloomFilterFlush(cbloom_bloomfilter *filter) {
 
 }
 
@@ -48,7 +48,7 @@ int flush(cbloom_bloomfilter *filter) {
  * Flushes and closes the filter. Does not close the underlying bitmap.
  * @return 0 on success, negative on failure.
  */
-int close(cbloom_bloomfilter *filter) {
+int bloomFilterClose(cbloom_bloomfilter *filter) {
 
 }
 
