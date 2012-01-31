@@ -12,7 +12,7 @@
  * @arg fileno The fileno. 0 for anonymous.
  * @arg len The length of the bitmap in bytes.
  */
-cbloom_bitmap *bitmapFromFile(int fileno, size_t len) {
+cbloom_bitmap *bitmapFromFile(int fileno, uint64_t len) {
     // Handle anonymous or file backed
     int flags = 0;
     int newfileno;
@@ -70,7 +70,7 @@ cbloom_bitmap *bitmapFromFile(int fileno, size_t len) {
  * @arg create If 1, then the file will be created if it does not exist.
  * @arg resize If 1, then the file will be expanded to len
  */
-cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create, int resize) {
+cbloom_bitmap *bitmapFromFilename(char* filename, uint64_t len, int create, int resize) {
     // Get the flags
     int flags = O_RDWR;
     if (create) {

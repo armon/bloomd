@@ -2,6 +2,7 @@
 #define CBLOOM_BITMAP_H
 #include <stddef.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 typedef enum {
     SHARED,         // MAP_SHARED mmap used. File backed.
@@ -9,7 +10,7 @@ typedef enum {
 } cbloom_flags;
 
 typedef struct {
-    size_t size;  // Size of bitmap in bytes
+    uint64_t size;  // Size of bitmap in bytes
     cbloom_flags flags;    // Bitmap flags.
     int fileno;   // Underlying fileno for the mmap
     unsigned char* mmap;   // Starting address of the mem-map region
@@ -21,7 +22,7 @@ typedef struct {
  * @arg fileno The fileno
  * @arg len The length of the bitmap in bytes.
  */
-cbloom_bitmap *bitmapFromFile(int fileno, size_t len);
+cbloom_bitmap *bitmapFromFile(int fileno, uint64_t len);
 
 /**
  * Returns a cbloom_bitmap pointer from a filename.
@@ -33,7 +34,7 @@ cbloom_bitmap *bitmapFromFile(int fileno, size_t len);
  * @arg create If 1, then the file will be created if it does not exist.
  * @arg resize If 1, then the file will be expanded to len
  */
-cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create, int resize);
+cbloom_bitmap *bitmapFromFilename(char* filename, uint64_t len, int create, int resize);
 
 /**
  * Flushes the bitmap back to disk. This is
