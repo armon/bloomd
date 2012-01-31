@@ -21,8 +21,10 @@ typedef struct {
  * that is already opened with read/write privileges.
  * @arg fileno The fileno
  * @arg len The length of the bitmap in bytes.
+ * @arg map The output map. Will be initialized.
+ * @return 0 on success. Negative on error.
  */
-cbloom_bitmap *bitmapFromFile(int fileno, uint64_t len);
+int bitmapFromFile(int fileno, uint64_t len, cbloom_bitmap *map);
 
 /**
  * Returns a cbloom_bitmap pointer from a filename.
@@ -33,8 +35,10 @@ cbloom_bitmap *bitmapFromFile(int fileno, uint64_t len);
  * @arg len The length of the bitmap in bytes.
  * @arg create If 1, then the file will be created if it does not exist.
  * @arg resize If 1, then the file will be expanded to len
+ * @arg map The output map. Will be initialized.
+ * @return 0 on success. Negative on error.
  */
-cbloom_bitmap *bitmapFromFilename(char* filename, uint64_t len, int create, int resize);
+int bitmapFromFilename(char* filename, uint64_t len, int create, int resize, cbloom_bitmap *map);
 
 /**
  * Flushes the bitmap back to disk. This is

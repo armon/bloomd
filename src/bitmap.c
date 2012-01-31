@@ -9,10 +9,12 @@
 /**
  * Returns a cbloom_bitmap pointer from a file handle
  * that is already opened with read/write privileges.
- * @arg fileno The fileno. 0 for anonymous.
+ * @arg fileno The fileno
  * @arg len The length of the bitmap in bytes.
+ * @arg map The output map. Will be initialized.
+ * @return 0 on success. Negative on error.
  */
-cbloom_bitmap *bitmapFromFile(int fileno, uint64_t len) {
+int bitmapFromFile(int fileno, uint64_t len, cbloom_bitmap *map) {
     // Handle anonymous or file backed
     int flags = 0;
     int newfileno;
@@ -34,11 +36,10 @@ cbloom_bitmap *bitmapFromFile(int fileno, uint64_t len) {
 
     // Check for an error, otherwise return
     if (addr == MAP_FAILED) {
-        perror("Failed to mmap");
         if (newfileno >= 0) {
             close(newfileno);
         }
-        return NULL;
+        return -errno;
     }
 
     // Fault the memory in 
@@ -50,13 +51,11 @@ cbloom_bitmap *bitmapFromFile(int fileno, uint64_t len) {
     }
 
     // Allocate space for the map
-    cbloom_bitmap *map = (cbloom_bitmap*)calloc(1, sizeof(cbloom_bitmap));
     map->size = len;
     map->flags = mode;
     map->fileno = newfileno;
     map->mmap = addr;
-
-    return map;
+    return 0;
 }
 
 
@@ -69,8 +68,10 @@ cbloom_bitmap *bitmapFromFile(int fileno, uint64_t len) {
  * @arg len The length of the bitmap in bytes.
  * @arg create If 1, then the file will be created if it does not exist.
  * @arg resize If 1, then the file will be expanded to len
+ * @arg map The output map. Will be initialized.
+ * @return 0 on success. Negative on error.
  */
-cbloom_bitmap *bitmapFromFilename(char* filename, uint64_t len, int create, int resize) {
+int bitmapFromFilename(char* filename, uint64_t len, int create, int resize, cbloom_bitmap *map) {
     // Get the flags
     int flags = O_RDWR;
     if (create) {
@@ -80,8 +81,7 @@ cbloom_bitmap *bitmapFromFilename(char* filename, uint64_t len, int create, int 
     // Open the file
     int fileno = open(filename, flags);
     if (fileno == -1) {
-        perror("Failed to open the file");
-        return NULL;
+        return -errno;
     }
 
     // Check if we need to resize
@@ -90,23 +90,24 @@ cbloom_bitmap *bitmapFromFilename(char* filename, uint64_t len, int create, int 
         int res = fstat(fileno, &buf);        
         if (res != 0) {
             perror("fstat failed on bitmap!");
+            return -errno;
         }
         if (buf.st_size < len) {
             res = ftruncate(fileno, len);
             if (res != 0) {
                 perror("ftrunctate failed on the bitmap!");
                 close(fileno);
-                return NULL;
+                return -errno;
             }
         }
     }
 
     // Use the filehandler mode
-    cbloom_bitmap *map = bitmapFromFile(fileno, len); 
+    int res = bitmapFromFile(fileno, len, map); 
 
     // Handle is dup'ed, we can close
     close(fileno);
-    return map;
+    return res;
 }
 
 
