@@ -2,5 +2,10 @@
 tests/build/
 src/*.os
 src/*.o
+tests/*.o
+tests/*.os
 *.dylib
 deps/check-0.9.8
+test_runner
+libbloom.dylib
+libbloom.a
