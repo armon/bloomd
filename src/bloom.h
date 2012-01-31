@@ -3,6 +3,7 @@
 #include "bitmap.h"
 
 typedef struct {
+    int compat_mode;     // If true, we are in 32-bit compatibility mode.
     size_t bitmap_size;  // The size of the bitmap to use, minus buffers
     size_t k_num;        // The number of hash functions to use
     size_t offset;       // The offset size between hash regions
