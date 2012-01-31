@@ -17,9 +17,6 @@ int main(void)
     tcase_add_test(tc1_1, make_bitmap_nofile_create);
     tcase_add_test(tc1_1, make_bitmap_resize);
 
-    tcase_add_test(tc1_1, bitmap_size_anonymous);
-    tcase_add_test(tc1_1, bitmap_size_file);
-
     tcase_add_test(tc1_1, flush_bitmap_anonymous);
     tcase_add_test(tc1_1, flush_bitmap_file);
     tcase_add_test(tc1_1, flush_bitmap_null);

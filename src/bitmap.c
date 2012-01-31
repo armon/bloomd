@@ -111,18 +111,6 @@ cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create, int re
 
 
 /**
- * Returns the size of the bitmap in bits.
- * @arg map The bitmap
- */
-size_t bitmapBitsize(cbloom_bitmap *map) {
-    // Return if there is no map provided
-    if (map == NULL) return 0;
-
-    return (*map).size * 8;
-}
-
-
-/**
  * Flushes the bitmap back to disk. This is
  * a syncronous operation. It is a no-op for
  * ANONYMOUS bitmaps.

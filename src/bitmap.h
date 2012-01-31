@@ -36,12 +36,6 @@ cbloom_bitmap *bitmapFromFile(int fileno, size_t len);
 cbloom_bitmap *bitmapFromFilename(char* filename, size_t len, int create, int resize);
 
 /**
- * Returns the size of the bitmap in bits.
- * @arg map The bitmap
- */
-size_t bitmapBitsize(cbloom_bitmap *map);
-
-/**
  * Flushes the bitmap back to disk. This is
  * a syncronous operation. It is a no-op for
  * ANONYMOUS bitmaps.

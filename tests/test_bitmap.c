@@ -65,27 +65,6 @@ START_TEST(make_bitmap_resize)
 END_TEST
 
 /*
- *size_t bitmapBitsize(cbloom_bitmap *map);
- */
-
-START_TEST(bitmap_size_anonymous)
-{
-    cbloom_bitmap *map = bitmapFromFile(-1, 4096);
-    fail_unless(map != NULL);
-    fail_unless(bitmapBitsize(map) == 8*4096);
-}
-END_TEST
-
-START_TEST(bitmap_size_file)
-{
-    cbloom_bitmap *map = bitmapFromFilename("/tmp/mmap_size_file", 8196, 1, 1);
-    fail_unless(map != NULL);
-    fail_unless(bitmapBitsize(map) == 8*8196);
-    unlink("/tmp/mmap_size_file");
-}
-END_TEST
-
-/*
  * int bitmapFlush(cbloom_bitmap *map) {
  */
 START_TEST(flush_bitmap_anonymous)
