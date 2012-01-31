@@ -3,20 +3,13 @@
 /*
  * Static definitions
  */
+/*
 static size_t bloomFilterExtraBuffer();
 static unsigned int bloomFilterReadKNum(cbloom_bitmap* map);
 static void bloomFilterWriteKNum(cbloom_bitmap* map, unsigned int k_num);
 static unsigned long long bloomFilterReadCount(cbloom_bitmap* map);
 static void bloomFilterWriteCount(cbloom_bitmap* map, unsigned long long count);
-
-/**
- * We do a bitwise AND of the k_num size to determine
- * if we are in compatibility mode. The files generated
- * by versions built on 32bit machines will not have this
- * set. 64bit builds will set this bit, and can fallback
- * to 32bit hash functions for compatibility.
- */
-static unsigned int COMPATIBILITY_MODE = 0x80000000;
+*/
 
 /**
  * Creates a new bloom filter using a given bitmap and k-value.
@@ -29,6 +22,7 @@ cbloom_bloomfilter *createBloomFilter(cbloom_bitmap *map, size_t k_num) {
         return NULL;
     }
 
+    /*
     // Get the bitmap size, check we have enough room
     size_t bitmap_size = bitmapBitsize(map) - 8 * bloomFilterExtraBuffer();
     if (map->size <= bloomFilterExtraBuffer()) {
@@ -50,7 +44,7 @@ cbloom_bloomfilter *createBloomFilter(cbloom_bitmap *map, size_t k_num) {
     }
 
     // Check for compatibility mode, and remove the compatibility bit.
-    if ((filter->k_num & COMPATIBILITY_MODE) > 0) {
+    if (filter->k_num & COMPATIBILITY_MODE) {
         filter->compat_mode = 1;
         filter->k_num = ~COMPATIBILITY_MODE & filter->k_num;
     }
@@ -63,8 +57,11 @@ cbloom_bloomfilter *createBloomFilter(cbloom_bitmap *map, size_t k_num) {
 
     // Return the filter
     return filter;
+    */
+    return NULL;
 }
 
+/*
 // Returns the extra bytes we need to persist the filter
 static size_t bloomFilterExtraBuffer() {
     // We have enough room to store the K num, and the item count.
@@ -94,6 +91,7 @@ static void bloomFilterWriteCount(cbloom_bitmap* map, unsigned long long count) 
     unsigned long long *slot = (unsigned long long*)(map->mmap + (map->size / 8));
     *slot = count;
 }
+*/
 
 /**
  * Adds a new key to the bloom filter.
@@ -102,7 +100,7 @@ static void bloomFilterWriteCount(cbloom_bitmap* map, unsigned long long count) 
  * @returns 1 if the key was added, 0 if present. Negative on failure.
  */
 int bloomFilterAdd(cbloom_bloomfilter *filter, char* key) {
-
+    return 0;
 }
 
 /**
@@ -112,14 +110,14 @@ int bloomFilterAdd(cbloom_bloomfilter *filter, char* key) {
  * @returns 1 if present, 0 if not present, negative on error.
  */
 int bloomFilterContains(cbloom_bloomfilter *filter, char* key) {
-
+    return 0;
 }
 
 /**
  * Returns the size of the bloom filter in item count
  */
-size_t bloomFilterSize(cbloom_bloomfilter *filter) {
-
+uint64_t bloomFilterSize(cbloom_bloomfilter *filter) {
+    return 0;
 }
 
 /**
@@ -127,7 +125,7 @@ size_t bloomFilterSize(cbloom_bloomfilter *filter) {
  * @return 0 on success, negative on failure.
  */
 int bloomFilterFlush(cbloom_bloomfilter *filter) {
-
+    return 0;
 }
 
 /**
@@ -135,7 +133,7 @@ int bloomFilterFlush(cbloom_bloomfilter *filter) {
  * @return 0 on success, negative on failure.
  */
 int bloomFilterClose(cbloom_bloomfilter *filter) {
-
+    return 0;
 }
 
 
