@@ -86,6 +86,14 @@ int bf_flush(bloom_bloomfilter *filter);
 int bf_close(bloom_bloomfilter *filter);
 
 /*
+ * Computes the hashes for a bloom filter
+ * @arg k_num the number of hashes to compute
+ * @arg key The key to hash
+ * @arg hashes Array to write to
+ */
+void bf_compute_hashes(uint32_t k_num, char *key, uint64_t *hashes);
+
+/*
  * Utility methods for computing parameters
  */
 

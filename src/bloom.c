@@ -7,7 +7,6 @@
 /*
  * Static definitions
  */
-static void bf_compute_hashes(uint64_t *hashes, uint32_t k_num, char *key);
 extern void MurmurHash3_x64_128(const void * key, const int len, const uint32_t seed, void *out);
 extern void SpookyHash128(const void *key, size_t len, unsigned long long seed1, unsigned long long seed2,
         unsigned long long *hash1, unsigned long long *hash2);
@@ -96,7 +95,7 @@ int bf_add(bloom_bloomfilter *filter, char* key) {
  */
 int bf_contains(bloom_bloomfilter *filter, char* key) {
     // Compute the hashes
-    bf_compute_hashes(filter->hashes, filter->header->k_num, key);
+    bf_compute_hashes(filter->header->k_num, key, filter->hashes);
 
     uint64_t m = filter->offset;
     uint64_t offset;
@@ -246,7 +245,7 @@ int bf_ideal_k_num(bloom_filter_params *params) {
 }
 
 // Computes our hashes
-static void bf_compute_hashes(uint64_t *hashes, uint32_t k_num, char *key) {
+void bf_compute_hashes(uint32_t k_num, char *key, uint64_t *hashes) {
     /**
      * We use the results of
      * 'Less Hashing, Same Performance: Building a Better Bloom Filter'
