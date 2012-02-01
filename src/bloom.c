@@ -1,11 +1,16 @@
 #include <math.h>
 #include <iso646.h>
+#include <inttypes.h>
+#include <string.h>
 #include "bloom.h"
 
 /*
  * Static definitions
  */
 static void bf_compute_hashes(bloom_bloomfilter *filter, char *key);
+extern void MurmurHash3_x64_128(const void * key, const int len, const uint32_t seed, void *out);
+extern void SpookyHash128(const void *key, size_t len, unsigned long long seed1, unsigned long long seed2,
+        unsigned long long *hash1, unsigned long long *hash2);
 
 /**
  * Creates a new bloom filter using a given bitmap and k-value.
@@ -242,6 +247,37 @@ int bf_ideal_k_num(bloom_filter_params *params) {
 
 // Computes our hashes
 static void bf_compute_hashes(bloom_bloomfilter *filter, char *key) {
-    return;
+    /**
+     * We use the results of
+     * 'Less Hashing, Same Performance: Building a Better Bloom Filter'
+     * http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf, to use
+     * g_i(x) = h1(u) + i * h2(u) mod m'
+     *
+     * This allows us to only use 2 hash functions h1, and h2 but generate
+     * k unique hashes using linear combinations. This is a vast speedup
+     * over our previous technique of 4 hashes, that used double hashing.
+     *
+     */
+
+    // Get the length of the key
+    uint64_t len = strlen(key);
+   
+    // Compute the first hash
+    uint64_t out[2];
+    MurmurHash3_x64_128(key, len, 0, &out);
+
+    // Compute the second hash
+    uint64_t hash1, hash2;
+    SpookyHash128(key, len, 0, 0, &hash1, &hash2);
+
+    // Copy these out
+    filter->hashes[0] = out[1];  // Use the lower 64bits of murmur
+    filter->hashes[1] = hash2;   // Use the lower 64bits of Spooky
+
+    // Compute an arbitrary k_num using a linear combination
+    // Defer the mod by m until we get there
+    for (uint32_t i=2; i < filter->header->k_num; i++) {
+        filter->hashes[i] = filter->hashes[0] + i * filter->hashes[1];
+    }
 }
 
