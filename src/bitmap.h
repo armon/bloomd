@@ -1,5 +1,5 @@
-#ifndef CBLOOM_BITMAP_H
-#define CBLOOM_BITMAP_H
+#ifndef BLOOM_BITMAP_H
+#define BLOOM_BITMAP_H
 #include <stddef.h>
 #include <stdlib.h>
 #include <inttypes.h>
