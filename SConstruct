@@ -1,5 +1,12 @@
-env = Environment(CCFLAGS = '-std=c99 -Wall -Werror')
-bloom = env.Library('bloom', Glob("src/*.c"))
+envspooky = Environment(CPPPATH = ['deps/spookyhash/'])
+spooky = envspooky.Library('spooky', Glob("deps/spookyhash/*.cpp"))
 
-env_ignore = Environment(CCFLAGS = '-std=c99')
-env_ignore.Program('test_runner', bloom + Glob("tests/*.c"), LIBS=["libcheck"])
+envmurmur = Environment(CPPPATH = ['deps/murmurhash/'])
+murmur = envmurmur.Library('murmur', Glob("deps/murmurhash/*.cpp"))
+
+envbloom = Environment(CCFLAGS = '-std=c99 -Wall -Werror')
+bloom = envbloom.Library('bloom', Glob("src/*.c"))
+
+envtest = Environment(CCFLAGS = '-std=c99')
+envtest.Program('test_runner', spooky + murmur + bloom + Glob("tests/*.c"), LIBS=["libcheck"])
+
