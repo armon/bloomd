@@ -7,7 +7,7 @@
 /*
  * Static definitions
  */
-static void bf_compute_hashes(bloom_bloomfilter *filter, char *key);
+static void bf_compute_hashes(uint64_t *hashes, uint32_t k_num, char *key);
 extern void MurmurHash3_x64_128(const void * key, const int len, const uint32_t seed, void *out);
 extern void SpookyHash128(const void *key, size_t len, unsigned long long seed1, unsigned long long seed2,
         unsigned long long *hash1, unsigned long long *hash2);
@@ -96,7 +96,7 @@ int bf_add(bloom_bloomfilter *filter, char* key) {
  */
 int bf_contains(bloom_bloomfilter *filter, char* key) {
     // Compute the hashes
-    bf_compute_hashes(filter, key);
+    bf_compute_hashes(filter->hashes, filter->header->k_num, key);
 
     uint64_t m = filter->offset;
     uint64_t offset;
@@ -246,7 +246,7 @@ int bf_ideal_k_num(bloom_filter_params *params) {
 }
 
 // Computes our hashes
-static void bf_compute_hashes(bloom_bloomfilter *filter, char *key) {
+static void bf_compute_hashes(uint64_t *hashes, uint32_t k_num, char *key) {
     /**
      * We use the results of
      * 'Less Hashing, Same Performance: Building a Better Bloom Filter'
@@ -271,13 +271,13 @@ static void bf_compute_hashes(bloom_bloomfilter *filter, char *key) {
     SpookyHash128(key, len, 0, 0, &hash1, &hash2);
 
     // Copy these out
-    filter->hashes[0] = out[1];  // Use the lower 64bits of murmur
-    filter->hashes[1] = hash2;   // Use the lower 64bits of Spooky
+    hashes[0] = out[1];  // Use the lower 64bits of murmur
+    hashes[1] = hash2;   // Use the lower 64bits of Spooky
 
     // Compute an arbitrary k_num using a linear combination
     // Defer the mod by m until we get there
-    for (uint32_t i=2; i < filter->header->k_num; i++) {
-        filter->hashes[i] = filter->hashes[0] + i * filter->hashes[1];
+    for (uint32_t i=2; i < k_num; i++) {
+        hashes[i] = hashes[0] + i * hashes[1];
     }
 }
 
