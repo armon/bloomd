@@ -7,5 +7,5 @@ tests/*.os
 *.dylib
 deps/check-0.9.8
 test_runner
-libbloom.dylib
-libbloom.a
+*.a
+*.dylib
