@@ -7,27 +7,27 @@
 typedef enum {
     SHARED,         // MAP_SHARED mmap used. File backed.
     ANONYMOUS       // MAP_ANONYMOUS mmap used. No file backing.
-} cbloom_flags;
+} bloom_flags;
 
 typedef struct {
     uint64_t size;  // Size of bitmap in bytes
-    cbloom_flags flags;    // Bitmap flags.
+    bloom_flags flags;    // Bitmap flags.
     int fileno;   // Underlying fileno for the mmap
     unsigned char* mmap;   // Starting address of the mem-map region
-} cbloom_bitmap;
+} bloom_bitmap;
 
 /**
- * Returns a cbloom_bitmap pointer from a file handle
+ * Returns a bloom_bitmap pointer from a file handle
  * that is already opened with read/write privileges.
  * @arg fileno The fileno
  * @arg len The length of the bitmap in bytes.
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmap_from_file(int fileno, uint64_t len, cbloom_bitmap *map);
+int bitmap_from_file(int fileno, uint64_t len, bloom_bitmap *map);
 
 /**
- * Returns a cbloom_bitmap pointer from a filename.
+ * Returns a bloom_bitmap pointer from a filename.
  * Opens the file with read/write privileges. If create
  * is true, then a file will be created if it does not exist.
  * If the file cannot be opened, NULL will be returned.
@@ -38,7 +38,7 @@ int bitmap_from_file(int fileno, uint64_t len, cbloom_bitmap *map);
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, cbloom_bitmap *map);
+int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, bloom_bitmap *map);
 
 /**
  * Flushes the bitmap back to disk. This is
@@ -47,7 +47,7 @@ int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, c
  * @arg map The bitmap
  * @returns 0 on success, negative failure.
  */
-int bitmap_flush(cbloom_bitmap *map);
+int bitmap_flush(bloom_bitmap *map);
 
 /**
  * * Closes and flushes the bitmap. This is
@@ -57,17 +57,17 @@ int bitmap_flush(cbloom_bitmap *map);
  * @arg map The bitmap
  * @returns 0 on success, negative on failure.
  */
-int bitmap_close(cbloom_bitmap *map);
+int bitmap_close(bloom_bitmap *map);
 
 /**
  * Returns the value of the bit at index idx for the
- * cbloom_bitmap map
+ * bloom_bitmap map
  */
 #define BITMAP_GETBIT(map, idx) ((map->mmap[idx >> 3] >> (7 - (idx % 8))) & 0x1)
 
 /**
  * Sets the value of the bit at index idx for the
- * cbloom_bitmap map
+ * bloom_bitmap map
  */
 #define BITMAP_SETBIT(map, idx, val) {                   \
             unsigned char byte = map->mmap[idx >> 3];    \

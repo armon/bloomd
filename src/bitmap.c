@@ -7,18 +7,18 @@
 #include "bitmap.h"
 
 /**
- * Returns a cbloom_bitmap pointer from a file handle
+ * Returns a bloom_bitmap pointer from a file handle
  * that is already opened with read/write privileges.
  * @arg fileno The fileno
  * @arg len The length of the bitmap in bytes.
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmap_from_file(int fileno, uint64_t len, cbloom_bitmap *map) {
+int bitmap_from_file(int fileno, uint64_t len, bloom_bitmap *map) {
     // Handle anonymous or file backed
     int flags = 0;
     int newfileno;
-    cbloom_flags mode;
+    bloom_flags mode;
     if (fileno == -1) {
         flags |= MAP_ANON;
         flags |= MAP_PRIVATE;
@@ -60,7 +60,7 @@ int bitmap_from_file(int fileno, uint64_t len, cbloom_bitmap *map) {
 
 
 /**
- * Returns a cbloom_bitmap pointer from a filename.
+ * Returns a bloom_bitmap pointer from a filename.
  * Opens the file with read/write privileges. If create
  * is true, then a file will be created if it does not exist.
  * If the file cannot be opened, NULL will be returned.
@@ -71,7 +71,7 @@ int bitmap_from_file(int fileno, uint64_t len, cbloom_bitmap *map) {
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, cbloom_bitmap *map) {
+int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, bloom_bitmap *map) {
     // Get the flags
     int flags = O_RDWR;
     if (create) {
@@ -118,7 +118,7 @@ int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, c
  * @arg map The bitmap
  * @returns 0 on success, negative failure.
  */
-int bitmap_flush(cbloom_bitmap *map) {
+int bitmap_flush(bloom_bitmap *map) {
     // Return if there is no map provided
     if (map == NULL) return -EINVAL;
 
@@ -143,7 +143,7 @@ int bitmap_flush(cbloom_bitmap *map) {
  * @arg map The bitmap
  * @returns 0 on success, negative on failure.
  */
-int bitmap_close(cbloom_bitmap *map) {
+int bitmap_close(bloom_bitmap *map) {
     // Return if there is no map provided
     if (map == NULL) return -EINVAL;
 
