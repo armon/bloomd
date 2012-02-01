@@ -14,7 +14,7 @@
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmapFromFile(int fileno, uint64_t len, cbloom_bitmap *map) {
+int bitmap_from_file(int fileno, uint64_t len, cbloom_bitmap *map) {
     // Handle anonymous or file backed
     int flags = 0;
     int newfileno;
@@ -71,7 +71,7 @@ int bitmapFromFile(int fileno, uint64_t len, cbloom_bitmap *map) {
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmapFromFilename(char* filename, uint64_t len, int create, int resize, cbloom_bitmap *map) {
+int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, cbloom_bitmap *map) {
     // Get the flags
     int flags = O_RDWR;
     if (create) {
@@ -103,7 +103,7 @@ int bitmapFromFilename(char* filename, uint64_t len, int create, int resize, cbl
     }
 
     // Use the filehandler mode
-    int res = bitmapFromFile(fileno, len, map); 
+    int res = bitmap_from_file(fileno, len, map); 
 
     // Handle is dup'ed, we can close
     close(fileno);
@@ -118,7 +118,7 @@ int bitmapFromFilename(char* filename, uint64_t len, int create, int resize, cbl
  * @arg map The bitmap
  * @returns 0 on success, negative failure.
  */
-int bitmapFlush(cbloom_bitmap *map) {
+int bitmap_flush(cbloom_bitmap *map) {
     // Return if there is no map provided
     if (map == NULL) return -EINVAL;
 
@@ -143,12 +143,12 @@ int bitmapFlush(cbloom_bitmap *map) {
  * @arg map The bitmap
  * @returns 0 on success, negative on failure.
  */
-int bitmapClose(cbloom_bitmap *map) {
+int bitmap_close(cbloom_bitmap *map) {
     // Return if there is no map provided
     if (map == NULL) return -EINVAL;
 
     // Flush first
-    int res = bitmapFlush(map);
+    int res = bitmap_flush(map);
     if (res != 0) return res;
 
     // Unmap the file

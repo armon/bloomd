@@ -24,7 +24,7 @@ typedef struct {
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmapFromFile(int fileno, uint64_t len, cbloom_bitmap *map);
+int bitmap_from_file(int fileno, uint64_t len, cbloom_bitmap *map);
 
 /**
  * Returns a cbloom_bitmap pointer from a filename.
@@ -38,7 +38,7 @@ int bitmapFromFile(int fileno, uint64_t len, cbloom_bitmap *map);
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmapFromFilename(char* filename, uint64_t len, int create, int resize, cbloom_bitmap *map);
+int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, cbloom_bitmap *map);
 
 /**
  * Flushes the bitmap back to disk. This is
@@ -47,7 +47,7 @@ int bitmapFromFilename(char* filename, uint64_t len, int create, int resize, cbl
  * @arg map The bitmap
  * @returns 0 on success, negative failure.
  */
-int bitmapFlush(cbloom_bitmap *map);
+int bitmap_flush(cbloom_bitmap *map);
 
 /**
  * * Closes and flushes the bitmap. This is
@@ -57,7 +57,7 @@ int bitmapFlush(cbloom_bitmap *map);
  * @arg map The bitmap
  * @returns 0 on success, negative on failure.
  */
-int bitmapClose(cbloom_bitmap *map);
+int bitmap_close(cbloom_bitmap *map);
 
 /**
  * Returns the value of the bit at index idx for the
