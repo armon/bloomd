@@ -58,6 +58,7 @@ int main(void)
     tcase_add_test(tc2, test_params_for_capacity);
 
     tcase_add_test(tc2, test_hashes_basic);
+    tcase_add_test(tc2, test_hashes_one_byte);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);

@@ -152,3 +152,21 @@ START_TEST(test_hashes_basic)
 }
 END_TEST
 
+
+START_TEST(test_hashes_one_byte)
+{
+    uint32_t k_num = 1000;
+    char *key = "A";
+    uint64_t hashes[1000];
+    bf_compute_hashes(k_num, key, (uint64_t*)&hashes);
+
+    // Check that all the hashes are unique.
+    // This is O(n^2) but fuck it.
+    for (int i=0;i<1000;i++) {
+        for (int j=i+1;j<1000;j++) {
+            fail_unless(hashes[i] != hashes[j]);
+        }
+    }
+}
+END_TEST
+
