@@ -129,6 +129,18 @@ START_TEST(close_bitmap_null)
 }
 END_TEST
 
+START_TEST(double_close_bitmap_file)
+{
+    bloom_bitmap map;
+    int res = bitmap_from_filename("/tmp/mmap_close_bitmap", 8196, 1, 1, &map);
+    fail_unless(res == 0);
+    fail_unless(bitmap_close(&map) == 0);
+    fail_unless(map.mmap == NULL);
+    unlink("/tmp/mmap_close_bitmap");
+    fail_unless(bitmap_close(&map) < 0);
+}
+END_TEST
+
 /*
  *#define BITMAP_GETBIT(map, idx)
  */

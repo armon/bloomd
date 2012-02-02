@@ -26,6 +26,7 @@ int main(void)
 
     tcase_add_test(tc1, close_bitmap_anonymous);
     tcase_add_test(tc1, close_bitmap_file);
+    tcase_add_test(tc1, double_close_bitmap_file);
     tcase_add_test(tc1, close_bitmap_null);
 
     tcase_add_test(tc1, getbit_bitmap_anonymous_zero);
@@ -59,6 +60,19 @@ int main(void)
 
     tcase_add_test(tc2, test_hashes_basic);
     tcase_add_test(tc2, test_hashes_one_byte);
+    tcase_add_test(tc2, test_hashes_consistent);
+    tcase_add_test(tc2, test_hashes_key_length);
+    tcase_add_test(tc2, test_hashes_same_buffer);
+
+    tcase_add_test(tc2, test_add_with_check);
+    tcase_add_test(tc2, test_length);
+
+    tcase_add_test(tc2, test_bf_double_close);
+    tcase_add_test(tc2, test_flush_close);
+    tcase_add_test(tc2, test_bf_flush);
+    tcase_add_test(tc2, test_bf_close_does_flush);
+
+    tcase_add_test(tc2, test_bf_fp_prob);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
