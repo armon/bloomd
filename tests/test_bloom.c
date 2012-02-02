@@ -435,7 +435,6 @@ START_TEST(test_bf_fp_prob)
     bloom_bloomfilter filter;
     fail_unless(bitmap_from_file(-1, params.bytes, &map) == 0);
     fail_unless(bf_from_bitmap(&map, params.k_num, 1, &filter) == 0);
-    fchmod(map.fileno, 0777);
 
     // Check all the keys get added
     char buf[100];
@@ -450,6 +449,31 @@ START_TEST(test_bf_fp_prob)
     // We added 1100 items, with a capacity of 1K and error of 1/100.
     // Technically we should have 11 false positives
     fail_unless(num_wrong <= 10);
+}
+END_TEST
+
+START_TEST(test_bf_fp_prob_extended)
+{
+    bloom_filter_params params = {0, 0, 1e6, 0.001};
+    bf_params_for_capacity(&params);
+    bloom_bitmap map;
+    bloom_bloomfilter filter;
+    fail_unless(bitmap_from_file(-1, params.bytes, &map) == 0);
+    fail_unless(bf_from_bitmap(&map, params.k_num, 1, &filter) == 0);
+
+    // Check all the keys get added
+    char buf[100];
+    int res;
+    int num_wrong = 0;
+    for (int i=0;i<1e6;i++) {
+        snprintf((char*)&buf, 100, "test%d", i); 
+        res = bf_add(&filter, (char*)&buf);
+        if (res == 0) num_wrong++;
+    }
+  
+    // We added 1M items, with a capacity of 1M and error of 1/1000.
+    // Technically we should have 1K false positives
+    fail_unless(num_wrong <= 1000);
 }
 END_TEST
 

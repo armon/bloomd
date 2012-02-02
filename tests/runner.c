@@ -73,6 +73,7 @@ int main(void)
     tcase_add_test(tc2, test_bf_close_does_flush);
 
     tcase_add_test(tc2, test_bf_fp_prob);
+    tcase_add_test(tc2, test_bf_fp_prob_extended);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
