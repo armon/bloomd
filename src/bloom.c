@@ -78,11 +78,13 @@ int bf_add(bloom_bloomfilter *filter, char* key) {
     uint64_t offset;
     uint64_t h;
     uint32_t i;
+    uint64_t bit;
 
     for (i=0; i< filter->header->k_num; i++) {
         h = filter->hashes[i];  // Get the hash value
         offset = i * m;          // Get the partition offset
-        BITMAP_SETBIT(filter, (offset + (h % m)), 1)
+        bit = offset + (h % m);  // Compute the bit offset
+        BITMAP_SETBIT(filter, bit, 1);
     }
 
     filter->header->count += 1;
@@ -103,11 +105,15 @@ int bf_contains(bloom_bloomfilter *filter, char* key) {
     uint64_t offset;
     uint64_t h;
     uint32_t i;
+    uint64_t bit;
+    int res;
 
     for (i=0; i< filter->header->k_num; i++) {
         h = filter->hashes[i];  // Get the hash value
         offset = i * m;          // Get the partition offset
-        if (BITMAP_GETBIT(filter, (offset + (h % m))) == 0) {
+        bit = offset + (h % m);  // Compute the bit offset
+        res = BITMAP_GETBIT(filter, bit);
+        if (res == 0) {
             return 0;
         }
     }
@@ -273,21 +279,24 @@ void bf_compute_hashes(uint32_t k_num, char *key, uint64_t *hashes) {
     hashes[0] = out[0];  // Upper 64bits of murmur
     hashes[1] = out[1];  // Lower 64bits of murmur
 
+    // TMP: Use Murmur again, seeded with the first round
+    MurmurHash3_x64_128(key, len, out[1], &out);
+    
     // Compute the second hash
-    uint64_t *hash1 = (uint64_t*)&out;
-    uint64_t *hash2 = out+1;
-    SpookyHash128(key, len, 0, 0, hash1, hash2);
+    //uint64_t *hash1 = (uint64_t*)&out;
+    //uint64_t *hash2 = hash1+1;
+    //SpookyHash128(key, len, 0, 0, hash1, hash2);
 
     // Copy these out
-    hashes[2] = *hash1;   // Use the upper 64bits of Spooky
-    hashes[3] = *hash2;   // Use the lower 64bits of Spooky
+    hashes[2] = out[0];   // Use the upper 64bits of Spooky
+    hashes[3] = out[1];   // Use the lower 64bits of Spooky
 
     // Compute an arbitrary k_num using a linear combination
     // Add a mod by the largest 64bit prime. This only reduces the
     // number of addressable bits by 54 but should make the hashes
     // a bit better.
     for (uint32_t i=4; i < k_num; i++) {
-        hashes[i] = hashes[0] + ((i * hashes[2]) % 18446744073709551557U);
+        hashes[i] = hashes[1] + ((i * hashes[3]) % 18446744073709551557U);
     }
 }
 
