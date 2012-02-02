@@ -1,7 +1,7 @@
-envspooky = Environment(CPPPATH = ['deps/spookyhash/'])
+envspooky = Environment(CPPPATH = ['deps/spookyhash/'], CPPFLAGS="-O2")
 spooky = envspooky.Library('spooky', Glob("deps/spookyhash/*.cpp"))
 
-envmurmur = Environment(CPPPATH = ['deps/murmurhash/'])
+envmurmur = Environment(CPPPATH = ['deps/murmurhash/'], CPPFLAGS="-O2")
 murmur = envmurmur.Library('murmur', Glob("deps/murmurhash/*.cpp"))
 
 envbloom = Environment(CCFLAGS = '-std=c99 -Wall -Werror')
