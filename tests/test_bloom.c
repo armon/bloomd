@@ -129,10 +129,26 @@ START_TEST(test_params_for_capacity)
     params.capacity = 1e6;
     params.fp_probability = 1e-4;
     int res = bf_params_for_capacity(&params);
-    printf("Params: %lld\n", params.bytes);
     fail_unless(res == 0);
     fail_unless(params.k_num == 13);
     fail_unless(params.bytes == 2396265 + 512);
+}
+END_TEST
+
+START_TEST(test_hashes_basic)
+{
+    uint32_t k_num = 1000;
+    char *key = "the quick brown fox";
+    uint64_t hashes[1000];
+    bf_compute_hashes(k_num, key, (uint64_t*)&hashes);
+
+    // Check that all the hashes are unique.
+    // This is O(n^2) but fuck it.
+    for (int i=0;i<1000;i++) {
+        for (int j=i+1;j<1000;j++) {
+            fail_unless(hashes[i] != hashes[j]);
+        }
+    }
 }
 END_TEST
 

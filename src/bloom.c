@@ -269,18 +269,25 @@ void bf_compute_hashes(uint32_t k_num, char *key, uint64_t *hashes) {
     uint64_t out[2];
     MurmurHash3_x64_128(key, len, 0, &out);
 
+    // Copy these out
+    hashes[0] = out[0];  // Upper 64bits of murmur
+    hashes[1] = out[1];  // Lower 64bits of murmur
+
     // Compute the second hash
-    uint64_t hash1, hash2;
-    SpookyHash128(key, len, 0, 0, &hash1, &hash2);
+    uint64_t *hash1 = (uint64_t*)&out;
+    uint64_t *hash2 = out+1;
+    SpookyHash128(key, len, 0, 0, hash1, hash2);
 
     // Copy these out
-    hashes[0] = out[1];  // Use the lower 64bits of murmur
-    hashes[1] = hash2;   // Use the lower 64bits of Spooky
+    hashes[2] = *hash1;   // Use the upper 64bits of Spooky
+    hashes[3] = *hash2;   // Use the lower 64bits of Spooky
 
     // Compute an arbitrary k_num using a linear combination
-    // Defer the mod by m until we get there
-    for (uint32_t i=2; i < k_num; i++) {
-        hashes[i] = hashes[0] + i * hashes[1];
+    // Add a mod by the largest 64bit prime. This only reduces the
+    // number of addressable bits by 54 but should make the hashes
+    // a bit better.
+    for (uint32_t i=4; i < k_num; i++) {
+        hashes[i] = hashes[0] + ((i * hashes[2]) % 18446744073709551557U);
     }
 }
 

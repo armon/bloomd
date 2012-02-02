@@ -57,6 +57,8 @@ int main(void)
     tcase_add_test(tc2, test_ideal_k_num);
     tcase_add_test(tc2, test_params_for_capacity);
 
+    tcase_add_test(tc2, test_hashes_basic);
+
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
     srunner_free(sr);
