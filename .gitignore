@@ -9,3 +9,4 @@ deps/check-0.9.8
 test_runner
 *.a
 *.dylib
+deps/*/*.o
