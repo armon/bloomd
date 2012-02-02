@@ -72,7 +72,7 @@ int bitmap_close(bloom_bitmap *map);
 #define BITMAP_SETBIT(map, idx, val) {                   \
             unsigned char byte = map->mmap[idx >> 3];    \
             unsigned char byte_off = 7 - idx % 8;        \
-            if (val) {                                   \
+            if (val == 1) {                              \
                 byte |= 1 << byte_off;                   \
             } else {                                     \
                 byte &= ~(1 << byte_off);                \
