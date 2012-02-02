@@ -2,11 +2,13 @@
 #include <iso646.h>
 #include <inttypes.h>
 #include <string.h>
+#include <stdio.h>
 #include "bloom.h"
 
 /*
  * Static definitions
  */
+static const uint32_t MAGIC_HEADER = 0xCB1005DD;  // Vaguely like CBLOOMDD
 extern void MurmurHash3_x64_128(const void * key, const int len, const uint32_t seed, void *out);
 extern void SpookyHash128(const void *key, size_t len, unsigned long long seed1, unsigned long long seed2,
         unsigned long long *hash1, unsigned long long *hash2);
@@ -168,10 +170,12 @@ int bf_close(bloom_bloomfilter *filter) {
  */
 int bf_params_for_capacity(bloom_filter_params *params) {
     // Sets the required size
-    bf_size_for_capacity_prob(params);
+    int res = bf_size_for_capacity_prob(params);
+    if (res != 0) return res;
 
     // Sets the ideal k
-    bf_ideal_k_num(params);
+    res = bf_ideal_k_num(params);
+    if (res != 0) return res;
 
     // Adjust for the header size
     params->bytes += sizeof(bloom_filter_header);
@@ -189,9 +193,9 @@ int bf_size_for_capacity_prob(bloom_filter_params *params) {
     if (capacity == 0 or fp_prob == 0) {
         return -1;
     }
-    double bits = -capacity*log(fp_prob)/(log(2)*log(2));
+    double bits = -(capacity*log(fp_prob)/(log(2)*log(2)));
     uint64_t whole_bits = ceil(bits);
-    params->bytes = whole_bits / 8;
+    params->bytes = ceil(whole_bits / 8.0);
     return 0;
 }
 
@@ -223,7 +227,7 @@ int bf_capacity_for_size_prob(bloom_filter_params *params) {
     if (bits == 0 or prob == 0) {
         return -1;
     }
-    uint64_t capacity = -bits / log(prob) * (log(2) * log(2));
+    uint64_t capacity = -(bits / log(prob) * (log(2) * log(2)));
     params->capacity = capacity;
     return 0;
 }
@@ -239,7 +243,7 @@ int bf_ideal_k_num(bloom_filter_params *params) {
     if (bits == 0 or capacity == 0) {
         return -1;
     }
-    uint32_t ideal_k = ceil(log(2) * bits / capacity);
+    uint32_t ideal_k = round(log(2) * bits / capacity);
     params->k_num = ideal_k;
     return 0;
 }

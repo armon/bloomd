@@ -9,7 +9,6 @@
 /**
  * We use a magic header to identify the bloom filters.
  */
-const uint32_t MAGIC_HEADER = 0xCB1005DD;  // Vaguely like CBLOOMDD
 struct bloom_filter_header {
     uint32_t magic;     // Magic 4 bytes
     uint32_t k_num;     // K_num value
