@@ -50,9 +50,11 @@ typedef struct {
     void *callback_input;           // Callback input if any
 
     uint32_t num_filters;           // The number of filters
-    bloom_bloomfilter *filters;     // Array into the filters
+    bloom_bloomfilter **filters;     // Array into the filters
 
     unsigned char *dirty_filters;   // Used to set a dirty flag
+
+    uint64_t *capacities;            // Tracks the per-filter capacity
 } bloom_sbf;
 
 /**

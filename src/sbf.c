@@ -6,6 +6,7 @@
  * Static declarations
  */
 static int sbf_append_filter(bloom_sbf *sbf);
+static void sbf_init_capacities(bloom_sbf *sbf);
 
 int sbf_from_filters(bloom_sbf_params *params, 
                      bloom_sbf_callback cb,
@@ -27,10 +28,15 @@ int sbf_from_filters(bloom_sbf_params *params,
         sbf->filters = malloc(num_filters*sizeof(bloom_bloomfilter*));
         memcpy(sbf->filters, filters, num_filters*sizeof(bloom_bloomfilter*));
         sbf->dirty_filters = calloc(num_filters, sizeof(unsigned char));
+        sbf->capacities = calloc(num_filters, sizeof(uint64_t));
+
+        // Compute the capacities of the existing filters
+        sbf_init_capacities(sbf);
     } else {
         sbf->num_filters = 0;
         sbf->filters = NULL;
         sbf->dirty_filters = NULL;
+        sbf->capacities = NULL;
 
         int res = sbf_append_filter(sbf);
         if (res != 0) {
@@ -48,7 +54,27 @@ int sbf_from_filters(bloom_sbf_params *params,
  * @returns 1 if the key was added, 0 if present. Negative on failure.
  */
 int sbf_add(bloom_sbf *sbf, char* key) {
-    return 0;
+    // Check if the key is contained first.
+    if (sbf_contains(sbf, key) == 1) {
+        return 0;
+    }
+
+    // Get the largest filter
+    bloom_bloomfilter *filter = sbf->filters[0];
+
+    // Check if we are over capacity
+    if (bf_size(filter) >= sbf->capacities[0]) {
+        int res = sbf_append_filter(sbf);
+        if (res != 0) {
+            return res;
+        }
+        filter = sbf->filters[0];
+    }
+
+    // Mark as dirty, add to the largest filter
+    sbf->dirty_filters[0] = 1;
+    int res = bf_add(filter, key);
+    return res;
 }
 
 /**
@@ -58,6 +84,12 @@ int sbf_add(bloom_sbf *sbf, char* key) {
  * @returns 1 if present, 0 if not present, negative on error.
  */
 int sbf_contains(bloom_sbf *sbf, char* key) {
+    // Check each filter from largest to smallest
+    int res;
+    for (int i=0;i<sbf->num_filters;i++) {
+        res = bf_contains(sbf->filters[i], key);
+        if (res == 1) return 1;
+    } 
     return 0;
 }
 
@@ -65,7 +97,11 @@ int sbf_contains(bloom_sbf *sbf, char* key) {
  * Returns the size of the bloom filter in item count
  */
 uint64_t sbf_size(bloom_sbf *sbf) {
-    return 0;
+    uint64_t size = 0;
+    for (int i=0;i<sbf->num_filters;i++) {
+        size += bf_size(sbf->filters[i]);
+    } 
+    return size;
 }
 
 /**
@@ -73,7 +109,15 @@ uint64_t sbf_size(bloom_sbf *sbf) {
  * @return 0 on success, negative on failure.
  */
 int sbf_flush(bloom_sbf *sbf) {
-    return 0;
+    int res = 0;
+    for (int i=0;i<sbf->num_filters;i++) {
+        if (sbf->dirty_filters[i] == 1) {
+            res = bf_flush(sbf->filters[i]);
+            if (res != 0) break;
+            sbf->dirty_filters[i] = 0;
+        }
+    } 
+    return res;
 }
 
 /**
@@ -81,21 +125,35 @@ int sbf_flush(bloom_sbf *sbf) {
  * @return 0 on success, negative on failure.
  */
 int sbf_close(bloom_sbf *sbf) {
-    return 0;
+    int res;
+    for (int i=0;i<sbf->num_filters;i++) {
+        res |= bf_close(sbf->filters[i]);
+    } 
+    return res;
 }
 
 /**
  * Returns the total capacity of the SBF currently.
  */
 uint64_t sbf_total_capacity(bloom_sbf *sbf) {
-    return 0;
+    uint64_t total_capacity = 0;
+    for (int i=0;i<sbf->num_filters;i++) {
+        total_capacity += sbf->capacities[i];
+    }
+    return total_capacity;
 }
 
 /**
  * Returns the total bytes size of the SBF currently.
  */
 uint64_t sbf_total_byte_size(bloom_sbf *sbf) {
-    return 0;
+    uint64_t size = 0;
+    bloom_bloomfilter *filter;
+    for (int i=0;i<sbf->num_filters;i++) {
+        filter = sbf->filters[i]; 
+        size += filter->map->size;
+    }
+    return size;
 }
 
 /**
@@ -141,26 +199,45 @@ static int sbf_append_filter(bloom_sbf *sbf) {
     }
 
     // Hold onto the old filters and dirty state
-    bloom_bloomfilter *old_filters = sbf->filters;
+    bloom_bloomfilter **old_filters = sbf->filters;
     unsigned char *old_dirty = sbf->dirty_filters;
+    uint64_t *old_capacities = sbf->capacities;
 
     // Increase the filter count, re-allocate the arrays
     sbf->num_filters++; 
     sbf->filters = malloc(sbf->num_filters*sizeof(bloom_bloomfilter*));
     sbf->dirty_filters = calloc(sbf->num_filters, sizeof(unsigned char));
+    sbf->capacities = calloc(sbf->num_filters, sizeof(uint64_t));
 
     // Copy the old filters and release
     if (sbf->num_filters > 1) {
         memcpy(sbf->filters+1, old_filters, (sbf->num_filters-1)*sizeof(bloom_bloomfilter*));
         memcpy(sbf->dirty_filters+1, old_dirty, (sbf->num_filters-1)*sizeof(unsigned char));
+        memcpy(sbf->capacities+1, old_capacities, (sbf->num_filters-1)*sizeof(uint64_t));
         free(old_filters);
         free(old_dirty);
+        free(old_capacities);
     }
 
     // Set the new filter, set dirty false
-    sbf->filters = filter;
+    sbf->filters[0] = filter;
     sbf->dirty_filters = 0;
+    sbf->capacities[0] = capacity;
 
     return 0;
 }
 
+/**
+ * Computes the capacities for the existing filters
+ * when we are initialized with filters.
+ */
+static void sbf_init_capacities(bloom_sbf *sbf) {
+    uint64_t init_capacity = sbf->params.initial_capacity;
+    uint64_t capacity;
+
+    for (int i=0;i<sbf->num_filters;i++) {
+        // Compute the capacity of the ith filter
+        capacity = init_capacity * pow(sbf->params.scale_size, i);
+        sbf->capacities[i] = capacity;
+    }
+}
