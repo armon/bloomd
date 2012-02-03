@@ -1,5 +1,6 @@
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
 #include "sbf.h"
 
 /**
@@ -12,7 +13,7 @@ int sbf_from_filters(bloom_sbf_params *params,
                      bloom_sbf_callback cb,
                      void *cb_in,
                      uint32_t num_filters,
-                     bloom_bloomfilter *filters,
+                     bloom_bloomfilter **filters,
                      bloom_sbf *sbf)
 {
     // Copy the params
@@ -25,7 +26,7 @@ int sbf_from_filters(bloom_sbf_params *params,
     // Copy the filters
     if (num_filters > 0) {
         sbf->num_filters = num_filters;
-        sbf->filters = malloc(num_filters*sizeof(bloom_bloomfilter*));
+        sbf->filters = calloc(num_filters, sizeof(bloom_bloomfilter*));
         memcpy(sbf->filters, filters, num_filters*sizeof(bloom_bloomfilter*));
         sbf->dirty_filters = calloc(num_filters, sizeof(unsigned char));
         sbf->capacities = calloc(num_filters, sizeof(uint64_t));
@@ -125,7 +126,10 @@ int sbf_flush(bloom_sbf *sbf) {
  * @return 0 on success, negative on failure.
  */
 int sbf_close(bloom_sbf *sbf) {
-    int res;
+    // Flush first
+    sbf_flush(sbf);
+
+    int res = 0;
     for (int i=0;i<sbf->num_filters;i++) {
         res |= bf_close(sbf->filters[i]);
     } 
@@ -221,7 +225,7 @@ static int sbf_append_filter(bloom_sbf *sbf) {
 
     // Set the new filter, set dirty false
     sbf->filters[0] = filter;
-    sbf->dirty_filters = 0;
+    sbf->dirty_filters[0] = 0;
     sbf->capacities[0] = capacity;
 
     return 0;

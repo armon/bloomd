@@ -28,7 +28,7 @@ typedef struct {
  * probability reduction with each new filter. This works well
  * in most situations.
  */
-#define DEFAULT_PARAMS {1e6, 1e-3, 4, 0.9}
+#define SBF_DEFAULT_PARAMS {1e6, 1e-3, 4, 0.9}
 
 /**
  * These are memory sensitive parameters for bloom_sbf_params.
@@ -38,7 +38,7 @@ typedef struct {
  * false positive rate, 2x scaling, and a 80% false positive
  * probability reduction with each new filter.
  */
-#define SLOW_GROW_PARAMS {1e6, 1e-3, 2, 0.8}
+#define SBF_SLOW_GROW_PARAMS {1e6, 1e-3, 2, 0.8}
 
 /**
  * Represents a scalable bloom filters
@@ -71,7 +71,7 @@ int sbf_from_filters(bloom_sbf_params *params,
                      bloom_sbf_callback cb,
                      void *cb_in,
                      uint32_t num_filters,
-                     bloom_bloomfilter *filters,
+                     bloom_bloomfilter **filters,
                      bloom_sbf *sbf);
 
 /**
