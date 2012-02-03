@@ -51,6 +51,8 @@ typedef struct {
 
     uint32_t num_filters;           // The number of filters
     bloom_bloomfilter *filters;     // Array into the filters
+
+    unsigned char *dirty_filters;   // Used to set a dirty flag
 } bloom_sbf;
 
 /**
@@ -64,7 +66,7 @@ typedef struct {
  * @return 0 for success. Negative for error.
  */
 int sbf_from_filters(bloom_sbf_params *params, 
-                     bloom_sbf_callback *cb,
+                     bloom_sbf_callback cb,
                      void *cb_in,
                      uint32_t num_filters,
                      bloom_bloomfilter *filters,
