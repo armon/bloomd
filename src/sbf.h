@@ -17,7 +17,7 @@ typedef int(*bloom_sbf_callback)(void* in, uint64_t bytes, bloom_bitmap *out);
 typedef struct {
     uint64_t initial_capacity;      // Initial size
     double fp_probability;          // FP probability
-    double scale_size;              // Scale size for new filters
+    uint32_t scale_size;              // Scale size for new filters
     double probability_reduction;   // New filter, fp_prob reduciton
 } bloom_sbf_params;
 
