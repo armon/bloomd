@@ -30,15 +30,9 @@ int sbf_from_filters(bloom_sbf_params *params,
         sbf->num_filters = 0;
         sbf->filters = NULL;
         sbf->dirty_filters = NULL;
-    }
 
-    // If there is no filter, append one
-    if (num_filters == 0) {
         int res = sbf_append_filter(sbf);
         if (res != 0) {
-            // Cleanup
-            free(sbf->filters);
-            free(sbf->dirty_filters);
             return res;
         }
     }
