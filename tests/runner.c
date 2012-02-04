@@ -2,12 +2,14 @@
 #include <stdio.h>
 #include "test_bitmap.c"
 #include "test_bloom.c"
+#include "test_sbf.c"
 
 int main(void)
 {
     Suite *s1 = suite_create("Blooming");
     TCase *tc1 = tcase_create("Bitmap");
     TCase *tc2 = tcase_create("Bloom");
+    TCase *tc3 = tcase_create("SBF");
     SRunner *sr = srunner_create(s1);
     int nf;
 
@@ -74,6 +76,18 @@ int main(void)
 
     tcase_add_test(tc2, test_bf_fp_prob);
     tcase_add_test(tc2, test_bf_fp_prob_extended);
+
+    // Add the sbf tests
+    suite_add_tcase(s1, tc3);
+    tcase_add_test(tc3, sbf_initial_size);
+    tcase_add_test(tc3, sbf_add_filter);
+    tcase_add_test(tc3, sbf_add_filter_2);
+    tcase_add_test(tc3, sbf_callback);
+    tcase_add_test(tc3, test_sbf_double_close);
+    tcase_add_test(tc3, test_sbf_flush_close);
+    tcase_add_test(tc3, test_sbf_flush);
+    tcase_add_test(tc3, test_sbf_close_does_flush);
+    tcase_add_test(tc3, sbf_fp_prob);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
