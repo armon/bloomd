@@ -1,6 +1,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
+#include <iso646.h>
 #include "sbf.h"
 
 /**
@@ -111,6 +112,11 @@ uint64_t sbf_size(bloom_sbf *sbf) {
  * @return 0 on success, negative on failure.
  */
 int sbf_flush(bloom_sbf *sbf) {
+    // Check if it has been previously closed
+    if (sbf == NULL or sbf->num_filters == 0) {
+        return -1;
+    }
+
     int res = 0;
     for (int i=0;i<sbf->num_filters;i++) {
         if (sbf->dirty_filters[i] == 1) {
@@ -123,17 +129,41 @@ int sbf_flush(bloom_sbf *sbf) {
 }
 
 /**
- * Flushes and closes the filter. Does not close the underlying bitmap.
+ * Flushes and closes the filter. Closes the underlying bitmap and filters,
+ * but does not free them.
  * @return 0 on success, negative on failure.
  */
 int sbf_close(bloom_sbf *sbf) {
+    // Check if it has been previously closed
+    if (sbf == NULL or sbf->num_filters == 0) {
+        return -1;
+    }
+
     // Flush first
     sbf_flush(sbf);
 
     int res = 0;
+    bloom_bitmap *map;
     for (int i=0;i<sbf->num_filters;i++) {
+        map = sbf->filters[i]->map;
         res |= bf_close(sbf->filters[i]);
+        free(sbf->filters[i]);
+        free(map);
     } 
+
+    // Clean up memory
+    free(sbf->filters);
+    sbf->filters = NULL;
+    free(sbf->dirty_filters);
+    sbf->dirty_filters = NULL;
+    free(sbf->capacities);
+    sbf->capacities = NULL;
+
+    // Zero out
+    sbf->num_filters = 0;
+    sbf->callback = NULL;
+    sbf->callback_input = NULL;
+
     return res;
 }
 
