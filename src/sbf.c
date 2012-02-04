@@ -130,7 +130,7 @@ int sbf_flush(bloom_sbf *sbf) {
 
 /**
  * Flushes and closes the filter. Closes the underlying bitmap and filters,
- * but does not free them.
+ * and frees them.
  * @return 0 on success, negative on failure.
  */
 int sbf_close(bloom_sbf *sbf) {
