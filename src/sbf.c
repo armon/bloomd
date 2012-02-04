@@ -8,6 +8,7 @@
  */
 static int sbf_append_filter(bloom_sbf *sbf);
 static void sbf_init_capacities(bloom_sbf *sbf);
+static double sbf_inital_probability(double fp_prob, double r);
 
 int sbf_from_filters(bloom_sbf_params *params, 
                      bloom_sbf_callback cb,
@@ -166,7 +167,7 @@ uint64_t sbf_total_byte_size(bloom_sbf *sbf) {
 static int sbf_append_filter(bloom_sbf *sbf) {
     // Start with the initial configs
     uint64_t capacity = sbf->params.initial_capacity;
-    double fp_prob = sbf->params.fp_probability;
+    double fp_prob = sbf_inital_probability(sbf->params.fp_probability, sbf->params.probability_reduction);
 
     // Get the settings for the new filter
     capacity *= pow(sbf->params.scale_size, sbf->num_filters);
@@ -229,6 +230,15 @@ static int sbf_append_filter(bloom_sbf *sbf) {
     sbf->capacities[0] = capacity;
 
     return 0;
+}
+
+/**
+ * Based on "Scalable Bloom Filters", Almeida 2007
+ * We use : P <= P0 * (1 / (1 - r))
+ * To bound the final FP probability. This method calculates P0
+ */
+static double sbf_inital_probability(double fp_prob, double r) {
+    return (1-r) * fp_prob;
 }
 
 /**
