@@ -79,7 +79,8 @@ uint64_t bf_size(bloom_bloomfilter *filter);
 int bf_flush(bloom_bloomfilter *filter);
 
 /**
- * Flushes and closes the filter. Does not close the underlying bitmap.
+ * Flushes and closes the filter. Closes the underlying bitmap,
+ * but does not free it.
  * @return 0 on success, negative on failure.
  */
 int bf_close(bloom_bloomfilter *filter);

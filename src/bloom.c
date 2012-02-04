@@ -141,7 +141,8 @@ int bf_flush(bloom_bloomfilter *filter) {
 }
 
 /**
- * Flushes and closes the filter. Does not close the underlying bitmap.
+ * Flushes and closes the filter. Closes the underlying bitmap,
+ * but does not free it.
  * @return 0 on success, negative on failure.
  */
 int bf_close(bloom_bloomfilter *filter) {
@@ -153,10 +154,13 @@ int bf_close(bloom_bloomfilter *filter) {
     // Flush first
     bf_flush(filter);
 
+    // Clean up the map
+    bitmap_close(filter->map);
+    filter->map = NULL;
+
     // Clear all the fields
     filter->mmap = NULL;
     filter->header = NULL;
-    filter->map = NULL;
     filter->offset = 0;
     filter->bitmap_size = 0;
     free(filter->hashes);
