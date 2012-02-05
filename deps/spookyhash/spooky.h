@@ -288,12 +288,5 @@ private:
 /**
  * This is a janky method that just allows us to bind from C
  */
-extern "C" void SpookyHash128(const void *key, size_t len, uint64 seed1, uint64 seed2, uint64 *hash1, uint64 *hash2) {
-    // Initialize the hash outputs to the seed
-    *hash1 = seed1;
-    *hash2 = seed2;
-
-    // Compute the hash
-    SpookyHash::Hash128(key, len, hash1, hash2);
-}
+extern "C" void SpookyHash128(const void *key, size_t len, uint64 seed1, uint64 seed2, uint64 *hash1, uint64 *hash2);
 
