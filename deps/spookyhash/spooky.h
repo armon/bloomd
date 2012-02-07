@@ -5,6 +5,7 @@
 //   Oct 31 2011: alpha again, Mix only good to 2^^69 but rest appears right
 //   Dec 31 2011: beta, improved Mix, tested it for 2-bit deltas
 //   Feb  2 2012: production, same bits as beta
+//   Feb  5 2012: adjusted definitions of uint* to be more portable
 // 
 // Up to 4 bytes/cycle for long messages.  Reasonably fast for short messages.
 // All 1 or 2 bit deltas achieve avalanche within 1% bias per output bit.
@@ -25,15 +26,19 @@
 
 #include <stddef.h>
 
-typedef  unsigned long long uint64;
-typedef  unsigned long      uint32;
-typedef  unsigned short     uint16;
-typedef  unsigned char      uint8;
-
 #ifdef _MSC_VER
 # define INLINE __forceinline
+  typedef  unsigned __int64 uint64;
+  typedef  unsigned __int32 uint32;
+  typedef  unsigned __int16 uint16;
+  typedef  unsigned __int8  uint8;
 #else
+# include <stdint.h>
 # define INLINE inline
+  typedef  uint64_t  uint64;
+  typedef  uint32_t  uint32;
+  typedef  uint16_t  uint16;
+  typedef  uint8_t   uint8;
 #endif
 
 
@@ -283,7 +288,6 @@ private:
     size_t m_length;             // total length of the input so far
     uint8  m_remainder;          // length of unhashed data stashed in m_data
 };
-
 
 /**
  * This is a janky method that just allows us to bind from C
