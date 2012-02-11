@@ -1,5 +1,6 @@
 #ifndef BLOOM_CONFIG_H
 #define BLOOM_CONFIG_H
+#include <stdint.h>
 
 /**
  * Stores our configuration
@@ -11,11 +12,11 @@ typedef struct {
     char *log_level;
     uint64_t initial_capacity;
     double default_probability;
-    uint32_t scale_size;
+    int scale_size;
     double probability_reduction;
-    uint32_t flush_interval;
-    uint32_t cold_interval;
-    bool in_memory;
+    int flush_interval;
+    int cold_interval;
+    int in_memory;
 } bloom_config;
 
 /**
@@ -23,7 +24,7 @@ typedef struct {
  * filters that are about 300KB initially, and suited
  * to grow quickly.
  */
-const bloom_config DEFAULT_CONFIG {
+const bloom_config DEFAULT_CONFIG = {
     8673,               // TCP defaults to 8673
     8674,               // UDP on 8674
     "/tmp/bloomd",      // Tmp data dir, until configured
@@ -34,7 +35,7 @@ const bloom_config DEFAULT_CONFIG {
     0.9,                // SBF_DEFAULT_PARAMS reduction
     60,                 // Flush once a minute
     3600,               // Cold after an hour
-    false               // Persist to disk by default
+    0                   // Persist to disk by default
 };
 
 /**
