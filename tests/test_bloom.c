@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include "../src/bloom.h"
+#include "../src/libbloom/bloom.h"
 
 START_TEST(bloom_filter_header_size)
 {

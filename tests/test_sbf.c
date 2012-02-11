@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include "../src/sbf.h"
+#include "../src/libbloom/sbf.h"
 
 
 START_TEST(sbf_initial_size)
