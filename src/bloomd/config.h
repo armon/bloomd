@@ -1,6 +1,7 @@
 #ifndef BLOOM_CONFIG_H
 #define BLOOM_CONFIG_H
 #include <stdint.h>
+#include <syslog.h>
 
 /**
  * Stores our configuration
@@ -10,6 +11,7 @@ typedef struct {
     int udp_port;
     char *data_dir;
     char *log_level;
+    int syslog_log_level;
     uint64_t initial_capacity;
     double default_probability;
     int scale_size;
@@ -29,6 +31,7 @@ const bloom_config DEFAULT_CONFIG = {
     8674,               // UDP on 8674
     "/tmp/bloomd",      // Tmp data dir, until configured
     "DEBUG",            // DEBUG level
+    LOG_DEBUG,
     100000,             // 100K items by default.
     1e-4,               // Default 1/10K probability.
     4,                  // Scale 4x, SBF_DEFAULT_PARAMS
@@ -47,5 +50,12 @@ const bloom_config DEFAULT_CONFIG = {
  * @return 0 on success, negative on error.
  */
 int config_from_filename(char *filename, bloom_config *config);
+
+/**
+ * Validates the configuration
+ * @arg config The config object to validate.
+ * @return 0 on success, negative on error.
+ */
+int validate_config(bloom_config *config);
 
 #endif
