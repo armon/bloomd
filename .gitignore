@@ -13,3 +13,4 @@ test_bloomd_runner
 *.a
 *.dylib
 deps/*/*.o
+.lvimrc
