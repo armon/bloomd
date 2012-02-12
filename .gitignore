@@ -4,11 +4,11 @@ src/*.os
 src/*.o
 src/*/*.os
 src/*/*.o
-tests/*.o
-tests/*.os
+tests/*/*.o
+tests/*/*.os
 *.dylib
 deps/check-0.9.8
-test_runner
+test_libbloom_runner
 *.a
 *.dylib
 deps/*/*.o
