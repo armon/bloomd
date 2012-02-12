@@ -10,13 +10,33 @@
 #include "ini.h"
 
 /**
+ * Default bloom_config values. Should create
+ * filters that are about 300KB initially, and suited
+ * to grow quickly.
+ */
+static const bloom_config DEFAULT_CONFIG = {
+    8673,               // TCP defaults to 8673
+    8674,               // UDP on 8674
+    "/tmp/bloomd",      // Tmp data dir, until configured
+    "DEBUG",            // DEBUG level
+    LOG_DEBUG,
+    100000,             // 100K items by default.
+    1e-4,               // Default 1/10K probability.
+    4,                  // Scale 4x, SBF_DEFAULT_PARAMS
+    0.9,                // SBF_DEFAULT_PARAMS reduction
+    60,                 // Flush once a minute
+    3600,               // Cold after an hour
+    0                   // Persist to disk by default
+};
+
+/**
  * Attempts to convert a string to an integer,
  * and write the value out.
  * @arg val The string value
  * @arg result The destination for the result
  * @return 1 on success, 0 on error.
  */
-int value_to_int(const char *val, int *result) {
+static int value_to_int(const char *val, int *result) {
     long res = strtol(val, NULL, 10);
     if (res == 0 && errno == EINVAL) {
         return 0;
@@ -32,7 +52,7 @@ int value_to_int(const char *val, int *result) {
  * @arg result The destination for the result
  * @return 0 on success, 0 on error.
  */
-int value_to_int64(const char *val, uint64_t *result) {
+static int value_to_int64(const char *val, uint64_t *result) {
     long long res = strtoll(val, NULL, 10);
     if (res == 0 && errno == EINVAL) {
         return 0;
@@ -48,7 +68,7 @@ int value_to_int64(const char *val, uint64_t *result) {
  * @arg result The destination for the result
  * @return 0 on success, -EINVAL on error.
  */
-int value_to_double(const char *val, double *result) {
+static int value_to_double(const char *val, double *result) {
     double res = strtod(val, NULL);
     if (res == 0) {
         return 0;
@@ -65,7 +85,7 @@ int value_to_double(const char *val, double *result) {
  * @arg value The config value
  * @return 1 on success.
  */
-int config_callback(void* user, const char* section, const char* name, const char* value) {
+static int config_callback(void* user, const char* section, const char* name, const char* value) {
     // Ignore any non-bloomd sections 
     if (strcasecmp("bloomd", section) != 0) {
         return 0;

@@ -22,26 +22,6 @@ typedef struct {
 } bloom_config;
 
 /**
- * Default bloom_config values. Should create
- * filters that are about 300KB initially, and suited
- * to grow quickly.
- */
-const bloom_config DEFAULT_CONFIG = {
-    8673,               // TCP defaults to 8673
-    8674,               // UDP on 8674
-    "/tmp/bloomd",      // Tmp data dir, until configured
-    "DEBUG",            // DEBUG level
-    LOG_DEBUG,
-    100000,             // 100K items by default.
-    1e-4,               // Default 1/10K probability.
-    4,                  // Scale 4x, SBF_DEFAULT_PARAMS
-    0.9,                // SBF_DEFAULT_PARAMS reduction
-    60,                 // Flush once a minute
-    3600,               // Cold after an hour
-    0                   // Persist to disk by default
-};
-
-/**
  * Initializes the configuration from a filename.
  * Reads the file as an INI configuration, and sets up the
  * config object.
@@ -57,5 +37,16 @@ int config_from_filename(char *filename, bloom_config *config);
  * @return 0 on success, negative on error.
  */
 int validate_config(bloom_config *config);
+
+// Configuration validation methods
+int sane_data_dir(char *data_dir);
+int sane_log_level(char *log_level, int *syslog_level);
+int sane_initial_capacity(int64_t initial_capacity);
+int sane_default_probability(double prob);
+int sane_scale_size(int scale_size);
+int sane_probability_reduction(double reduction);
+int sane_flush_interval(int intv);
+int sane_cold_interval(int intv);
+int sane_in_memory(int in_mem);
 
 #endif
