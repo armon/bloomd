@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include "../src/libbloom/bitmap.h"
+#include "bitmap.h"
 
 /*
 bloom_bitmap *bitmap_from_file(int fileno, size_t len) {
