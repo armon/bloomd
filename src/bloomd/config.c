@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "config.h"
-#include "deps/inih/ini.h"
+#include "ini.h"
 
 /**
  * Attempts to convert a string to an integer,
