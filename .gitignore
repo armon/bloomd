@@ -9,6 +9,7 @@ tests/*/*.os
 *.dylib
 deps/check-0.9.8
 test_libbloom_runner
+test_bloomd_runner
 *.a
 *.dylib
 deps/*/*.o
