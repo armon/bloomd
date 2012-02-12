@@ -142,6 +142,13 @@ int config_from_filename(char *filename, bloom_config *config) {
     return 0;
 }
 
+/**
+ * Joins two strings as part of a path,
+ * and adds a separating slash if needed.
+ * @param path Part one of the path
+ * @param part2 The second part of the path
+ * @return A new string, that uses a malloc()'d buffer.
+ */
 char* join_path(char *path, char *part2) {
     int len = strlen(path);
     int has_end_slash = path[len-1] == '/';
