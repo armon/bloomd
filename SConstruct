@@ -14,7 +14,7 @@ envinih = Environment(CPATH = ['deps/inih/'], CFLAGS="-O2")
 inih = envinih.Library('inih', Glob("deps/inih/*.c"))
 
 envbloomd = Environment(CCFLAGS = '-std=c99 -Wall -Werror -O2 -Ideps/inih/')
-objs = envbloomd.Object('config', 'src/bloomd/config.c')
+objs = envbloomd.Object('src/config/config', 'src/bloomd/config.c')
 bloomd = envbloomd.Program('bloomd', spooky + murmur + bloom + inih + objs + ["src/bloomd/bloomd.c"])
 
 envtest2 = Environment(CCFLAGS = '-std=c99 -Isrc/bloomd/ -Ideps/inih/')
