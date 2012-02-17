@@ -193,7 +193,7 @@ char* join_path(char *path, char *part2) {
     }
 
     // Copy part 2
-    memcpy(buf+len, part2, total_len-len);
+    memcpy(buf+len, part2, total_len-len+1);
 
     // Return the new buffer
     return buf;
@@ -214,7 +214,7 @@ int sane_data_dir(char *data_dir) {
         res = mkdir(data_dir, 0775);
         if (res != 0) {
             syslog(LOG_ERR,
-                   "Failed to make the data directory!");
+                   "Failed to make the data directory! Err: %s", strerror(errno));
             return 1;
         }
     }
@@ -231,7 +231,7 @@ int sane_data_dir(char *data_dir) {
     // If we failed to open the file, error
     if (fh == -1) {
         syslog(LOG_ERR,
-               "Failed to write to data directory!");
+               "Failed to write to data directory! Err: %s", strerror(errno));
         return 1;
     }
     
