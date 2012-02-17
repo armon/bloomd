@@ -204,7 +204,7 @@ int sane_data_dir(char *data_dir) {
     struct stat buf;
     int res = stat(data_dir, &buf);
     if (res == 0) {
-        if (buf.st_mode & S_IFDIR == 0) {
+        if ((buf.st_mode & S_IFDIR) == 0) {
             syslog(LOG_ERR,
                    "Provided data directory exists and is not a directory!");
             return 1;
