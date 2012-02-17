@@ -86,7 +86,7 @@ static int value_to_double(const char *val, double *result) {
  * @return 1 on success.
  */
 static int config_callback(void* user, const char* section, const char* name, const char* value) {
-    // Ignore any non-bloomd sections 
+    // Ignore any non-bloomd sections
     if (strcasecmp("bloomd", section) != 0) {
         return 0;
     }
@@ -107,27 +107,27 @@ static int config_callback(void* user, const char* section, const char* name, co
     } else if (NAME_MATCH("scale_size")) {
         return value_to_int(value, &config->scale_size);
     } else if (NAME_MATCH("flush_interval")) {
-         return value_to_int(value, &config->flush_interval);  
+         return value_to_int(value, &config->flush_interval);
     } else if (NAME_MATCH("cold_interval")) {
-         return value_to_int(value, &config->cold_interval);  
+         return value_to_int(value, &config->cold_interval);
     } else if (NAME_MATCH("in_memory")) {
-         return value_to_int(value, &config->in_memory);  
+         return value_to_int(value, &config->in_memory);
 
     // Handle the int64 cases
     } else if (NAME_MATCH("initial_capacity")) {
-         return value_to_int64(value, &config->initial_capacity);  
+         return value_to_int64(value, &config->initial_capacity);
 
     // Handle the double cases
     } else if (NAME_MATCH("default_probability")) {
-         return value_to_double(value, &config->default_probability);  
+         return value_to_double(value, &config->default_probability);
     } else if (NAME_MATCH("probability_reduction")) {
-         return value_to_double(value, &config->probability_reduction);  
+         return value_to_double(value, &config->probability_reduction);
 
     // Copy the string values
     } else if (NAME_MATCH("data_dir")) {
-        config->data_dir = strdup(value); 
+        config->data_dir = strdup(value);
     } else if (NAME_MATCH("log_level")) {
-        config->log_level = strdup(value); 
+        config->log_level = strdup(value);
 
     // Unknown parameter?
     } else {
@@ -208,7 +208,7 @@ int sane_data_dir(char *data_dir) {
             syslog(LOG_ERR,
                    "Provided data directory exists and is not a directory!");
             return 1;
-        } 
+        }
     } else  {
         // Try to make the directory
         res = mkdir(data_dir, 0775);
@@ -222,7 +222,7 @@ int sane_data_dir(char *data_dir) {
     // Try to test we have permissions to write
     char *test_path = join_path(data_dir, "PERMTEST");
     int fh = open(test_path, O_CREAT|O_RDWR);
-    
+
     // Cleanup
     if (fh != -1) close(fh);
     unlink(test_path);
@@ -234,7 +234,7 @@ int sane_data_dir(char *data_dir) {
                "Failed to write to data directory! Err: %s", strerror(errno));
         return 1;
     }
-    
+
     return 0;
 }
 
@@ -259,24 +259,27 @@ int sane_log_level(char *log_level, int *syslog_level) {
 
 int sane_initial_capacity(int64_t initial_capacity) {
     if (initial_capacity <= 10000) {
-        syslog(LOG_ERR, 
+        syslog(LOG_ERR,
                "Initial capacity cannot be less than 10K!");
         return 1;
     } else if (initial_capacity > 1000000000) {
         syslog(LOG_WARNING, "Initial capacity set very high!");
-    } 
+    }
     return 0;
 }
 
 int sane_default_probability(double prob) {
     if (prob >= 1) {
-        syslog(LOG_ERR, 
+        syslog(LOG_ERR,
                "Probability cannot be equal-to or greater than 1!");
+        return 1;
+    } else if (prob >= 0.10) {
+        syslog(LOG_ERR, "Default probability too high!");
         return 1;
     } else if (prob > 0.01) {
         syslog(LOG_WARNING, "Default probability very high!");
     } else if (prob <= 0) {
-        syslog(LOG_ERR, 
+        syslog(LOG_ERR,
                "Probability cannot less than or equal to 0!");
         return 1;
     }
@@ -285,23 +288,23 @@ int sane_default_probability(double prob) {
 
 int sane_scale_size(int scale_size) {
     if (scale_size != 2 && scale_size != 4) {
-        syslog(LOG_ERR, 
+        syslog(LOG_ERR,
                "Scale size must be 2 or 4!");
         return 1;
-    } 
+    }
     return 0;
 }
 
 int sane_probability_reduction(double reduction) {
     if (reduction >= 1) {
-        syslog(LOG_ERR, 
+        syslog(LOG_ERR,
                "Probability reduction cannot be equal-to or greater than 1!");
         return 1;
     } else if (reduction < 0.1) {
         syslog(LOG_ERR, "Probability drop off is set too steep!");
         return 1;
     } else if (reduction <= 0.5)  {
-        syslog(LOG_WARNING, 
+        syslog(LOG_WARNING,
                "Probability drop off is very steep!");
     }
     return 0;
@@ -309,13 +312,13 @@ int sane_probability_reduction(double reduction) {
 
 int sane_flush_interval(int intv) {
     if (intv == 0) {
-        syslog(LOG_WARNING, 
+        syslog(LOG_WARNING,
                "Flushing is disabled! Increased risk of data loss.");
     } else if (intv < 0) {
         syslog(LOG_ERR, "Flush interval cannot be negative!");
         return 1;
     } else if (intv >= 600)  {
-        syslog(LOG_WARNING, 
+        syslog(LOG_WARNING,
                "Flushing set to be very infrequent! Increased risk of data loss.");
     }
     return 0;
@@ -323,20 +326,20 @@ int sane_flush_interval(int intv) {
 
 int sane_cold_interval(int intv) {
     if (intv == 0) {
-        syslog(LOG_WARNING, 
+        syslog(LOG_WARNING,
                "Cold data unmounting is disabled! Memory usage may be high.");
     } else if (intv < 0) {
         syslog(LOG_ERR, "Cold interval cannot be negative!");
         return 1;
-    } 
+    }
     return 0;
 }
 
 int sane_in_memory(int in_mem) {
     if (in_mem != 0) {
-        syslog(LOG_WARNING, 
+        syslog(LOG_WARNING,
                "Default filters are in-memory only! Filters not persisted by default.");
-    } 
+    }
     return 0;
 }
 
@@ -357,7 +360,7 @@ int validate_config(bloom_config *config) {
     res |= sane_flush_interval(config->flush_interval);
     res |= sane_cold_interval(config->cold_interval);
     res |= sane_in_memory(config->in_memory);
-    
+
     return res;
 }
 

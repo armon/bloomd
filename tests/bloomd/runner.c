@@ -19,6 +19,9 @@ int main(void)
     tcase_add_test(tc1, test_validate_bad_config);
     tcase_add_test(tc1, test_join_path_no_slash);
     tcase_add_test(tc1, test_join_path_with_slash);
+    tcase_add_test(tc1, test_sane_log_level);
+    tcase_add_test(tc1, test_sane_init_capacity);
+    tcase_add_test(tc1, test_sane_default_probability);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);

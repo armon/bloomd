@@ -133,7 +133,7 @@ START_TEST(test_validate_bad_config)
     fail_unless(res == 0);
 
     // Set an absurd probability, should fail
-    config.default_probability = 1.0; 
+    config.default_probability = 1.0;
 
     res = validate_config(&config);
     fail_unless(res == 1);
@@ -155,6 +155,48 @@ START_TEST(test_join_path_with_slash)
     char *s2 = "file";
     char *s3 = join_path(s1, s2);
     fail_unless(strcmp(s3, "/tmp/path/file") == 0);
+}
+END_TEST
+
+START_TEST(test_sane_log_level)
+{
+    int log_lvl;
+    fail_unless(sane_log_level("DEBUG", &log_lvl) == 0);
+    fail_unless(sane_log_level("debug", &log_lvl) == 0);
+    fail_unless(sane_log_level("INFO", &log_lvl) == 0);
+    fail_unless(sane_log_level("info", &log_lvl) == 0);
+    fail_unless(sane_log_level("WARN", &log_lvl) == 0);
+    fail_unless(sane_log_level("warn", &log_lvl) == 0);
+    fail_unless(sane_log_level("ERROR", &log_lvl) == 0);
+    fail_unless(sane_log_level("error", &log_lvl) == 0);
+    fail_unless(sane_log_level("CRITICAL", &log_lvl) == 0);
+    fail_unless(sane_log_level("critical", &log_lvl) == 0);
+    fail_unless(sane_log_level("foo", &log_lvl) == 1);
+    fail_unless(sane_log_level("BAR", &log_lvl) == 1);
+}
+END_TEST
+
+START_TEST(test_sane_init_capacity)
+{
+    fail_unless(sane_initial_capacity(10000) == 1);  // 10K
+    fail_unless(sane_initial_capacity(100000) == 0);
+    fail_unless(sane_initial_capacity(1000000) == 0); // 1MM
+    fail_unless(sane_initial_capacity(10000000) == 0);
+    fail_unless(sane_initial_capacity(100000000) == 0);
+    fail_unless(sane_initial_capacity(1000000000) == 0); // 1B
+}
+END_TEST
+
+START_TEST(test_sane_default_probability)
+{
+    fail_unless(sane_default_probability(1.0) == 1);
+    fail_unless(sane_default_probability(0.5) == 1);
+    fail_unless(sane_default_probability(0.1) == 1);
+    fail_unless(sane_default_probability(0.05) == 0);
+    fail_unless(sane_default_probability(0.01) == 0);
+    fail_unless(sane_default_probability(0.001) == 0);
+    fail_unless(sane_default_probability(0.0001) == 0);
+    fail_unless(sane_default_probability(0.00001) == 0);
 }
 END_TEST
 
