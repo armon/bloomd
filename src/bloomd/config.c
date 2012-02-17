@@ -100,6 +100,8 @@ static int config_callback(void* user, const char* section, const char* name, co
     // Handle the int cases
     if (NAME_MATCH("port")) {
         return value_to_int(value, &config->tcp_port);
+    } else if (NAME_MATCH("tcp_port")) {
+        return value_to_int(value, &config->tcp_port);
     } else if (NAME_MATCH("udp_port")) {
         return value_to_int(value, &config->udp_port);
     } else if (NAME_MATCH("scale_size")) {

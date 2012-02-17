@@ -74,4 +74,44 @@ START_TEST(test_config_empty_file)
 }
 END_TEST
 
+START_TEST(test_config_basic_config)
+{
+    int fh = open("/tmp/basic_config", O_CREAT|O_RDWR);
+    char *buf = "[bloomd]\n\
+port = 10000\n\
+udp_port = 10001\n\
+scale_size = 2\n\
+flush_interval = 120\n\
+cold_interval = 12000\n\
+in_memory = 1\n\
+initial_capacity = 2000000\n\
+default_probability = 0.005\n\
+probability_reduction = 0.8\n\
+data_dir = /tmp/test\n\
+log_level = INFO\n";
+    write(fh, buf, strlen(buf));
+    close(fh);
+
+    bloom_config config;
+    int res = config_from_filename("/tmp/basic_config", &config);
+    fail_unless(res == 0);
+
+    // Should get the config
+    fail_unless(config.tcp_port == 10000);
+    fail_unless(config.udp_port == 10001);
+    fail_unless(strcmp(config.data_dir, "/tmp/test") == 0);
+    fail_unless(strcmp(config.log_level, "INFO") == 0);
+    fail_unless(config.initial_capacity == 2000000);
+    fail_unless(config.default_probability == 0.005);
+    fail_unless(config.scale_size == 2);
+    fail_unless(config.probability_reduction == 0.8);
+    fail_unless(config.flush_interval == 120);
+    fail_unless(config.cold_interval == 12000);
+    fail_unless(config.in_memory == 1);
+
+    unlink("/tmp/basic_config");
+}
+END_TEST
+
+
 

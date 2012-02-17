@@ -14,6 +14,7 @@ int main(void)
     tcase_add_test(tc1, test_config_get_default);
     tcase_add_test(tc1, test_config_bad_file);
     tcase_add_test(tc1, test_config_empty_file);
+    tcase_add_test(tc1, test_config_basic_config);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
