@@ -113,5 +113,15 @@ log_level = INFO\n";
 }
 END_TEST
 
+START_TEST(test_validate_default_config)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    res = validate_config(&config);
+    fail_unless(res == 0);
+}
+END_TEST
 
 
