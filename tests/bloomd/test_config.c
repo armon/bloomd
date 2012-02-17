@@ -200,4 +200,26 @@ START_TEST(test_sane_default_probability)
 }
 END_TEST
 
+START_TEST(test_sane_scale_size)
+{
+    fail_unless(sane_scale_size(1) == 1);
+    fail_unless(sane_scale_size(0) == 1);
+    fail_unless(sane_scale_size(5) == 1);
+    fail_unless(sane_scale_size(3) == 1);
+    fail_unless(sane_scale_size(2) == 0);
+    fail_unless(sane_scale_size(4) == 0);
+}
+END_TEST
+
+START_TEST(test_sane_probability_reduction)
+{
+    fail_unless(sane_probability_reduction(1.0) == 1);
+    fail_unless(sane_probability_reduction(0.9) == 0);
+    fail_unless(sane_probability_reduction(0.8) == 0);
+    fail_unless(sane_probability_reduction(0.5) == 0);
+    fail_unless(sane_probability_reduction(0.1) == 1);
+    fail_unless(sane_probability_reduction(0.05) == 1);
+    fail_unless(sane_probability_reduction(0.01) == 1);
+}
+END_TEST
 

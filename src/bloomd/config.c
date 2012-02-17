@@ -300,7 +300,7 @@ int sane_probability_reduction(double reduction) {
         syslog(LOG_ERR,
                "Probability reduction cannot be equal-to or greater than 1!");
         return 1;
-    } else if (reduction < 0.1) {
+    } else if (reduction <= 0.1) {
         syslog(LOG_ERR, "Probability drop off is set too steep!");
         return 1;
     } else if (reduction <= 0.5)  {

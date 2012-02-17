@@ -22,6 +22,8 @@ int main(void)
     tcase_add_test(tc1, test_sane_log_level);
     tcase_add_test(tc1, test_sane_init_capacity);
     tcase_add_test(tc1, test_sane_default_probability);
+    tcase_add_test(tc1, test_sane_scale_size);
+    tcase_add_test(tc1, test_sane_probability_reduction);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
