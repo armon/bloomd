@@ -51,6 +51,7 @@ END_TEST
 START_TEST(test_config_empty_file)
 {
     int fh = open("/tmp/zero_file", O_CREAT|O_RDWR);
+    fchmod(fh, 777);
     close(fh);
 
     bloom_config config;
@@ -90,6 +91,7 @@ probability_reduction = 0.8\n\
 data_dir = /tmp/test\n\
 log_level = INFO\n";
     write(fh, buf, strlen(buf));
+    fchmod(fh, 777);
     close(fh);
 
     bloom_config config;
@@ -135,6 +137,24 @@ START_TEST(test_validate_bad_config)
 
     res = validate_config(&config);
     fail_unless(res == 1);
+}
+END_TEST
+
+START_TEST(test_join_path_no_slash)
+{
+    char *s1 = "/tmp/path";
+    char *s2 = "file";
+    char *s3 = join_path(s1, s2);
+    fail_unless(strcmp(s3, "/tmp/path/file") == 0);
+}
+END_TEST
+
+START_TEST(test_join_path_with_slash)
+{
+    char *s1 = "/tmp/path/";
+    char *s2 = "file";
+    char *s3 = join_path(s1, s2);
+    fail_unless(strcmp(s3, "/tmp/path/file") == 0);
 }
 END_TEST
 
