@@ -12,6 +12,7 @@ int main(void)
     // Add the bitmap tests
     suite_add_tcase(s1, tc1);
     tcase_add_test(tc1, test_config_get_default);
+    tcase_add_test(tc1, test_config_bad_file);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
