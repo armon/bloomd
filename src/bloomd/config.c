@@ -331,7 +331,11 @@ int sane_cold_interval(int intv) {
     } else if (intv < 0) {
         syslog(LOG_ERR, "Cold interval cannot be negative!");
         return 1;
+    } else if (intv < 300) {
+        syslog(LOG_ERR, "Cold interval is less than 5 minutes. \
+This may cause excessive unmapping to occur.");
     }
+
     return 0;
 }
 
@@ -340,6 +344,12 @@ int sane_in_memory(int in_mem) {
         syslog(LOG_WARNING,
                "Default filters are in-memory only! Filters not persisted by default.");
     }
+    if (in_mem != 0 && in_mem != 1) {
+        syslog(LOG_ERR,
+               "Illegal value for in-memory. Must be 0 or 1.");
+        return 1;
+    }
+
     return 0;
 }
 

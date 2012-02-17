@@ -223,3 +223,33 @@ START_TEST(test_sane_probability_reduction)
 }
 END_TEST
 
+START_TEST(test_sane_flush_interval)
+{
+    fail_unless(sane_flush_interval(-1) == 1);
+    fail_unless(sane_flush_interval(0) == 0);
+    fail_unless(sane_flush_interval(60) == 0);
+    fail_unless(sane_flush_interval(120) == 0);
+    fail_unless(sane_flush_interval(86400) == 0);
+}
+END_TEST
+
+START_TEST(test_sane_cold_interval)
+{
+    fail_unless(sane_cold_interval(-1) == 1);
+    fail_unless(sane_cold_interval(0) == 0);
+    fail_unless(sane_cold_interval(60) == 0);
+    fail_unless(sane_cold_interval(120) == 0);
+    fail_unless(sane_cold_interval(3600) == 0);
+    fail_unless(sane_cold_interval(86400) == 0);
+}
+END_TEST
+
+START_TEST(test_sane_in_memory)
+{
+    fail_unless(sane_in_memory(-1) == 1);
+    fail_unless(sane_in_memory(0) == 0);
+    fail_unless(sane_in_memory(1) == 0);
+    fail_unless(sane_in_memory(2) == 1);
+}
+END_TEST
+
