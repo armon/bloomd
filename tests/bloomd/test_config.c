@@ -124,4 +124,18 @@ START_TEST(test_validate_default_config)
 }
 END_TEST
 
+START_TEST(test_validate_bad_config)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    // Set an absurd probability, should fail
+    config.default_probability = 1.0; 
+
+    res = validate_config(&config);
+    fail_unless(res == 1);
+}
+END_TEST
+
 
