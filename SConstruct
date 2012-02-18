@@ -13,10 +13,12 @@ envtest.Program('test_libbloom_runner', spooky + murmur + bloom +  Glob("tests/l
 envinih = Environment(CPATH = ['deps/inih/'], CFLAGS="-O2")
 inih = envinih.Library('inih', Glob("deps/inih/*.c"))
 
-envbloomd = Environment(CCFLAGS = '-std=c99 -Wall -Werror -O2 -Ideps/inih/')
-objs = envbloomd.Object('src/config/config', 'src/bloomd/config.c')
-bloomd = envbloomd.Program('bloomd', spooky + murmur + bloom + inih + objs + ["src/bloomd/bloomd.c"])
+envbloomd_with_err = Environment(CCFLAGS = '-std=c99 -Wall -Werror -O2 -Ideps/inih/ -Ideps/libev/')
+envbloomd_without_err = Environment(CCFLAGS = '-std=c99 -O2 -Isrc/bloomd/ -Ideps/inih/ -Ideps/libev/')
 
-envtest2 = Environment(CCFLAGS = '-std=c99 -Isrc/bloomd/ -Ideps/inih/')
-envtest2.Program('test_bloomd_runner', spooky + murmur + bloom + inih + objs + Glob("tests/bloomd/*.c"), LIBS=["libcheck"])
+objs =  envbloomd_with_err.Object('src/config/config', 'src/bloomd/config.c') + \
+        envbloomd_without_err.Object('src/config/networking', 'src/bloomd/networking.c')
+
+envbloomd_with_err.Program('bloomd', spooky + murmur + bloom + inih + objs + ["src/bloomd/bloomd.c"])
+envbloomd_without_err.Program('test_bloomd_runner', spooky + murmur + bloom + inih + objs + Glob("tests/bloomd/*.c"), LIBS=["libcheck"])
 
