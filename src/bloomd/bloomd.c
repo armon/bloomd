@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <syslog.h>
 #include "config.h"
+#include "networking.h"
 
 /**
  * Prints our usage to stderr
@@ -100,6 +101,31 @@ int main(int argc, char **argv) {
     // Set the syslog mask
     setlogmask(config->syslog_log_level);
 
-    syslog(LOG_INFO, "Starting bloomd.\n");
+    // Log that we are starting up
+    syslog(LOG_INFO, "Starting bloomd.");
+
+    // TODO: Initialize the filters
+    //
+
+    // Initialize the networking
+    bloom_networking *netconf = calloc(1, sizeof(bloom_networking));
+    int net_res = init_networking(config, netconf);
+    if (net_res != 0) {
+        syslog(LOG_ERR, "Failed to initialize bloomd networking!");
+        return 1;
+    }
+
+    // TODO: MAIN... Loop forevaaaar
+
+    // Begin the shutdown/cleanup
+    shutdown_networking(netconf);
+
+    // TODO: Cleanup the filters
+
+    // Free our memory
+    free(netconf);
+    free(config);
+
+    // Done
     return 0;
 }
