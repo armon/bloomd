@@ -14,4 +14,4 @@ test_bloomd_runner
 *.dylib
 deps/*/*.o
 .lvimrc
-bloomd
+./bloomd
