@@ -242,15 +242,15 @@ int sane_data_dir(char *data_dir) {
 int sane_log_level(char *log_level, int *syslog_level) {
     #define LOG_MATCH(lvl) (strcasecmp(lvl, log_level) == 0)
     if (LOG_MATCH("DEBUG")) {
-        *syslog_level = LOG_DEBUG;
+        *syslog_level = LOG_UPTO(LOG_DEBUG);
     } else if (LOG_MATCH("INFO")) {
-        *syslog_level = LOG_INFO;
+        *syslog_level = LOG_UPTO(LOG_INFO);
     } else if (LOG_MATCH("WARN")) {
-        *syslog_level = LOG_WARNING;
+        *syslog_level = LOG_UPTO(LOG_WARNING);
     } else if (LOG_MATCH("ERROR")) {
-        *syslog_level = LOG_ERR;
+        *syslog_level = LOG_UPTO(LOG_ERR);
     } else if (LOG_MATCH("CRITICAL")) {
-        *syslog_level = LOG_CRIT;
+        *syslog_level = LOG_UPTO(LOG_CRIT);
     } else {
         syslog(LOG_ERR, "Unknown log level!");
         return 1;
