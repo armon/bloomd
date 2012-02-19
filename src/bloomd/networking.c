@@ -193,6 +193,10 @@ int start_networking_worker(bloom_networking *netconf) {
     while (netconf->should_run) {
         // Become the leader
         pthread_mutex_lock(&netconf->leader_lock);
+        if (netconf->should_run) {
+            pthread_mutex_unlock(&netconf->leader_lock);
+            break;
+        }
 
         // Set the user data to be for this thread
         ev_set_userdata(&data);
