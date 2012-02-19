@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <syslog.h>
+#include <pthread.h>
 #include "config.h"
 #include "networking.h"
 
@@ -113,6 +114,12 @@ int main(int argc, char **argv) {
     if (net_res != 0) {
         syslog(LOG_ERR, "Failed to initialize bloomd networking!");
         return 1;
+    }
+
+    // Start the network workers
+    pthread_t thread;
+    for (int i; i < config->worker_threads; i++) {
+        pthread_create(&thread, NULL, (void*(*)(void*))start_networking_worker, netconf);
     }
 
     // TODO: MAIN... Loop forevaaaar
