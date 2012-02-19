@@ -113,6 +113,7 @@ int init_networking(bloom_config *config, bloom_networking *netconf) {
     // Setup the UDP listener
     res = setup_udp_listener(netconf);
     if (res != 0) {
+        ev_io_stop(&netconf->tcp_client);
         close(netconf->tcp_listener_fd);
         return 1;
     }
