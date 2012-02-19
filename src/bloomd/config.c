@@ -26,7 +26,8 @@ static const bloom_config DEFAULT_CONFIG = {
     0.9,                // SBF_DEFAULT_PARAMS reduction
     60,                 // Flush once a minute
     3600,               // Cold after an hour
-    0                   // Persist to disk by default
+    0,                  // Persist to disk by default
+    1                   // Only a single worker thread by default
 };
 
 /**

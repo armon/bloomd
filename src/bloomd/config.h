@@ -19,6 +19,7 @@ typedef struct {
     int flush_interval;
     int cold_interval;
     int in_memory;
+    int worker_threads;
 } bloom_config;
 
 /**
