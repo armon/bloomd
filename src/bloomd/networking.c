@@ -12,12 +12,10 @@
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <pthread.h>
 #include <netinet/in.h>
 
 #define BACKLOG_SIZE 64
-
-// Static typedefs
-static void accept_cb(ev_io *watcher, int revents);
 
 /**
  * Defines a structure that is
@@ -30,7 +28,22 @@ struct bloom_networking {
     int udp_listener_fd;
     ev_io tcp_client;
     ev_io udp_client;
+    int should_run;
+    pthread_mutex_t leader_lock;
 };
+
+/**
+ * Stores the thread specific user data.
+ */
+typedef struct {
+    ev_io *watcher;
+    int ready_events;
+} worker_ev_userdata;
+
+
+// Static typedefs
+static void prepare_event(ev_io *watcher, int revents);
+static void invoke_event_handler(worker_ev_userdata* data);
 
 
 /**
@@ -59,7 +72,7 @@ static int setup_tcp_listener(bloom_networking *netconf) {
     }
 
     // Create the libev objects
-    ev_io_init(&netconf->tcp_client, accept_cb,
+    ev_io_init(&netconf->tcp_client, prepare_event,
                 netconf->tcp_listener_fd, EV_READ);
     ev_io_start(&netconf->tcp_client);
     return 0;
@@ -91,7 +104,7 @@ static int setup_udp_listener(bloom_networking *netconf) {
     }
 
     // Create the libev objects
-    ev_io_init(&netconf->udp_client, accept_cb,
+    ev_io_init(&netconf->udp_client, prepare_event,
                 netconf->udp_listener_fd, EV_READ);
     ev_io_start(&netconf->udp_client);
     return 0;
@@ -102,32 +115,63 @@ static int setup_udp_listener(bloom_networking *netconf) {
  * @arg config Takes the bloom server configuration
  * @arg netconf Output. The configuration for the networking stack.
  */
-int init_networking(bloom_config *config, bloom_networking *netconf) {
+int init_networking(bloom_config *config, bloom_networking **netconf_out) {
+    // Make the netconf structure
+    bloom_networking *netconf = calloc(1, sizeof(struct bloom_networking));
+
+    // Initialize
+    netconf->should_run = 1;
+    pthread_mutex_init(&netconf->leader_lock, NULL);
+
     // Store the config
     netconf->config = config;
 
     // Setup the TCP listener
     int res = setup_tcp_listener(netconf);
-    if (res != 0) return 1;
+    if (res != 0) {
+        free(netconf);
+        return 1;
+    }
 
     // Setup the UDP listener
     res = setup_udp_listener(netconf);
     if (res != 0) {
         ev_io_stop(&netconf->tcp_client);
         close(netconf->tcp_listener_fd);
+        free(netconf);
         return 1;
     }
 
     // Success!
+    *netconf_out = netconf;
     return 0;
 }
 
+
 /**
- * Called when our listeners are ready to accept
+ * Called when an event is ready to be processed by libev.
+ * We need to do _very_ little work here. Basically just
+ * setup the userdata to process the event and return.
+ * This is so we can release the leader lock and let another
+ * thread take over.
  */
-static void accept_cb(ev_io *watcher, int revents) {
+static void prepare_event(ev_io *watcher, int revents) {
+    // Get the user data
+    worker_ev_userdata *data = ev_userdata();
+
+    // Set everything
+    data->watcher = watcher;
+    data->ready_events = revents;
+
+    // Stop listening for now
+    ev_io_stop(watcher);
+}
+
+
+static void invoke_event_handler(worker_ev_userdata* data) {
 
 }
+
 
 /**
  * Entry point for threads to join the networking
@@ -136,6 +180,29 @@ static void accept_cb(ev_io *watcher, int revents) {
  * @arg netconf The configuration for the networking stack.
  */
 int start_networking_worker(bloom_networking *netconf) {
+    // Allocate our user data
+    worker_ev_userdata *data = calloc(1, sizeof(worker_ev_userdata));
+
+    // Run forever until we are told to halt
+    while (netconf->should_run) {
+        // Become the leader
+        pthread_mutex_lock(&netconf->leader_lock);
+
+        // Set the user data to be for this thread
+        ev_set_userdata(data);
+
+        // Run one iteration of the event loop
+        ev_run(EVRUN_ONCE);
+
+        // Release the leader lock
+        pthread_mutex_unlock(&netconf->leader_lock);
+
+        // Process the event
+        invoke_event_handler(data);
+    }
+
+    // Cleanup
+    free(data);
     return 0;
 }
 
