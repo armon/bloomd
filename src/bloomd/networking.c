@@ -99,11 +99,6 @@ static int setup_udp_listener(bloom_networking *netconf) {
         close(netconf->udp_listener_fd);
         return 1;
     }
-    if (listen(netconf->udp_listener_fd, BACKLOG_SIZE) != 0) {
-        syslog(LOG_ERR, "Failed to listen on UDP socket! Err: %s", strerror(errno));
-        close(netconf->udp_listener_fd);
-        return 1;
-    }
 
     // Create the libev objects
     ev_io_init(&netconf->udp_client, prepare_event,
