@@ -18,7 +18,7 @@ int init_networking(bloom_config *config, bloom_networking **netconf);
  * network stack is shutdown.
  * @arg netconf The configuration for the networking stack.
  */
-int start_networking_worker(bloom_networking *netconf);
+void start_networking_worker(bloom_networking *netconf);
 
 /**
  * Shuts down all the connections

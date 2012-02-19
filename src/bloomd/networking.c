@@ -212,7 +212,7 @@ static void invoke_event_handler(worker_ev_userdata* data) {
  * network stack is shutdown.
  * @arg netconf The configuration for the networking stack.
  */
-int start_networking_worker(bloom_networking *netconf) {
+void start_networking_worker(bloom_networking *netconf) {
     // Allocate our user data
     worker_ev_userdata data;
     int registered = 0;
@@ -247,7 +247,7 @@ int start_networking_worker(bloom_networking *netconf) {
         // Process the event
         invoke_event_handler(&data);
     }
-    return 0;
+    return;
 }
 
 /**
