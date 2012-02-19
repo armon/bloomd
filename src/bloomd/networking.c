@@ -262,10 +262,6 @@ int shutdown_networking(bloom_networking *netconf) {
     // Break the EV loop
     ev_break(EVBREAK_ALL);
 
-    // Stop listening for new connections
-    ev_io_stop(&netconf->tcp_client);
-    ev_io_stop(&netconf->udp_client);
-
     // Wait for the threads to return
     pthread_t thread;
     for (int i=0; i < netconf->num_threads; i++) {
@@ -273,8 +269,10 @@ int shutdown_networking(bloom_networking *netconf) {
         if (thread != NULL) pthread_join(thread, NULL);
     }
 
-    // Close the listener fd's
+    // Stop listening for new connections
+    ev_io_stop(&netconf->tcp_client);
     close(netconf->tcp_listener_fd);
+    ev_io_stop(&netconf->udp_client);
     close(netconf->udp_listener_fd);
 
     // Close all the client connections
