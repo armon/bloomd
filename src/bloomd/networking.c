@@ -30,6 +30,8 @@ struct bloom_networking {
     ev_io udp_client;
     volatile int should_run;
     pthread_mutex_t leader_lock;
+    int num_threads;
+    pthread_t *threads;  // Array of thread references
 };
 
 /**
@@ -122,6 +124,8 @@ int init_networking(bloom_config *config, bloom_networking **netconf_out) {
     // Initialize
     netconf->should_run = 1;
     pthread_mutex_init(&netconf->leader_lock, NULL);
+    netconf->num_threads = 0;
+    netconf->threads = calloc(config->worker_threads, sizeof(pthread_t));
 
     // Store the config
     netconf->config = config;
@@ -219,6 +223,27 @@ int start_networking_worker(bloom_networking *netconf) {
  * @arg netconf The config for the networking stack.
  */
 int shutdown_networking(bloom_networking *netconf) {
+    // Instruct the threads to shutdown
+    netconf->should_run = 0;
+
+    // Stop listening for new connections
+    ev_io_stop(&netconf->tcp_client);
+    ev_io_stop(&netconf->udp_client);
+
+    // Wait for the threads to return
+    pthread_t thread;
+    for (int i=0; i < netconf->num_threads; i++) {
+        thread = netconf->threads[i];
+        if (thread != NULL) pthread_join(thread, NULL);
+    }
+
+    // Close the fd's
+    close(netconf->tcp_listener_fd);
+    close(netconf->udp_listener_fd);
+
+    // Free the netconf
+    free(netconf->threads);
+    free(netconf);
     return 0;
 }
 
