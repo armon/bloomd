@@ -10,7 +10,7 @@ typedef struct bloom_networking bloom_networking;
  * @arg config Takes the bloom server configuration
  * @arg netconf Output. The configuration for the networking stack.
  */
-int init_networking(bloom_config *config, bloom_networking *netconf);
+int init_networking(bloom_config *config, bloom_networking **netconf);
 
 /**
  * Entry point for threads to join the networking
