@@ -15,24 +15,21 @@
 #include <pthread.h>
 #include <netinet/in.h>
 
+/**
+ * Default listen backlog size for
+ * our TCP listener.
+ */
 #define BACKLOG_SIZE 64
 
 /**
- * Defines a structure that is
- * used to store the state of the networking
- * stack.
+ * How big should the initial conns
+ * array be in terms of slots. For most
+ * cases 1024 is more than we will need,
+ * and will fit nicely in 1 page on 32bits,
+ * and 2 pages on 64bits.
  */
-struct bloom_networking {
-    bloom_config *config;
-    pthread_mutex_t leader_lock;
-    int tcp_listener_fd;
-    int udp_listener_fd;
-    ev_io tcp_client;
-    ev_io udp_client;
-    volatile int should_run;
-    volatile int num_threads;
-    pthread_t *threads;  // Array of thread references
-};
+#define INIT_CONN_LIST_SIZE 1024
+
 
 /**
  * Stores the thread specific user data.
@@ -41,6 +38,37 @@ typedef struct {
     ev_io *watcher;
     int ready_events;
 } worker_ev_userdata;
+
+
+/**
+ * Stores the connection specific data.
+ * We initialize one of these per connection
+ */
+typedef struct {
+    ev_io client;
+    uint32_t buf_size;
+    char *buffer;
+} conn_info;
+
+
+/**
+ * Defines a structure that is
+ * used to store the state of the networking
+ * stack.
+ */
+struct bloom_networking {
+    bloom_config *config;
+    pthread_mutex_t leader_lock; // Serializes the leaders
+    int tcp_listener_fd;
+    int udp_listener_fd;
+    ev_io tcp_client;
+    ev_io udp_client;
+    volatile int should_run;  // Should the workers continue to run
+    volatile int num_threads; // Number of threads in the threads list
+    pthread_t *threads;       // Array of thread references
+    int conn_list_size;       // Maximum size of conns list
+    conn_info **conns;        // An array of pointers to conn_info objects
+};
 
 
 // Static typedefs
@@ -122,6 +150,8 @@ int init_networking(bloom_config *config, bloom_networking **netconf_out) {
     netconf->should_run = 1;
     netconf->num_threads = 0;
     netconf->threads = calloc(config->worker_threads, sizeof(pthread_t));
+    netconf->conn_list_size = INIT_CONN_LIST_SIZE;
+    netconf->conns = calloc(INIT_CONN_LIST_SIZE, sizeof(conn_info*));
 
     // Setup the TCP listener
     int res = setup_tcp_listener(netconf);
@@ -243,12 +273,29 @@ int shutdown_networking(bloom_networking *netconf) {
         if (thread != NULL) pthread_join(thread, NULL);
     }
 
-    // Close the fd's
+    // Close the listener fd's
     close(netconf->tcp_listener_fd);
     close(netconf->udp_listener_fd);
 
+    // Close all the client connections
+    conn_info *conn;
+    for (int i=0; i < netconf->conn_list_size; i++) {
+        // Check if the connection is non-null
+        conn = netconf->conns[i];
+        if (conn == NULL) continue;
+
+        // Stop listening in libev and close the socket
+        ev_io_stop(&conn->client);
+        close(conn->client.fd);
+
+        // Free all the buffers
+        free(conn->buffer);
+        free(conn);
+    }
+
     // Free the netconf
     free(netconf->threads);
+    free(netconf->conns);
     free(netconf);
     return 0;
 }
