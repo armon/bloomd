@@ -11,8 +11,16 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <pthread.h>
+#include <string.h>
 #include "config.h"
 #include "networking.h"
+
+/**
+ * By default we should run. Our signal
+ * handler updates this variable to allow the
+ * program to gracefully terminate.
+ */
+static int SHOULD_RUN = 1;
 
 /**
  * Prints our usage to stderr
@@ -75,6 +83,16 @@ void setup_syslog() {
 }
 
 
+/**
+ * Our registered signal handler, invoked
+ * when we get signals such as SIGINT, SIGTERM.
+ */
+void signal_handler(int signum) {
+    SHOULD_RUN = 0;  // Stop running now
+    syslog(LOG_WARNING, "Received signal [%s]! Exiting...", strsignal(signum));
+}
+
+
 int main(int argc, char **argv) {
     // Initialize syslog
     setup_syslog();
@@ -122,7 +140,15 @@ int main(int argc, char **argv) {
         pthread_create(&thread, NULL, (void*(*)(void*))start_networking_worker, netconf);
     }
 
-    // TODO: MAIN... Loop forevaaaar
+    /**
+     * Loop forever, until we get a signal that
+     * indicates we should shutdown.
+     */
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+    while (SHOULD_RUN) {
+        sleep(1);
+    }
 
     // Begin the shutdown/cleanup
     shutdown_networking(netconf);
