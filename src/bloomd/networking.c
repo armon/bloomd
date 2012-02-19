@@ -231,6 +231,9 @@ int shutdown_networking(bloom_networking *netconf) {
     // Instruct the threads to shutdown
     netconf->should_run = 0;
 
+    // Break the EV loop
+    ev_break(EVBREAK_ALL);
+
     // Stop listening for new connections
     ev_io_stop(&netconf->tcp_client);
     ev_io_stop(&netconf->udp_client);
