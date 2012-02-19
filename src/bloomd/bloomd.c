@@ -123,7 +123,6 @@ int main(int argc, char **argv) {
     // TODO: Cleanup the filters
 
     // Free our memory
-    free(netconf);
     free(config);
 
     // Done
