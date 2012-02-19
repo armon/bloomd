@@ -28,7 +28,7 @@ struct bloom_networking {
     int udp_listener_fd;
     ev_io tcp_client;
     ev_io udp_client;
-    int should_run;
+    volatile int should_run;
     pthread_mutex_t leader_lock;
 };
 
@@ -168,6 +168,12 @@ static void prepare_event(ev_io *watcher, int revents) {
 }
 
 
+/**
+ * Reads the thread specific userdata to figure out what
+ * we need to handle. Things that purely effect the network
+ * stack should be handled here, but otherwise we should defer
+ * to the connection handlers.
+ */
 static void invoke_event_handler(worker_ev_userdata* data) {
 
 }
@@ -181,7 +187,7 @@ static void invoke_event_handler(worker_ev_userdata* data) {
  */
 int start_networking_worker(bloom_networking *netconf) {
     // Allocate our user data
-    worker_ev_userdata *data = calloc(1, sizeof(worker_ev_userdata));
+    worker_ev_userdata data;
 
     // Run forever until we are told to halt
     while (netconf->should_run) {
@@ -189,7 +195,7 @@ int start_networking_worker(bloom_networking *netconf) {
         pthread_mutex_lock(&netconf->leader_lock);
 
         // Set the user data to be for this thread
-        ev_set_userdata(data);
+        ev_set_userdata(&data);
 
         // Run one iteration of the event loop
         ev_run(EVRUN_ONCE);
@@ -198,11 +204,8 @@ int start_networking_worker(bloom_networking *netconf) {
         pthread_mutex_unlock(&netconf->leader_lock);
 
         // Process the event
-        invoke_event_handler(data);
+        invoke_event_handler(&data);
     }
-
-    // Cleanup
-    free(data);
     return 0;
 }
 
