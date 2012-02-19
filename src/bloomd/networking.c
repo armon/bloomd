@@ -24,13 +24,13 @@
  */
 struct bloom_networking {
     bloom_config *config;
+    pthread_mutex_t leader_lock;
     int tcp_listener_fd;
     int udp_listener_fd;
     ev_io tcp_client;
     ev_io udp_client;
     volatile int should_run;
-    pthread_mutex_t leader_lock;
-    int num_threads;
+    volatile int num_threads;
     pthread_t *threads;  // Array of thread references
 };
 
@@ -187,11 +187,21 @@ static void invoke_event_handler(worker_ev_userdata* data) {
 int start_networking_worker(bloom_networking *netconf) {
     // Allocate our user data
     worker_ev_userdata data;
+    int registered = 0;
 
     // Run forever until we are told to halt
     while (netconf->should_run) {
         // Become the leader
         pthread_mutex_lock(&netconf->leader_lock);
+
+        // Register if we need to
+        if (!registered) {
+            netconf->threads[netconf->num_threads] = pthread_self();
+            netconf->num_threads++;
+            registered = 1;
+        }
+
+        // Check again if we should run
         if (netconf->should_run) {
             pthread_mutex_unlock(&netconf->leader_lock);
             break;
