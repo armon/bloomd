@@ -1,6 +1,7 @@
 #include "networking.h"
 #define EV_STANDALONE 1
 #define EV_COMPAT3 0
+#define EV_MULTIPLICITY 0
 #ifdef __linux__
 #define EV_USE_EPOLL 1
 #endif
@@ -15,6 +16,28 @@
 
 #define BACKLOG_SIZE 64
 
+// Static typedefs
+static void accept_cb(ev_io *watcher, int revents);
+
+/**
+ * Defines a structure that is
+ * used to store the state of the networking
+ * stack.
+ */
+struct bloom_networking {
+    bloom_config *config;
+    int tcp_listener_fd;
+    int udp_listener_fd;
+    ev_io tcp_client;
+    ev_io udp_client;
+};
+
+
+/**
+ * Initializes the TCP listener
+ * @arg netconf The network configuration
+ * @return 0 on success.
+ */
 static int setup_tcp_listener(bloom_networking *netconf) {
     struct sockaddr_in addr;
     bzero(&addr, sizeof(addr));
@@ -34,9 +57,19 @@ static int setup_tcp_listener(bloom_networking *netconf) {
         close(netconf->tcp_listener_fd);
         return 1;
     }
+
+    // Create the libev objects
+    ev_io_init(&netconf->tcp_client, accept_cb,
+                netconf->tcp_listener_fd, EV_READ);
+    ev_io_start(&netconf->tcp_client);
     return 0;
 }
 
+/**
+ * Initializes the UDP Listener.
+ * @arg netconf The network configuration
+ * @return 0 on success.
+ */
 static int setup_udp_listener(bloom_networking *netconf) {
     struct sockaddr_in addr;
     bzero(&addr, sizeof(addr));
@@ -56,6 +89,11 @@ static int setup_udp_listener(bloom_networking *netconf) {
         close(netconf->udp_listener_fd);
         return 1;
     }
+
+    // Create the libev objects
+    ev_io_init(&netconf->udp_client, accept_cb,
+                netconf->udp_listener_fd, EV_READ);
+    ev_io_start(&netconf->udp_client);
     return 0;
 }
 
@@ -81,6 +119,13 @@ int init_networking(bloom_config *config, bloom_networking *netconf) {
 
     // Success!
     return 0;
+}
+
+/**
+ * Called when our listeners are ready to accept
+ */
+static void accept_cb(ev_io *watcher, int revents) {
+
 }
 
 /**

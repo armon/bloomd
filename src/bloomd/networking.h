@@ -2,16 +2,8 @@
 #define BLOOM_NETWORKING_H
 #include "config.h"
 
-/**
- * Defines a structure that is
- * used to store the state of the networking
- * stack.
- */
-typedef struct {
-    bloom_config *config;
-    int tcp_listener_fd;
-    int udp_listener_fd;
-} bloom_networking;
+// Network configuration struct
+typedef struct bloom_networking bloom_networking;
 
 /**
  * Initializes the networking interfaces
