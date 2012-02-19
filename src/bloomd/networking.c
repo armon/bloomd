@@ -117,13 +117,11 @@ int init_networking(bloom_config *config, bloom_networking **netconf_out) {
     bloom_networking *netconf = calloc(1, sizeof(struct bloom_networking));
 
     // Initialize
-    netconf->should_run = 1;
     pthread_mutex_init(&netconf->leader_lock, NULL);
+    netconf->config = config;
+    netconf->should_run = 1;
     netconf->num_threads = 0;
     netconf->threads = calloc(config->worker_threads, sizeof(pthread_t));
-
-    // Store the config
-    netconf->config = config;
 
     // Setup the TCP listener
     int res = setup_tcp_listener(netconf);
