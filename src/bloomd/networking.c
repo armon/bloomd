@@ -200,6 +200,12 @@ int init_networking(bloom_config *config, bloom_networking **netconf_out) {
     netconf->conn_list_size = INIT_CONN_LIST_SIZE;
     netconf->conns = calloc(INIT_CONN_LIST_SIZE, sizeof(conn_info*));
 
+    if (!ev_default_loop (0)) {
+        syslog(LOG_CRIT, "Failed to initialize libev!");
+        free(netconf);
+        return 1;
+    }
+
     // Setup the TCP listener
     int res = setup_tcp_listener(netconf);
     if (res != 0) {
@@ -432,14 +438,14 @@ void start_networking_worker(bloom_networking *netconf) {
     // Allocate our user data
     worker_ev_userdata data;
     data.netconf = netconf;
-    data.watcher = NULL;
-    data.ready_events = 0;
     int registered = 0;
 
     // Run forever until we are told to halt
     while (netconf->should_run) {
         // Become the leader
         pthread_mutex_lock(&netconf->leader_lock);
+        data.watcher = NULL;
+        data.ready_events = 0;
 
         // Register if we need to
         if (!registered) {
@@ -464,7 +470,9 @@ void start_networking_worker(bloom_networking *netconf) {
         pthread_mutex_unlock(&netconf->leader_lock);
 
         // Process the event
-        invoke_event_handler(&data);
+        if (data.watcher) {
+            invoke_event_handler(&data);
+        }
     }
     return;
 }
