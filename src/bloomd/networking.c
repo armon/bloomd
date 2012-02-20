@@ -249,6 +249,9 @@ static void schedule_async(bloom_networking *netconf,
 
     // Unlock
     pthread_mutex_unlock(&netconf->event_lock);
+
+    // Send to our async watcher
+    ev_async_send(&netconf->loop_async);
 }
 
 /**
@@ -379,6 +382,9 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
 
     // Initialize the libev stuff
     ev_io_init(&conn->client, prepare_event, client_fd, EV_READ);
+
+    // Schedule the new client
+    schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->client);
 }
 
 /**
@@ -396,6 +402,9 @@ static void invoke_event_handler(worker_ev_userdata* data) {
     if (fd == data->netconf->tcp_listener_fd) {
         // Accept the new client
         handle_new_client(fd, data);
+
+        // Reschedule the listener
+        schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
         return;
 
     } else if (fd == data->netconf->udp_listener_fd) {
