@@ -61,21 +61,49 @@ typedef struct {
 
 
 /**
+ * Represents the various types
+ * of async events we could be
+ * processing.
+ */
+typedef enum {
+    EXIT,               // ev_break should be invoked
+    SCHEDULE_WATCHER,   // watcher should be started
+} ASYNC_EVENT_TYPE;
+
+/**
+ * Structure used to store async events
+ * that need to processed when we trigger
+ * the loop_async watcher.
+ */
+struct async_event {
+    ASYNC_EVENT_TYPE event_type;
+    ev_io *watcher;
+    struct async_event *next;
+};
+typedef struct async_event async_event;
+
+/**
  * Defines a structure that is
  * used to store the state of the networking
  * stack.
  */
 struct bloom_networking {
+    volatile int should_run;  // Should the workers continue to run
     bloom_config *config;
     pthread_mutex_t leader_lock; // Serializes the leaders
+
     int tcp_listener_fd;
     int udp_listener_fd;
     ev_io tcp_client;
     ev_io udp_client;
+
     ev_async loop_async;      // Allows async interrupts
-    volatile int should_run;  // Should the workers continue to run
+    async_event *events;      // List of pending events
+    pthread_mutex_t event_lock; // Protects the events
+
     volatile int num_threads; // Number of threads in the threads list
     pthread_t *threads;       // Array of thread references
+
     int conn_list_size;       // Maximum size of conns list
     conn_info **conns;        // An array of pointers to conn_info objects
     pthread_mutex_t conns_lock; // Protects conns and conn_list_size
@@ -160,6 +188,8 @@ int init_networking(bloom_config *config, bloom_networking **netconf_out) {
     // Initialize
     pthread_mutex_init(&netconf->leader_lock, NULL);
     pthread_mutex_init(&netconf->conns_lock, NULL);
+    pthread_mutex_init(&netconf->event_lock, NULL);
+    netconf->events = NULL;
     netconf->config = config;
     netconf->should_run = 1;
     netconf->num_threads = 0;
