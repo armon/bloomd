@@ -470,7 +470,7 @@ int shutdown_networking(bloom_networking *netconf) {
     netconf->should_run = 0;
 
     // Break the EV loop
-    ev_break(EVBREAK_ALL);
+    schedule_async(netconf, EXIT, NULL);
 
     // Wait for the threads to return
     pthread_t thread;
