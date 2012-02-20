@@ -92,8 +92,6 @@ struct bloom_networking {
     bloom_config *config;
     pthread_mutex_t leader_lock; // Serializes the leaders
 
-    int tcp_listener_fd;
-    int udp_listener_fd;
     ev_io tcp_client;
     ev_io udp_client;
 
@@ -133,28 +131,28 @@ static int setup_tcp_listener(bloom_networking *netconf) {
     addr.sin_addr.s_addr = INADDR_ANY;
 
     // Make the socket, bind and listen
-    netconf->tcp_listener_fd = socket(PF_INET, SOCK_STREAM, 0);
+    int tcp_listener_fd = socket(PF_INET, SOCK_STREAM, 0);
     int optval = 1;
-    if (setsockopt(netconf->tcp_listener_fd, SOL_SOCKET,
+    if (setsockopt(tcp_listener_fd, SOL_SOCKET,
                 SO_REUSEADDR, &optval, sizeof(void*))) {
         syslog(LOG_ERR, "Failed to set SO_REUSEADDR! Err: %s", strerror(errno));
-        close(netconf->tcp_listener_fd);
+        close(tcp_listener_fd);
         return 1;
     }
-    if (bind(netconf->tcp_listener_fd, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+    if (bind(tcp_listener_fd, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
         syslog(LOG_ERR, "Failed to bind on TCP socket! Err: %s", strerror(errno));
-        close(netconf->tcp_listener_fd);
+        close(tcp_listener_fd);
         return 1;
     }
-    if (listen(netconf->tcp_listener_fd, BACKLOG_SIZE) != 0) {
+    if (listen(tcp_listener_fd, BACKLOG_SIZE) != 0) {
         syslog(LOG_ERR, "Failed to listen on TCP socket! Err: %s", strerror(errno));
-        close(netconf->tcp_listener_fd);
+        close(tcp_listener_fd);
         return 1;
     }
 
     // Create the libev objects
     ev_io_init(&netconf->tcp_client, prepare_event,
-                netconf->tcp_listener_fd, EV_READ);
+                tcp_listener_fd, EV_READ);
     ev_io_start(&netconf->tcp_client);
     return 0;
 }
@@ -172,23 +170,23 @@ static int setup_udp_listener(bloom_networking *netconf) {
     addr.sin_addr.s_addr = INADDR_ANY;
 
     // Make the socket, bind and listen
-    netconf->udp_listener_fd = socket(PF_INET, SOCK_DGRAM, 0);
+    int udp_listener_fd = socket(PF_INET, SOCK_DGRAM, 0);
     int optval = 1;
-    if (setsockopt(netconf->udp_listener_fd, SOL_SOCKET,
+    if (setsockopt(udp_listener_fd, SOL_SOCKET,
                 SO_REUSEADDR, &optval, sizeof(void*))) {
         syslog(LOG_ERR, "Failed to set SO_REUSEADDR! Err: %s", strerror(errno));
-        close(netconf->udp_listener_fd);
+        close(udp_listener_fd);
         return 1;
     }
-    if (bind(netconf->udp_listener_fd, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+    if (bind(udp_listener_fd, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
         syslog(LOG_ERR, "Failed to bind on UDP socket! Err: %s", strerror(errno));
-        close(netconf->udp_listener_fd);
+        close(udp_listener_fd);
         return 1;
     }
 
     // Create the libev objects
     ev_io_init(&netconf->udp_client, prepare_event,
-                netconf->udp_listener_fd, EV_READ);
+                udp_listener_fd, EV_READ);
     ev_io_start(&netconf->udp_client);
     return 0;
 }
@@ -241,7 +239,7 @@ int init_networking(bloom_config *config, bloom_networking **netconf_out) {
     res = setup_udp_listener(netconf);
     if (res != 0) {
         ev_io_stop(&netconf->tcp_client);
-        close(netconf->tcp_listener_fd);
+        close(netconf->tcp_client.fd);
         free(netconf);
         return 1;
     }
@@ -420,6 +418,9 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
     // Initialize the libev stuff
     ev_io_init(&conn->client, prepare_event, client_fd, EV_READ);
 
+    // Store a reference to the conn object
+    conn->client.data = conn;
+
     // Schedule the new client
     schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->client);
 }
@@ -436,7 +437,7 @@ static void invoke_event_handler(worker_ev_userdata* data) {
     int fd = watcher->fd;
 
     // Check if this is either of the listeners
-    if (fd == data->netconf->tcp_listener_fd) {
+    if (watcher == &data->netconf->tcp_client) {
         // Accept the new client
         handle_new_client(fd, data);
 
@@ -444,7 +445,7 @@ static void invoke_event_handler(worker_ev_userdata* data) {
         schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
         return;
 
-    } else if (fd == data->netconf->udp_listener_fd) {
+    } else if (watcher == &data->netconf->udp_client) {
 
         return;
     }
@@ -529,9 +530,9 @@ int shutdown_networking(bloom_networking *netconf) {
 
     // Stop listening for new connections
     ev_io_stop(&netconf->tcp_client);
-    close(netconf->tcp_listener_fd);
+    close(netconf->tcp_client.fd);
     ev_io_stop(&netconf->udp_client);
-    close(netconf->udp_listener_fd);
+    close(netconf->udp_client.fd);
 
     // Close all the client connections
     conn_info *conn;
