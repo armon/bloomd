@@ -5,7 +5,7 @@
 #ifdef __linux__
 #define EV_USE_EPOLL 1
 #endif
-#ifdef __APPLE__
+#ifdef __MACH__
 #define EV_USE_KQUEUE 1
 #endif
 #include "ev.c"
@@ -214,7 +214,17 @@ int init_networking(bloom_config *config, bloom_networking **netconf_out) {
     netconf->conn_list_size = INIT_CONN_LIST_SIZE;
     netconf->conns = calloc(INIT_CONN_LIST_SIZE, sizeof(conn_info*));
 
-    if (!ev_default_loop (0)) {
+    /**
+     * Check if we can use kqueue instead of select.
+     * By default, libev will not use kqueue since it only
+     * works for sockets, which is all we need.
+     */
+    int ev_mode = EVFLAG_AUTO;
+    if (ev_supported_backends () & ~ev_recommended_backends () & EVBACKEND_KQUEUE) {
+        ev_mode = EVBACKEND_KQUEUE;
+    }
+
+    if (!ev_default_loop (ev_mode)) {
         syslog(LOG_CRIT, "Failed to initialize libev!");
         free(netconf);
         return 1;
