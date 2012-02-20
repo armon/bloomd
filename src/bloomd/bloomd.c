@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
 
     // Start the network workers
     pthread_t thread;
-    for (int i; i < config->worker_threads; i++) {
+    for (int i=0; i < config->worker_threads; i++) {
         pthread_create(&thread, NULL, (void*(*)(void*))start_networking_worker, netconf);
     }
 
