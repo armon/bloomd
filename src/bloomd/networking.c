@@ -134,6 +134,13 @@ static int setup_tcp_listener(bloom_networking *netconf) {
 
     // Make the socket, bind and listen
     netconf->tcp_listener_fd = socket(PF_INET, SOCK_STREAM, 0);
+    int optval = 1;
+    if (setsockopt(netconf->tcp_listener_fd, SOL_SOCKET,
+                SO_REUSEADDR, &optval, sizeof(void*))) {
+        syslog(LOG_ERR, "Failed to set SO_REUSEADDR! Err: %s", strerror(errno));
+        close(netconf->tcp_listener_fd);
+        return 1;
+    }
     if (bind(netconf->tcp_listener_fd, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
         syslog(LOG_ERR, "Failed to bind on TCP socket! Err: %s", strerror(errno));
         close(netconf->tcp_listener_fd);
@@ -166,6 +173,13 @@ static int setup_udp_listener(bloom_networking *netconf) {
 
     // Make the socket, bind and listen
     netconf->udp_listener_fd = socket(PF_INET, SOCK_DGRAM, 0);
+    int optval = 1;
+    if (setsockopt(netconf->udp_listener_fd, SOL_SOCKET,
+                SO_REUSEADDR, &optval, sizeof(void*))) {
+        syslog(LOG_ERR, "Failed to set SO_REUSEADDR! Err: %s", strerror(errno));
+        close(netconf->udp_listener_fd);
+        return 1;
+    }
     if (bind(netconf->udp_listener_fd, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
         syslog(LOG_ERR, "Failed to bind on UDP socket! Err: %s", strerror(errno));
         close(netconf->udp_listener_fd);
@@ -317,6 +331,7 @@ static void handle_async_event(ev_async *watcher, int revents) {
         free(event);
         event = next;
     }
+    data->netconf->events = NULL;
 
     // Release the lock
     pthread_mutex_unlock(&data->netconf->event_lock);
