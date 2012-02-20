@@ -13,8 +13,8 @@ envtest.Program('test_libbloom_runner', spooky + murmur + bloom +  Glob("tests/l
 envinih = Environment(CPATH = ['deps/inih/'], CFLAGS="-O2")
 inih = envinih.Library('inih', Glob("deps/inih/*.c"))
 
-envbloomd_with_err = Environment(CCFLAGS = '-std=c99 -Wall -Werror -O2 -Ideps/inih/ -Ideps/libev/')
-envbloomd_without_err = Environment(CCFLAGS = '-std=c99 -O2 -Isrc/bloomd/ -Ideps/inih/ -Ideps/libev/')
+envbloomd_with_err = Environment(CCFLAGS = '-std=c99 -g -Wall -Werror -O2 -pthread -Ideps/inih/ -Ideps/libev/')
+envbloomd_without_err = Environment(CCFLAGS = '-std=c99 -g -O2 -pthread -Isrc/bloomd/ -Ideps/inih/ -Ideps/libev/')
 
 objs =  envbloomd_with_err.Object('src/config/config', 'src/bloomd/config.c') + \
         envbloomd_without_err.Object('src/config/networking', 'src/bloomd/networking.c')
