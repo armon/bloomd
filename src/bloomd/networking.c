@@ -111,6 +111,9 @@ struct bloom_networking {
 
 
 // Static typedefs
+static void schedule_async(bloom_networking *netconf,
+                            ASYNC_EVENT_TYPE event_type,
+                            ev_io *watcher);
 static void prepare_event(ev_io *watcher, int revents);
 static void handle_async_event(ev_async *watcher, int revents);
 static void handle_new_client(int listen_fd, worker_ev_userdata* data);
@@ -224,6 +227,31 @@ int init_networking(bloom_config *config, bloom_networking **netconf_out) {
 
 
 /**
+ * Called to schedule an async event. Mostly a convenience
+ * method to wrap some of the logic.
+ */
+static void schedule_async(bloom_networking *netconf,
+                            ASYNC_EVENT_TYPE event_type,
+                            ev_io *watcher) {
+    // Make a new async event
+    async_event *event = calloc(1, sizeof(async_event));
+
+    // Initialize
+    event->event_type = event_type;
+    event->watcher = watcher;
+
+    // Always lock for safety!
+    pthread_mutex_lock(&netconf->event_lock);
+
+    // Set the next pointer, and add us to the head
+    event->next = netconf->events;
+    netconf->events = event;
+
+    // Unlock
+    pthread_mutex_unlock(&netconf->event_lock);
+}
+
+/**
  * Called when an event is ready to be processed by libev.
  * We need to do _very_ little work here. Basically just
  * setup the userdata to process the event and return.
@@ -251,7 +279,38 @@ static void prepare_event(ev_io *watcher, int revents) {
  * or exit the loop.
  */
 static void handle_async_event(ev_async *watcher, int revents) {
+    // Get the user data
+    worker_ev_userdata *data = ev_userdata();
 
+    // Lock the events
+    pthread_mutex_lock(&data->netconf->event_lock);
+
+    async_event *event = data->netconf->events;
+    async_event *next;
+    while (event != NULL) {
+        // Handle based on the event
+        switch (event->event_type) {
+            case EXIT:
+                ev_break(EVBREAK_ALL);
+                break;
+
+            case SCHEDULE_WATCHER:
+                ev_io_start(event->watcher);
+                break;
+
+            default:
+                syslog(LOG_ERR, "Unknown async event type!");
+                break;
+        }
+
+        // Grab the next event, free this one, and repeat
+        next = event->next;
+        free(event);
+        event = next;
+    }
+
+    // Release the lock
+    pthread_mutex_unlock(&data->netconf->event_lock);
 }
 
 
