@@ -362,9 +362,15 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
                         (struct sockaddr*)&client_addr,
                         &client_addr_len);
 
+    // Check for an error
+    if (client_fd == -1) {
+        syslog(LOG_ERR, "Failed to accept() connection! %s.", strerror(errno));
+        return;
+    }
+
     // Debug info
-    syslog(LOG_DEBUG, "Accepted client connection: %s %d",
-            inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+    syslog(LOG_DEBUG, "Accepted client connection: %s %d [%d]",
+            inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
 
     /**
      * Check if we have a cached conn_info object for this fd
