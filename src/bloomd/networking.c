@@ -449,7 +449,7 @@ void start_networking_worker(bloom_networking *netconf) {
         }
 
         // Check again if we should run
-        if (netconf->should_run) {
+        if (!netconf->should_run) {
             pthread_mutex_unlock(&netconf->leader_lock);
             break;
         }
