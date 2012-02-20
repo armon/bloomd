@@ -14,6 +14,8 @@
 #include <sys/socket.h>
 #include <pthread.h>
 #include <netinet/in.h>
+#include <unistd.h>
+#include <sys/uio.h>
 #include <arpa/inet.h>
 
 /**
@@ -38,6 +40,16 @@
  */
 #define INIT_CONN_BUF_SIZE 4096
 
+/**
+ * This is the scale factor we use when
+ * we are growing our connection buffers.
+ * We want this to be aggressive enough to reduce
+ * the number of resizes, but to also avoid wasted
+ * space. With this, we will go from:
+ * 4K -> 32K -> 256K -> 2MB -> 16MB
+ */
+#define CONN_BUF_MULTIPLIER 8
+
 
 /**
  * Stores the thread specific user data.
@@ -55,6 +67,8 @@ typedef struct {
  */
 typedef struct {
     ev_io client;
+    int write_cursor;
+    int read_cursor;
     uint32_t buf_size;
     char *buffer;
 } conn_info;
@@ -115,6 +129,7 @@ static void schedule_async(bloom_networking *netconf,
 static void prepare_event(ev_io *watcher, int revents);
 static void handle_async_event(ev_async *watcher, int revents);
 static void handle_new_client(int listen_fd, worker_ev_userdata* data);
+static void handle_client_data(ev_io *watch, worker_ev_userdata* data);
 static void invoke_event_handler(worker_ev_userdata* data);
 
 
@@ -382,8 +397,8 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
 
     if (conn == NULL) {
         conn = calloc(1, sizeof(conn_info));
-        conn->buf_size = INIT_CONN_BUF_SIZE;
-        conn->buffer = calloc(INIT_CONN_BUF_SIZE, sizeof(char));
+        conn->buf_size = INIT_CONN_BUF_SIZE * sizeof(char);
+        conn->buffer = malloc(conn->buf_size);
 
         // Lock the conns list
         pthread_mutex_lock(&data->netconf->conns_lock);
@@ -425,6 +440,94 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
     schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->client);
 }
 
+
+/**
+ * Invoked when a client connection has data ready to be read.
+ * We need to take care to add the data to our buffers, and then
+ * invoke the connection handlers who have the business logic
+ * of what to do.
+ */
+static void handle_client_data(ev_io *watch, worker_ev_userdata* data) {
+    // Get the associated connection struct
+    conn_info *conn = watch->data;
+
+    /**
+     * Figure out how much space we have to write.
+     * If we have < 50% free, we resize the buffer using
+     * a multiplier.
+     */
+    int avail_buf = (conn->buf_size - conn->write_cursor) + conn->read_cursor;
+    if (avail_buf < conn->buf_size / 2) {
+        int new_size = conn->buf_size * CONN_BUF_MULTIPLIER * sizeof(char);
+        char *new_buf = malloc(new_size);
+        int bytes_written = 0;
+
+        // Check if the write has wrapped around
+        if (conn->write_cursor <= conn->read_cursor) {
+            // Copy from the read cursor to the end of the buffer
+            bytes_written = conn->buf_size - conn->read_cursor;
+            memcpy(new_buf,
+                   conn->buffer+conn->read_cursor,
+                   bytes_written);
+
+            // Copy from the start to the write cursor
+            memcpy(new_buf+bytes_written,
+                   conn->buffer,
+                   conn->write_cursor);
+            bytes_written += conn->write_cursor;
+
+        // We haven't wrapped yet...
+        } else {
+            // Copy from the read cursor up to the write cursor
+            bytes_written = conn->write_cursor - conn->read_cursor;
+            memcpy(new_buf,
+                   conn->buffer + conn->read_cursor,
+                   bytes_written);
+        }
+
+        // Update the buffer locations and everything
+        free(conn->buffer);
+        conn->buffer = new_buf;
+        conn->buf_size = new_size;
+        conn->read_cursor = 0;
+        conn->write_cursor = bytes_written;
+
+        // Recompute the available space
+        avail_buf = new_size - bytes_written;
+    }
+
+    // Build the IO vectors to perform the read
+    struct iovec vectors[2];
+    int num_vectors = 0;
+
+    // Check if we've wrapped around
+    if (conn->write_cursor < conn->read_cursor) {
+        vectors[0].iov_base = conn->buffer + conn->write_cursor;
+        vectors[0].iov_len = conn->read_cursor - conn->write_cursor;
+        num_vectors = 1;
+    } else {
+        vectors[0].iov_base = conn->buffer + conn->write_cursor;
+        vectors[0].iov_len = conn->buf_size - conn->write_cursor;
+        vectors[1].iov_base = conn->buffer;
+        vectors[1].iov_len = conn->read_cursor;
+        num_vectors = (conn->read_cursor) ? 2 : 1;
+    }
+
+    // Issue the read
+    ssize_t read_bytes = readv(watch->fd, (struct iovec*)&vectors, num_vectors);
+
+    // Make sure we actually read something
+    if (!read_bytes) {
+        syslog(LOG_ERR, "Failed to read() from connection! %s.", strerror(errno));
+        // TODO: Handle error gracefully...
+        return;
+    }
+
+    // Update the write cursor
+    conn->write_cursor = (conn->write_cursor + read_bytes) % conn->buf_size;
+}
+
+
 /**
  * Reads the thread specific userdata to figure out what
  * we need to handle. Things that purely effect the network
@@ -446,7 +549,11 @@ static void invoke_event_handler(worker_ev_userdata* data) {
         return;
 
     } else if (watcher == &data->netconf->udp_client) {
+        // TODO: Handle UDP clients
+        //
 
+        // Reschedule the listener
+        schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
         return;
     }
 
@@ -456,7 +563,15 @@ static void invoke_event_handler(worker_ev_userdata* data) {
      * append it to the buffers, and then invoke the
      * connection handlers.
      */
+    // Do the read
+    handle_client_data(watcher, data);
 
+    // TODO: Process the request
+
+    // TODO: Process the result (send)
+
+    // Reschedule the watcher
+    schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
 }
 
 
