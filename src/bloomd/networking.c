@@ -747,6 +747,7 @@ void close_client_connection(conn_info *conn) {
     close(conn->client.fd);
 }
 
+
 /**
  * Sends a response to a client.
  * @arg conn The client connection
@@ -805,6 +806,7 @@ int send_client_response(conn_info *conn, char **response_buffers, int *buf_size
     return 0;
 }
 
+
 /**
  * Returns the number of bytes ready to be read.
  * @arg conn The client connection
@@ -818,5 +820,101 @@ int available_client_bytes(conn_info *conn) {
         avail_bytes = conn->write_cursor - conn->read_cursor;
     }
     return avail_bytes;
+}
+
+
+/**
+ * This method is used to conveniently extract commands from the
+ * command buffer. It scans up to a terminator, and then sets the
+ * buf to the start of the buffer, and buf_len to the length
+ * of the buffer. The output param should_free indicates that
+ * the caller should free the buffer pointed to by buf when it is finished.
+ * This method consumes the bytes from the underlying buffer, freeing
+ * space for later reads.
+ * @arg conn The client connection
+ * @arg terminator The terminator charactor to look for. Replaced by null terminator.
+ * @arg buf Output parameter, sets the start of the buffer.
+ * @arg buf_len Output parameter, the length of the buffer.
+ * @arg should_free Output parameter, should the buffer be freed by the caller.
+ * @return 0 on success, -1 if the terminator is not found.
+ */
+int extract_to_terminator(bloom_conn_info *conn, char terminator, char **buf, int *buf_len, int *should_free) {
+    // First we need to find the terminator...
+    char *term_addr = NULL;
+    if (conn->write_cursor < conn->read_cursor) {
+        /*
+         * We need to scan from the read cursor to the end of
+         * the buffer, and then from the start of the buffer to
+         * the write cursor.
+        */
+        term_addr = memchr(conn->buffer+conn->read_cursor,
+                           terminator,
+                           conn->buf_size - conn->read_cursor);
+
+        // If we've found the terminator, we can just move up
+        // the read cursor
+        if (term_addr) {
+            *buf = conn->buffer + conn->read_cursor;
+            *buf_len = term_addr - *buf + 1;    // Difference between the terminator and location
+            *term_addr = '\0';              // Add a null terminator
+            *should_free = 0;               // No need to free, in the buffer
+            conn->read_cursor = term_addr - conn->buffer + 1; // Push the read cursor forward
+            return 0;
+        }
+
+        // Wrap around
+        term_addr = memchr(conn->buffer,
+                           terminator,
+                           conn->write_cursor);
+
+        // If we've found the terminator, we need to allocate
+        // a contiguous buffer large enough to store everything
+        // and provide a linear buffer
+        if (term_addr) {
+            int start_size = term_addr - conn->buffer + 1;
+            int end_size = conn->buf_size - conn->read_cursor;
+            *buf_len = start_size + end_size;
+            *buf = malloc(*buf_len);
+
+            // Copy from the read cursor to the end
+            memcpy(*buf, conn->buffer+conn->read_cursor, end_size);
+
+            // Copy from the start to the terminator
+            *term_addr = '\0';              // Add a null terminator
+            memcpy(*buf+end_size, conn->buffer, start_size);
+
+            *should_free = 1;               // Must free, not in the buffer
+            conn->read_cursor = start_size; // Push the read cursor forward
+        }
+
+    } else {
+        /*
+         * We need to scan from the read cursor to write buffer.
+         */
+        term_addr = memchr(conn->buffer+conn->read_cursor,
+                           terminator,
+                           conn->write_cursor - conn->read_cursor);
+
+        // If we've found the terminator, we can just move up
+        // the read cursor
+        if (term_addr) {
+            *buf = conn->buffer + conn->read_cursor;
+            *buf_len = term_addr - *buf + 1; // Difference between the terminator and location
+            *term_addr = '\0';               // Add a null terminator
+            *should_free = 0;                // No need to free, in the buffer
+            conn->read_cursor = term_addr - conn->buffer + 1; // Push the read cursor forward
+        }
+    }
+
+    // Minor optimization, if our read-cursor has caught up
+    // with the write cursor, reset them to the beginning
+    // to avoid wrapping in the future
+    if (conn->read_cursor == conn->write_cursor) {
+        conn->read_cursor = 0;
+        conn->write_cursor = 0;
+    }
+
+    // Return success if we have a term address
+    return ((term_addr) ? 0 : -1);
 }
 

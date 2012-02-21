@@ -55,4 +55,21 @@ int send_client_response(bloom_conn_info *conn, char **response_buffers, int *bu
  */
 int available_client_bytes(bloom_conn_info *conn);
 
+/**
+ * This method is used to conveniently extract commands from the
+ * command buffer. It scans up to a terminator, and then sets the
+ * buf to the start of the buffer, and buf_len to the length
+ * of the buffer. The output param should_free indicates that
+ * the caller should free the buffer pointed to by buf when it is finished.
+ * This method consumes the bytes from the underlying buffer, freeing
+ * space for later reads.
+ * @arg conn The client connection
+ * @arg terminator The terminator charactor to look for. Included in buf.
+ * @arg buf Output parameter, sets the start of the buffer.
+ * @arg buf_len Output parameter, the length of the buffer.
+ * @arg should_free Output parameter, should the buffer be freed by the caller.
+ * @return 0 on success, -1 if the terminator is not found.
+ */
+int extract_to_terminator(bloom_conn_info *conn, char terminator, char **buf, int *buf_len, int *should_free);
+
 #endif
