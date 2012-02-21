@@ -9,14 +9,17 @@
 #define EV_USE_KQUEUE 1
 #endif
 #include "ev.c"
-#include <syslog.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <pthread.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <sys/uio.h>
+
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <syslog.h>
+#include <unistd.h>
+#include "conn_handler.h"
+
 
 /**
  * Default listen backlog size for
@@ -460,34 +463,6 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
 
 
 /**
- * Called to close and cleanup a client connection.
- * Must be called when the connection is not already
- * scheduled. e.g. After ev_io_stop() has been called.
- * Leaves the connection in the conns list so that it
- * can be re-used.
- * @arg conn The connection to close
- */
-void close_client_connection(conn_info *conn) {
-    // Stop scheduling
-    conn->should_schedule = 0;
-
-    // Clear everything out
-    conn->write_cursor = 0;
-    conn->read_cursor = 0;
-
-    // Clear the conn if it is larger than the initial size
-    if (conn->buf_size > INIT_CONN_BUF_SIZE) {
-        conn->buf_size = 0;
-        free(conn->buffer);
-        conn->buffer = NULL;
-    }
-
-    // Close the fd
-    close(conn->client.fd);
-}
-
-
-/**
  * Invoked when a client connection has data ready to be read.
  * We need to take care to add the data to our buffers, and then
  * invoke the connection handlers who have the business logic
@@ -630,7 +605,6 @@ static void invoke_event_handler(worker_ev_userdata* data) {
     if (res == 0) {
         // TODO: Process the request
 
-        // TODO: Process the result (send)
     }
 
     // Reschedule the watcher, unless told otherwise.
@@ -739,4 +713,108 @@ int shutdown_networking(bloom_networking *netconf) {
     return 0;
 }
 
+/*
+ * These are externally visible methods for
+ * interacting with the connection buffers.
+ */
+
+/**
+ * Called to close and cleanup a client connection.
+ * Must be called when the connection is not already
+ * scheduled. e.g. After ev_io_stop() has been called.
+ * Leaves the connection in the conns list so that it
+ * can be re-used.
+ * @arg conn The connection to close
+ */
+void close_client_connection(conn_info *conn) {
+    // Stop scheduling
+    conn->should_schedule = 0;
+
+    // Clear everything out
+    conn->write_cursor = 0;
+    conn->read_cursor = 0;
+
+    // Clear the conn if it is larger than the initial size
+    if (conn->buf_size > INIT_CONN_BUF_SIZE) {
+        conn->buf_size = 0;
+        free(conn->buffer);
+        conn->buffer = NULL;
+    }
+
+    // Close the fd
+    close(conn->client.fd);
+}
+
+/**
+ * Sends a response to a client.
+ * @arg conn The client connection
+ * @arg response_buffers A list of response buffers to send
+ * @arg buf_sizes A list of the buffer sizes
+ * @arg num_bufs The number of response buffers
+ * @return 0 on success.
+ */
+int send_client_response(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs) {
+    // Bail if there are no buffers
+    if (num_bufs <= 0) return 0;
+
+    // Optimize for the common case of a single buffer
+    if (num_bufs == 1) {
+        char *buf = response_buffers[0];
+        int buf_size = buf_sizes[0];
+        ssize_t sent = 0;
+        ssize_t s;
+
+        do {
+            s = write(conn->client.fd, buf, buf_size);
+            if (s > 0) sent += s;
+            else {
+                syslog(LOG_ERR, "Failed to send() to connection [%d]! %s.",
+                        conn->client.fd, strerror(errno));
+                close_client_connection(conn);
+                return 1;
+            }
+        } while (sent < buf_size);
+        return 0;
+    }
+
+    /*
+     * For multiple buffers, we use writev() to minimize the syscalls.
+     */
+
+    // Stack allocate the iovectors
+    struct iovec *vectors = alloca(num_bufs * sizeof(struct iovec));
+
+    // Setup all the pointers
+    ssize_t total_bytes = 0;
+    for (int i=0; i<num_bufs; i++) {
+        vectors[i].iov_base = response_buffers[i];
+        vectors[i].iov_len = buf_sizes[i];
+        total_bytes += buf_sizes[i];
+    }
+
+    // Perform the write
+    ssize_t sent = writev(conn->client.fd, vectors, num_bufs);
+    if (sent < total_bytes) {
+        syslog(LOG_ERR, "Failed to send() to connection [%d]! %s.",
+                conn->client.fd, strerror(errno));
+        close_client_connection(conn);
+        return 1;
+    }
+    return 0;
+}
+
+/**
+ * Returns the number of bytes ready to be read.
+ * @arg conn The client connection
+ * @return The number of bytes available to read
+ */
+int available_client_bytes(conn_info *conn) {
+    int avail_bytes;
+    if (conn->write_cursor < conn->read_cursor) {
+        avail_bytes = conn->buf_size - conn->read_cursor + conn->write_cursor;
+    } else {
+        avail_bytes = conn->write_cursor - conn->read_cursor;
+    }
+    return avail_bytes;
+}
 
