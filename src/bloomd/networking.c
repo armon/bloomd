@@ -67,6 +67,7 @@ typedef struct {
  */
 typedef struct {
     ev_io client;
+    int should_schedule;
     int write_cursor;
     int read_cursor;
     uint32_t buf_size;
@@ -396,9 +397,8 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
     }
 
     if (conn == NULL) {
+        // Create a new blank conn object
         conn = calloc(1, sizeof(conn_info));
-        conn->buf_size = INIT_CONN_BUF_SIZE * sizeof(char);
-        conn->buffer = malloc(conn->buf_size);
 
         // Lock the conns list
         pthread_mutex_lock(&data->netconf->conns_lock);
@@ -430,6 +430,12 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
         pthread_mutex_unlock(&data->netconf->conns_lock);
     }
 
+    // Allocate a buffer if the connection does not have one.
+    if (conn->buffer == NULL) {
+        conn->buf_size = INIT_CONN_BUF_SIZE * sizeof(char);
+        conn->buffer = malloc(conn->buf_size);
+    }
+
     // Initialize the libev stuff
     ev_io_init(&conn->client, prepare_event, client_fd, EV_READ);
 
@@ -437,7 +443,36 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
     conn->client.data = conn;
 
     // Schedule the new client
+    conn->should_schedule = 1;
     schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->client);
+}
+
+
+/**
+ * Called to close and cleanup a client connection.
+ * Must be called when the connection is not already
+ * scheduled. e.g. After ev_io_stop() has been called.
+ * Leaves the connection in the conns list so that it
+ * can be re-used.
+ * @arg conn The connection to close
+ */
+void close_client_connection(conn_info *conn) {
+    // Stop scheduling
+    conn->should_schedule = 0;
+
+    // Clear everything out
+    conn->write_cursor = 0;
+    conn->read_cursor = 0;
+
+    // Clear the conn if it is larger than the initial size
+    if (conn->buf_size > INIT_CONN_BUF_SIZE) {
+        conn->buf_size = 0;
+        free(conn->buffer);
+        conn->buffer = NULL;
+    }
+
+    // Close the fd
+    close(conn->client.fd);
 }
 
 
@@ -578,8 +613,10 @@ static void invoke_event_handler(worker_ev_userdata* data) {
 
     // TODO: Process the result (send)
 
-    // Reschedule the watcher
-    schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
+    // Reschedule the watcher, unless told otherwise.
+    if (((conn_info*)watcher->data)->should_schedule) {
+        schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
+    }
 }
 
 
@@ -665,11 +702,13 @@ int shutdown_networking(bloom_networking *netconf) {
         if (conn == NULL) continue;
 
         // Stop listening in libev and close the socket
-        ev_io_stop(&conn->client);
-        close(conn->client.fd);
+        if (conn->should_schedule) {
+            ev_io_stop(&conn->client);
+            close(conn->client.fd);
+        }
 
         // Free all the buffers
-        free(conn->buffer);
+        if (conn->buffer) free(conn->buffer);
         free(conn);
     }
 
