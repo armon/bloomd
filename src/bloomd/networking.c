@@ -151,7 +151,7 @@ static int setup_tcp_listener(bloom_networking *netconf) {
     int tcp_listener_fd = socket(PF_INET, SOCK_STREAM, 0);
     int optval = 1;
     if (setsockopt(tcp_listener_fd, SOL_SOCKET,
-                SO_REUSEADDR, &optval, sizeof(void*))) {
+                SO_REUSEADDR, &optval, sizeof(optval))) {
         syslog(LOG_ERR, "Failed to set SO_REUSEADDR! Err: %s", strerror(errno));
         close(tcp_listener_fd);
         return 1;
@@ -190,7 +190,7 @@ static int setup_udp_listener(bloom_networking *netconf) {
     int udp_listener_fd = socket(PF_INET, SOCK_DGRAM, 0);
     int optval = 1;
     if (setsockopt(udp_listener_fd, SOL_SOCKET,
-                SO_REUSEADDR, &optval, sizeof(void*))) {
+                SO_REUSEADDR, &optval, sizeof(optval))) {
         syslog(LOG_ERR, "Failed to set SO_REUSEADDR! Err: %s", strerror(errno));
         close(udp_listener_fd);
         return 1;
