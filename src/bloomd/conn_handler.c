@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "conn_handler.h"
 
 /**
@@ -9,6 +12,17 @@
  * @return 0 on success.
  */
 int handle_client_connect(bloom_conn_handler *handle) {
+    // Look for the next command line
+    char *buf;
+    int buf_len, should_free;
+    int status;
+    while (1) {
+        status = extract_to_terminator(handle->conn, '\n', &buf, &buf_len, &should_free);
+        if (status == -1) return 0; // Return if no command is available
+        printf("Buffer: %s\n", buf);
+        if (should_free) free(buf);
+    }
+
     return 0;
 }
 
