@@ -561,8 +561,12 @@ static void handle_client_data(ev_io *watch, worker_ev_userdata* data) {
 
     // Make sure we actually read something
     if (!read_bytes) {
-        syslog(LOG_ERR, "Failed to read() from connection! %s.", strerror(errno));
-        // TODO: Handle error gracefully...
+        if (errno)
+            syslog(LOG_ERR, "Failed to read() from connection [%d]! %s.",
+                    conn->client.fd, strerror(errno));
+        else
+            syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
+        close_client_connection(conn);
         return;
     }
 
