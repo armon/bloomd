@@ -130,7 +130,7 @@ static void schedule_async(bloom_networking *netconf,
 static void prepare_event(ev_io *watcher, int revents);
 static void handle_async_event(ev_async *watcher, int revents);
 static void handle_new_client(int listen_fd, worker_ev_userdata* data);
-static void handle_client_data(ev_io *watch, worker_ev_userdata* data);
+static int handle_client_data(ev_io *watch, worker_ev_userdata* data);
 static void invoke_event_handler(worker_ev_userdata* data);
 
 
@@ -482,7 +482,7 @@ void close_client_connection(conn_info *conn) {
  * invoke the connection handlers who have the business logic
  * of what to do.
  */
-static void handle_client_data(ev_io *watch, worker_ev_userdata* data) {
+static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
     // Get the associated connection struct
     conn_info *conn = watch->data;
 
@@ -567,11 +567,12 @@ static void handle_client_data(ev_io *watch, worker_ev_userdata* data) {
         else
             syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
         close_client_connection(conn);
-        return;
+        return 1;
     }
 
     // Update the write cursor
     conn->write_cursor = (conn->write_cursor + read_bytes) % conn->buf_size;
+    return 0;
 }
 
 
@@ -611,11 +612,12 @@ static void invoke_event_handler(worker_ev_userdata* data) {
      * connection handlers.
      */
     // Do the read
-    handle_client_data(watcher, data);
+    int res = handle_client_data(watcher, data);
+    if (res == 0) {
+        // TODO: Process the request
 
-    // TODO: Process the request
-
-    // TODO: Process the result (send)
+        // TODO: Process the result (send)
+    }
 
     // Reschedule the watcher, unless told otherwise.
     if (((conn_info*)watcher->data)->should_schedule) {
