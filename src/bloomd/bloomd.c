@@ -6,12 +6,13 @@
  * front ends.
  */
 #include <ctype.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <syslog.h>
+#include <errno.h>
 #include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
+#include <unistd.h>
 #include "config.h"
 #include "networking.h"
 
@@ -26,22 +27,24 @@ static int SHOULD_RUN = 1;
  * Prints our usage to stderr
  */
 void show_usage() {
-    fprintf(stderr, "usage: bloomd [-h] [-f filename]\n\
+    fprintf(stderr, "usage: bloomd [-h] [-f filename] [-w num]\n\
 \n\
     -h : Displays this help info\n\
     -f : Reads the bloomd configuration from this file\n\
+    -w : Sets the number of worker threads\n\
 \n");
 }
 
 /**
  * Invoked to parse the command line options
  */
-int parse_cmd_line_args(int argc, char **argv, char **config_file) {
+int parse_cmd_line_args(int argc, char **argv, char **config_file, int *workers) {
     int enable_help = 0;
 
     int c;
+    long w;
     opterr = 0;
-    while ((c = getopt(argc, argv, "hf:")) != -1) {
+    while ((c = getopt(argc, argv, "hf:w:")) != -1) {
         switch (c) {
             case 'h':
                 enable_help = 1;
@@ -49,9 +52,19 @@ int parse_cmd_line_args(int argc, char **argv, char **config_file) {
             case 'f':
                 *config_file = optarg;
                 break;
+            case 'w':
+                w = strtol(optarg, NULL, 10);
+                if (w == 0 && errno == EINVAL) {
+                    fprintf(stderr, "Option -%c requires a number.\n", optopt);
+                    break;
+                }
+                *workers = w;
+                break;
             case '?':
                 if (optopt == 'f')
                     fprintf(stderr, "Option -%c requires a filename.\n", optopt);
+                if (optopt == 'w')
+                    fprintf(stderr, "Option -%c requires a positive integer.\n", optopt);
                 else if (isprint(optopt))
                     fprintf(stderr, "Unknown option `-%c'.\n", optopt);
                 else
@@ -99,7 +112,8 @@ int main(int argc, char **argv) {
 
     // Parse the command line
     char *config_file = NULL;
-    int parse_res = parse_cmd_line_args(argc, argv, &config_file);
+    int workers = 0;
+    int parse_res = parse_cmd_line_args(argc, argv, &config_file, &workers);
     if (parse_res) return 1;
 
     // Parse the config file
@@ -109,6 +123,9 @@ int main(int argc, char **argv) {
         syslog(LOG_ERR, "Failed to read the configuration file!");
         return 1;
     }
+
+    // Set the workers if specified
+    if (workers) config->worker_threads = workers;
 
     // Validate the config file
     int validate_res = validate_config(config);

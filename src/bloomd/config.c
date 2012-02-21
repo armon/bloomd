@@ -113,6 +113,8 @@ static int config_callback(void* user, const char* section, const char* name, co
          return value_to_int(value, &config->cold_interval);
     } else if (NAME_MATCH("in_memory")) {
          return value_to_int(value, &config->in_memory);
+    } else if (NAME_MATCH("workers")) {
+         return value_to_int(value, &config->worker_threads);
 
     // Handle the int64 cases
     } else if (NAME_MATCH("initial_capacity")) {
@@ -354,6 +356,16 @@ int sane_in_memory(int in_mem) {
     return 0;
 }
 
+int sane_worker_threads(int threads) {
+    if (threads <= 0) {
+        syslog(LOG_ERR,
+               "Cannot have fewer than one worker thread!");
+        return 1;
+    }
+    return 0;
+}
+
+
 /**
  * Validates the configuration
  * @arg config The config object to validate.
@@ -371,6 +383,7 @@ int validate_config(bloom_config *config) {
     res |= sane_flush_interval(config->flush_interval);
     res |= sane_cold_interval(config->cold_interval);
     res |= sane_in_memory(config->in_memory);
+    res |= sane_worker_threads(config->worker_threads);
 
     return res;
 }

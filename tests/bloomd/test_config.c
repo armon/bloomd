@@ -253,3 +253,13 @@ START_TEST(test_sane_in_memory)
 }
 END_TEST
 
+START_TEST(test_sane_worker_threads)
+{
+    fail_unless(sane_worker_threads(-1) == 1);
+    fail_unless(sane_worker_threads(0) == 1);
+    fail_unless(sane_worker_threads(1) == 0);
+    fail_unless(sane_worker_threads(2) == 0);
+    fail_unless(sane_worker_threads(16) == 0);
+}
+END_TEST
+

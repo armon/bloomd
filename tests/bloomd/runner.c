@@ -27,6 +27,7 @@ int main(void)
     tcase_add_test(tc1, test_sane_flush_interval);
     tcase_add_test(tc1, test_sane_cold_interval);
     tcase_add_test(tc1, test_sane_in_memory);
+    tcase_add_test(tc1, test_sane_worker_threads);
 
 
     srunner_run_all(sr, CK_ENV);

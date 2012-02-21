@@ -49,6 +49,7 @@ int sane_probability_reduction(double reduction);
 int sane_flush_interval(int intv);
 int sane_cold_interval(int intv);
 int sane_in_memory(int in_mem);
+int sane_worker_threads(int threads);
 
 /**
  * Joins two strings as part of a path,
