@@ -456,14 +456,20 @@ static void handle_client_data(ev_io *watch, worker_ev_userdata* data) {
      * If we have < 50% free, we resize the buffer using
      * a multiplier.
      */
-    int avail_buf = (conn->buf_size - conn->write_cursor) + conn->read_cursor;
+    int avail_buf;
+    if (conn->write_cursor < conn->read_cursor) {
+        avail_buf = conn->read_cursor - conn->write_cursor;
+    } else {
+        avail_buf = conn->buf_size - conn->write_cursor + conn->read_cursor;
+    }
+
     if (avail_buf < conn->buf_size / 2) {
         int new_size = conn->buf_size * CONN_BUF_MULTIPLIER * sizeof(char);
         char *new_buf = malloc(new_size);
         int bytes_written = 0;
 
         // Check if the write has wrapped around
-        if (conn->write_cursor <= conn->read_cursor) {
+        if (conn->write_cursor < conn->read_cursor) {
             // Copy from the read cursor to the end of the buffer
             bytes_written = conn->buf_size - conn->read_cursor;
             memcpy(new_buf,
@@ -498,19 +504,21 @@ static void handle_client_data(ev_io *watch, worker_ev_userdata* data) {
 
     // Build the IO vectors to perform the read
     struct iovec vectors[2];
-    int num_vectors = 0;
+    int num_vectors = 1;
 
     // Check if we've wrapped around
     if (conn->write_cursor < conn->read_cursor) {
         vectors[0].iov_base = conn->buffer + conn->write_cursor;
-        vectors[0].iov_len = conn->read_cursor - conn->write_cursor;
-        num_vectors = 1;
+        vectors[0].iov_len = conn->read_cursor - conn->write_cursor - 1;
     } else {
         vectors[0].iov_base = conn->buffer + conn->write_cursor;
-        vectors[0].iov_len = conn->buf_size - conn->write_cursor;
-        vectors[1].iov_base = conn->buffer;
-        vectors[1].iov_len = conn->read_cursor;
-        num_vectors = (conn->read_cursor) ? 2 : 1;
+        vectors[0].iov_len = conn->buf_size - conn->write_cursor - 1;
+        if (conn->read_cursor > 0)  {
+            vectors[0].iov_len += 1;
+            vectors[1].iov_base = conn->buffer;
+            vectors[1].iov_len = conn->read_cursor - 1;
+            num_vectors = 2;
+        }
     }
 
     // Issue the read
