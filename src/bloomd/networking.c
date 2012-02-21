@@ -599,12 +599,14 @@ static void invoke_event_handler(worker_ev_userdata* data) {
      * append it to the buffers, and then invoke the
      * connection handlers.
      */
-    // Do the read
     conn_info *conn = watcher->data;
     int res = handle_client_data(watcher, data);
-    if (res == 0) {
-        // TODO: Process the request
 
+    if (res == 0) {
+        bloom_conn_handler handle;
+        handle.config = data->netconf->config;
+        handle.conn = conn;
+        res = handle_client_connect(&handle);
     }
 
     // Reschedule the watcher, unless told otherwise.

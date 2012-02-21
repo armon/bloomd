@@ -17,7 +17,8 @@ envbloomd_with_err = Environment(CCFLAGS = '-std=c99 -g -Wall -Werror -O2 -pthre
 envbloomd_without_err = Environment(CCFLAGS = '-std=c99 -g -O2 -pthread -Isrc/bloomd/ -Ideps/inih/ -Ideps/libev/')
 
 objs =  envbloomd_with_err.Object('src/config/config', 'src/bloomd/config.c') + \
-        envbloomd_without_err.Object('src/config/networking', 'src/bloomd/networking.c')
+        envbloomd_without_err.Object('src/config/networking', 'src/bloomd/networking.c') + \
+        envbloomd_with_err.Object('src/config/conn_handler', 'src/bloomd/conn_handler.c')
 
 envbloomd_with_err.Program('bloomd', spooky + murmur + bloom + inih + objs + ["src/bloomd/bloomd.c"])
 envbloomd_without_err.Program('test_bloomd_runner', spooky + murmur + bloom + inih + objs + Glob("tests/bloomd/*.c"), LIBS=["libcheck"])
