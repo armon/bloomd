@@ -65,14 +65,15 @@ typedef struct {
  * Stores the connection specific data.
  * We initialize one of these per connection
  */
-typedef struct {
+struct conn_info {
     ev_io client;
     int should_schedule;
     int write_cursor;
     int read_cursor;
     uint32_t buf_size;
     char *buffer;
-} conn_info;
+};
+typedef struct conn_info conn_info;
 
 
 /**
@@ -132,7 +133,6 @@ static void handle_async_event(ev_async *watcher, int revents);
 static void handle_new_client(int listen_fd, worker_ev_userdata* data);
 static int handle_client_data(ev_io *watch, worker_ev_userdata* data);
 static void invoke_event_handler(worker_ev_userdata* data);
-void close_client_connection(conn_info *conn);
 
 
 /**
@@ -625,6 +625,7 @@ static void invoke_event_handler(worker_ev_userdata* data) {
      * connection handlers.
      */
     // Do the read
+    conn_info *conn = watcher->data;
     int res = handle_client_data(watcher, data);
     if (res == 0) {
         // TODO: Process the request
@@ -633,7 +634,7 @@ static void invoke_event_handler(worker_ev_userdata* data) {
     }
 
     // Reschedule the watcher, unless told otherwise.
-    if (((conn_info*)watcher->data)->should_schedule) {
+    if (conn->should_schedule) {
         schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
     }
 }

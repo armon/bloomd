@@ -4,6 +4,7 @@
 
 // Network configuration struct
 typedef struct bloom_networking bloom_networking;
+typedef struct conn_info bloom_conn_info;
 
 /**
  * Initializes the networking interfaces
@@ -26,5 +27,11 @@ void start_networking_worker(bloom_networking *netconf);
  * @arg netconf The config for the networking stack.
  */
 int shutdown_networking(bloom_networking *netconf);
+
+/*
+ * Connection related methods. These are exposed so
+ * that the connection handlers can manipulate the buffers.
+ */
+void close_client_connection(bloom_conn_info *conn);
 
 #endif
