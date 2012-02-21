@@ -132,6 +132,7 @@ static void handle_async_event(ev_async *watcher, int revents);
 static void handle_new_client(int listen_fd, worker_ev_userdata* data);
 static int handle_client_data(ev_io *watch, worker_ev_userdata* data);
 static void invoke_event_handler(worker_ev_userdata* data);
+void close_client_connection(conn_info *conn);
 
 
 /**
@@ -382,6 +383,16 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
         return;
     }
 
+    // Setup the socket
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 50;
+    if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))) {
+        syslog(LOG_ERR, "Failed to set SO_RCVTIMEO on connection! %s.", strerror(errno));
+        close(client_fd);
+        return;
+    }
+
     // Debug info
     syslog(LOG_DEBUG, "Accepted client connection: %s %d [%d]",
             inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
@@ -561,12 +572,14 @@ static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
 
     // Make sure we actually read something
     if (!read_bytes) {
-        if (errno)
+        if (errno == 0) {
+            syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
+            close_client_connection(conn);
+        } else if (errno != EAGAIN && errno != EINTR) {
             syslog(LOG_ERR, "Failed to read() from connection [%d]! %s.",
                     conn->client.fd, strerror(errno));
-        else
-            syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
-        close_client_connection(conn);
+            close_client_connection(conn);
+        }
         return 1;
     }
 
