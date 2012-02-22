@@ -173,7 +173,7 @@ static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char *
  */
 static int buffer_after_terminator(char *buf, int buf_len, char terminator, char **after_term, int *after_len) {
     // Scan for a space
-    char *term_addr = memchr(buf, ' ', buf_len);
+    char *term_addr = memchr(buf, terminator, buf_len);
     if (!term_addr) return -1;
 
     // Convert the space to a null-seperator
