@@ -22,7 +22,8 @@ typedef enum {
     DROP,           // Drop a filter
     CLOSE,          // Close a filter
     FLUSH,          // Force flush a filter
-    CONF            // Configuration dump
+    CONF,           // Configuration dump
+    QUIT            // Bloomd should quit
 } conn_cmd_type;
 
 /* Static method declarations */
@@ -127,6 +128,8 @@ static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char *
         type = FLUSH;
     } else if (CMD_MATCH("conf")) {
         type = CONF;
+    } else if (CMD_MATCH("quit")) {
+        type = QUIT;
     }
 
     return type;
