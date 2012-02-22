@@ -27,8 +27,10 @@ typedef enum {
 } conn_cmd_type;
 
 /* Static method declarations */
-static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char **arg_buf, int *arg_len);
+static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_client_err(bloom_conn_info *conn, char* err_msg, int msg_len);
+static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char **arg_buf, int *arg_len);
+static int buffer_after_terminator(char *buf, int buf_len, char terminator, char **after_term, int *after_len);
 
 /**
  * Invoked by the networking layer when there is new
@@ -56,15 +58,23 @@ int handle_client_connect(bloom_conn_handler *handle) {
             case UNKNOWN:
                 handle_client_err(handle->conn, (char*)&CMD_NOT_SUP, CMD_NOT_SUP_LEN);
                 break;
+            case CHECK:
+                handle_check_cmd(handle, arg_buf, arg_buf_len);
+                break;
             default:
                 printf("Real command: %d\n", type);
                 break;
         }
 
+        // Make sure to free the command buffer if we need to
         if (should_free) free(buf);
     }
 
     return 0;
+}
+
+
+static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_len) {
 }
 
 
@@ -89,19 +99,16 @@ static void handle_client_err(bloom_conn_info *conn, char* err_msg, int msg_len)
  * UNKNOWN if it doesn't match anything supported, or a proper command.
  */
 static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char **arg_buf, int *arg_len) {
-    // Scan for a space
-    char *term_addr = memchr(cmd_buf, ' ', buf_len);
-
-    // If there is no space, it could be a command that
-    // does not expect args
-    if (term_addr) {
-         // Convert the space to a null-seperator
-        *term_addr = '\0';
-
-        // Provide the arg buffer, and arg_len
-        *arg_buf = term_addr+1;
-        *arg_len = buf_len - (term_addr - cmd_buf + 1);
+    // Check if we are ending with \r, and remove it.
+    if (cmd_buf[buf_len-2] == '\r') {
+        cmd_buf[buf_len-2] = '\0';
+        buf_len -= 1;
     }
+
+    // Scan for a space. This will setup the arg_buf and arg_len
+    // if we do find the terminator. It will also insert a null terminator
+    // at the space, so we can compare the cmd_buf to the commands.
+    buffer_after_terminator(cmd_buf, buf_len, ' ', arg_buf, arg_len);
 
     // Search for the command
     conn_cmd_type type = UNKNOWN;
@@ -133,5 +140,30 @@ static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char *
     }
 
     return type;
+}
+
+/**
+ * Scans the input buffer of a given length up to a terminator.
+ * Then sets the start of the buffer after the terminator including
+ * the length of the after buffer.
+ * @arg buf The input buffer
+ * @arg buf_len The length of the input buffer
+ * @arg terminator The terminator to scan to. Replaced with the null terminator.
+ * @arg after_term Output. Set to the byte after the terminator.
+ * @arg after_len Output. Set to the length of the output buffer.
+ * @return 0 if terminator found. -1 otherwise.
+ */
+static int buffer_after_terminator(char *buf, int buf_len, char terminator, char **after_term, int *after_len) {
+    // Scan for a space
+    char *term_addr = memchr(buf, ' ', buf_len);
+    if (!term_addr) return -1;
+
+    // Convert the space to a null-seperator
+    *term_addr = '\0';
+
+    // Provide the arg buffer, and arg_len
+    *after_term = term_addr+1;
+    *after_len = buf_len - (term_addr - buf + 1);
+    return 0;
 }
 
