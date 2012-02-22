@@ -5,8 +5,13 @@
 
 static const char CLIENT_ERR[] = "Client Error: ";
 static const int CLIENT_ERR_LEN = sizeof(CLIENT_ERR) - 1;
+
 static const char CMD_NOT_SUP[] = "Command not supported";
 static const int CMD_NOT_SUP_LEN = sizeof(CMD_NOT_SUP) - 1;
+
+static const char FILT_KEY_NEEDED[] = "Must provide filter name and key";
+static const int FILT_KEY_NEEDED_LEN = sizeof(FILT_KEY_NEEDED) - 1;
+
 static const char NEW_LINE[] = "\n";
 static const int NEW_LINE_LEN = sizeof(NEW_LINE) - 1;
 
@@ -75,6 +80,22 @@ int handle_client_connect(bloom_conn_handler *handle) {
 
 
 static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    #define CHECK_ARG_ERR() { \
+        handle_client_err(handle->conn, (char*)&FILT_KEY_NEEDED, FILT_KEY_NEEDED_LEN); \
+        return; \
+    }
+    // If we have no args, complain.
+    if (!args) CHECK_ARG_ERR();
+
+    // Scan past the filter name
+    char *key;
+    int key_len;
+    int err = buffer_after_terminator(args, args_len, ' ', &key, &key_len);
+    if (err || key_len <= 1) CHECK_ARG_ERR();
+
+    // Print
+    printf("Filter: %s\n", args);
+    printf("Key (%d): %s\n", key_len, key);
 }
 
 
