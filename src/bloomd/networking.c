@@ -1,5 +1,6 @@
 #include "networking.h"
 #define EV_STANDALONE 1
+#define EV_API_STATIC 1
 #define EV_COMPAT3 0
 #define EV_MULTIPLICITY 0
 #ifdef __linux__
