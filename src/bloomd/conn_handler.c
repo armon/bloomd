@@ -60,14 +60,11 @@ int handle_client_connect(bloom_conn_handler *handle) {
 
         // Handle an error or unknown response
         switch(type) {
-            case UNKNOWN:
-                handle_client_err(handle->conn, (char*)&CMD_NOT_SUP, CMD_NOT_SUP_LEN);
-                break;
             case CHECK:
                 handle_check_cmd(handle, arg_buf, arg_buf_len);
                 break;
             default:
-                printf("Real command: %d\n", type);
+                handle_client_err(handle->conn, (char*)&CMD_NOT_SUP, CMD_NOT_SUP_LEN);
                 break;
         }
 
