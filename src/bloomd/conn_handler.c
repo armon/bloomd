@@ -12,6 +12,9 @@ static const int CMD_NOT_SUP_LEN = sizeof(CMD_NOT_SUP) - 1;
 static const char FILT_KEY_NEEDED[] = "Must provide filter name and key";
 static const int FILT_KEY_NEEDED_LEN = sizeof(FILT_KEY_NEEDED) - 1;
 
+static const char YES_RESP[] = "Yes\n";
+static const int YES_RESP_LEN = sizeof(YES_RESP) - 1;
+
 static const char NEW_LINE[] = "\n";
 static const int NEW_LINE_LEN = sizeof(NEW_LINE) - 1;
 
@@ -33,6 +36,7 @@ typedef enum {
 
 /* Static method declarations */
 static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static inline void handle_client_resp(bloom_conn_info *conn, char* resp_mesg, int resp_len);
 static void handle_client_err(bloom_conn_info *conn, char* err_msg, int msg_len);
 static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char **arg_buf, int *arg_len);
 static int buffer_after_terminator(char *buf, int buf_len, char terminator, char **after_term, int *after_len);
@@ -93,8 +97,18 @@ static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_le
     // Print
     printf("Filter: %s\n", args);
     printf("Key (%d): %s\n", key_len, key);
+    handle_client_resp(handle->conn, (char*)&YES_RESP, YES_RESP_LEN);
 }
 
+/**
+ * Sends a client response message back. Simple convenience wrapper
+ * around handle_client_resp.
+ */
+static inline void handle_client_resp(bloom_conn_info *conn, char* resp_mesg, int resp_len) {
+    char *buffers[] = {resp_mesg};
+    int sizes[] = {resp_len};
+    send_client_response(conn, (char**)&buffers, (int*)&sizes, 1);
+}
 
 /**
  * Sends a client error message back. Optimizes to use multiple
