@@ -157,6 +157,47 @@ START_TEST(test_map_put_delete_get)
 }
 END_TEST
 
+START_TEST(test_map_clear_no_keys)
+{
+    bloom_hashmap *map;
+    int res = hashmap_init(0, &map);
+    fail_unless(res == 0);
+
+    fail_unless(hashmap_clear(map) == 0);
+
+    res = hashmap_destroy(map);
+    fail_unless(res == 0);
+}
+END_TEST
+
+START_TEST(test_map_put_clear_get)
+{
+    bloom_hashmap *map;
+    int res = hashmap_init(0, &map);
+    fail_unless(res == 0);
+
+    char buf[100];
+    void *out;
+    for (int i=0; i<100;i++) {
+        snprintf((char*)&buf, 100, "test%d", i);
+        out = 0 & i;
+        fail_unless(hashmap_put(map, (char*)buf, out) == 1);
+    }
+
+    fail_unless(hashmap_size(map) == 100);
+    fail_unless(hashmap_clear(map) == 0);
+    fail_unless(hashmap_size(map) == 0);
+
+    for (int i=0; i<100;i++) {
+        snprintf((char*)&buf, 100, "test%d", i);
+        fail_unless(hashmap_get(map, (char*)buf, &out) == -1);
+    }
+
+    res = hashmap_destroy(map);
+    fail_unless(res == 0);
+}
+END_TEST
+
 int iter_test(void *data, const char *key, void *value) {
     // All we do is increment val
     int *v = data;

@@ -55,6 +55,13 @@ int hashmap_put(bloom_hashmap *map, char *key, void *value);
 int hashmap_delete(bloom_hashmap *map, char *key);
 
 /**
+ * Clears all the key/value pairs.
+ * @notes This method is not thread safe.
+ * 0 on success. -1 if not found.
+ */
+int hashmap_clear(bloom_hashmap *map);
+
+/**
  * Iterates through the key/value pairs in the map,
  * invoking a callback for each. The call back gets a
  * key, value for each and returns an integer stop value.

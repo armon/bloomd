@@ -40,6 +40,8 @@ int main(void)
     tcase_add_test(tc2, test_map_delete_no_keys);
     tcase_add_test(tc2, test_map_put_delete);
     tcase_add_test(tc2, test_map_put_delete_get);
+    tcase_add_test(tc2, test_map_clear_no_keys);
+    tcase_add_test(tc2, test_map_put_clear_get);
     tcase_add_test(tc2, test_map_iter_no_keys);
     tcase_add_test(tc2, test_map_put_iter_break);
     tcase_add_test(tc2, test_map_put_grow);

@@ -325,6 +325,41 @@ int hashmap_delete(bloom_hashmap *map, char *key) {
 }
 
 /**
+ * Clears all the key/value pairs.
+ * @notes This method is not thread safe.
+ * 0 on success. -1 if not found.
+ */
+int hashmap_clear(bloom_hashmap *map) {
+    hashmap_entry *entry, *old;
+    int in_table;
+    for (int i=0; i < map->table_size; i++) {
+        entry = map->table+i;
+        in_table = 1;
+        while (entry && entry->key) {
+            // Walk the next links
+            old = entry;
+            entry = entry->next;
+
+            // Clear the objects
+            free(old->key);
+
+            // The initial entry is in the table
+            // and we should not free that one.
+            if (!in_table) {
+                free(old);
+            } else {
+                old->key = NULL;
+            }
+            in_table = 0;
+        }
+    }
+
+    // Reset the sizes
+    map->count = 0;
+    return 0;
+}
+
+/**
  * Iterates through the key/value pairs in the map,
  * invoking a callback for each. The call back gets a
  * key, value for each and returns an integer stop value.
