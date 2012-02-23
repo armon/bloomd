@@ -1,7 +1,30 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <syslog.h>
+#include <pthread.h>
+#include "spinlock.h"
 #include "filter_manager.h"
+#include "hashmap.h"
+#include "filter.h"
+
+typedef struct {
+    int is_active;          // Set to 0 when we are trying to delete it
+    uint32_t ref_count;     // Used to manage outstanding handles
+
+    char *filter_name;
+    bloom_filter *filter;    // The actual filter object
+    pthread_rwlock_t rwlock; // Protects the filter
+} bloom_filter_wrapper;
+
+struct bloom_filtmgr {
+    bloom_config *config;
+
+    bloom_hashmap *filter_map;  // Maps key names -> bloom_filter_wrapper
+    bloom_spinlock filter_lock; // Protects the filter map
+
+    bloom_hashmap *hot_filters; // Maps key names of hot filters
+    bloom_spinlock hot_lock;    // Protects the hot filters
+};
 
 /**
  * Initializer
@@ -10,6 +33,34 @@
  * @return 0 on success.
  */
 int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
+    // Allocate a new object
+    bloom_filtmgr *m = *mgr = calloc(1, sizeof(bloom_filtmgr));
+
+    // Copy the config
+    m->config = config;
+
+    // Initialize the locks
+    INIT_BLOOM_SPIN(&m->filter_lock);
+    INIT_BLOOM_SPIN(&m->hot_lock);
+
+    // Allocate the hash tables
+    int res = hashmap_init(0, &m->filter_map);
+    if (!res) {
+        syslog(LOG_ERR, "Failed to allocate filter hash map!");
+        free(m);
+        return -1;
+    }
+    res = hashmap_init(0, &m->hot_filters);
+    if (!res) {
+        syslog(LOG_ERR, "Failed to allocate hot filter hash map!");
+        hashmap_destroy(m->filter_map);
+        free(m);
+        return -1;
+    }
+
+    // TODO: Discover existing filters...
+
+    // Done
     return 0;
 }
 
