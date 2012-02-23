@@ -22,5 +22,5 @@ objs =  envbloomd_with_err.Object('src/config/config', 'src/bloomd/config.c') + 
         envbloomd_with_err.Object('src/config/hashmap', 'src/bloomd/hashmap.c')
 
 envbloomd_with_err.Program('bloomd', spooky + murmur + bloom + inih + objs + ["src/bloomd/bloomd.c"])
-envbloomd_without_err.Program('test_bloomd_runner', spooky + murmur + bloom + inih + objs + Glob("tests/bloomd/*.c"), LIBS=["libcheck"])
+envbloomd_without_err.Program('test_bloomd_runner', spooky + murmur + bloom + inih + objs + Glob("tests/bloomd/runner.c"), LIBS=["libcheck"])
 

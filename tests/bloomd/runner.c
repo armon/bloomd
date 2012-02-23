@@ -1,11 +1,13 @@
 #include <check.h>
 #include <stdio.h>
 #include "test_config.c"
+#include "test_hashmap.c"
 
 int main(void)
 {
     Suite *s1 = suite_create("Bloomd");
     TCase *tc1 = tcase_create("config");
+    TCase *tc2 = tcase_create("hashmap");
     SRunner *sr = srunner_create(s1);
     int nf;
 
@@ -29,6 +31,18 @@ int main(void)
     tcase_add_test(tc1, test_sane_in_memory);
     tcase_add_test(tc1, test_sane_worker_threads);
 
+    // Add the hashmap tests
+    suite_add_tcase(s1, tc2);
+    tcase_add_test(tc2, test_map_init_and_destroy);
+    tcase_add_test(tc2, test_map_get_no_keys);
+    tcase_add_test(tc2, test_map_put);
+    tcase_add_test(tc2, test_map_put_get);
+    tcase_add_test(tc2, test_map_delete_no_keys);
+    tcase_add_test(tc2, test_map_put_delete);
+    tcase_add_test(tc2, test_map_put_delete_get);
+    tcase_add_test(tc2, test_map_iter_no_keys);
+    tcase_add_test(tc2, test_map_put_iter_break);
+    tcase_add_test(tc2, test_map_put_grow);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
