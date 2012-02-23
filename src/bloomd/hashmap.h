@@ -24,12 +24,11 @@ int hashmap_destroy(bloom_hashmap *map);
 
 /**
  * Gets a value.
- * @arg key The key to look for
- * @arg key_len The key length
+ * @arg key The key to look for. Must be null terminated.
  * @arg value Output. Set to the value of th key.
  * 0 on success. -1 if not found.
  */
-int hashmap_get(bloom_hashmap *map, char *key, int key_len, void **value);
+int hashmap_get(bloom_hashmap *map, char *key, void **value);
 
 /**
  * Puts a key/value pair.
@@ -40,7 +39,7 @@ int hashmap_get(bloom_hashmap *map, char *key, int key_len, void **value);
  * @arg value The value to set.
  * 0 on success. -1 if not found.
  */
-int hashmap_put(bloom_hashmap *map, char *key, int key_len, void *value);
+int hashmap_put(bloom_hashmap *map, char *key, void *value);
 
 /**
  * Deletes a key/value pair.

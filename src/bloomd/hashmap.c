@@ -4,6 +4,7 @@
 #include "hashmap.h"
 
 #define MAX_CAPACITY 0.75
+#define DEFAULT_CAPACITY 128
 
 // Basic hash entry.
 typedef struct hashmap_entry {
@@ -31,7 +32,7 @@ extern void MurmurHash3_x64_128(const void * key, const int len, const uint32_t 
 int hashmap_init(int initial_size, bloom_hashmap **map) {
     // Default to 64 if no size
     if (initial_size <= 0) {
-       initial_size = 64;
+       initial_size = DEFAULT_CAPACITY;
 
     // Round up to power of 2
     } else {
@@ -102,14 +103,14 @@ int hashmap_destroy(bloom_hashmap *map) {
  * @arg value Output. Set to the value of th key.
  * 0 on success. -1 if not found.
  */
-int hashmap_get(bloom_hashmap *map, char *key, int key_len, void **value) {
+int hashmap_get(bloom_hashmap *map, char *key, void **value) {
     // Compute the hash value of the key
     uint64_t out[2];
-    MurmurHash3_x64_128(key, key_len, 0, &out);
+    MurmurHash3_x64_128(key, strlen(key), 0, &out);
 
     // Mod the lower 64bits of the hash function with the table
     // size to get the index
-    unsigned int index = out[0] % map->table_size;
+    unsigned int index = out[1] % map->table_size;
 
     // Look for an entry
     hashmap_entry *entry = map->table+index;
@@ -149,7 +150,7 @@ static int hashmap_insert_table(hashmap_entry *table, int table_size, char *key,
 
     // Mod the lower 64bits of the hash function with the table
     // size to get the index
-    unsigned int index = out[0] % table_size;
+    unsigned int index = out[1] % table_size;
 
     // Look for an entry
     hashmap_entry *entry = table+index;
@@ -241,16 +242,16 @@ static void hashmap_double_size(bloom_hashmap *map) {
  * @arg value The value to set.
  * 0 on success.
  */
-int hashmap_put(bloom_hashmap *map, char *key, int key_len, void *value) {
+int hashmap_put(bloom_hashmap *map, char *key, void *value) {
     // Check if we need to double the size
     if (map->count + 1 > map->max_size) {
         // Doubles the size of the hashmap, re-try the insert
         hashmap_double_size(map);
-        return hashmap_put(map, key, key_len, value);
+        return hashmap_put(map, key, value);
     }
 
     // Insert into the map, comparing keys and duplicating keys
-    int new = hashmap_insert_table(map->table, map->table_size, key, key_len, value, 1, 1);
+    int new = hashmap_insert_table(map->table, map->table_size, key, strlen(key), value, 1, 1);
     if (new) map->count += 1;
 
     return 0;
@@ -270,7 +271,7 @@ int hashmap_delete(bloom_hashmap *map, char *key, int key_len) {
 
     // Mod the lower 64bits of the hash function with the table
     // size to get the index
-    unsigned int index = out[0] % map->table_size;
+    unsigned int index = out[1] % map->table_size;
 
     // Look for an entry
     hashmap_entry *entry = map->table+index;
@@ -288,9 +289,9 @@ int hashmap_delete(bloom_hashmap *map, char *key, int key_len) {
                 // Copy the keys from the node, and free it
                 if (entry->next) {
                     hashmap_entry *n = entry->next;
-                    entry->key = entry->next->key;
-                    entry->value = entry->next->value;
-                    entry->next = entry->next->next;
+                    entry->key = n->key;
+                    entry->value = n->value;
+                    entry->next = n->next;
                     free(n);
 
                 // Zero everything out
@@ -304,7 +305,7 @@ int hashmap_delete(bloom_hashmap *map, char *key, int key_len) {
                 last_entry->next = entry->next;
 
                 // Free ourself
-                free(entry) ;
+                free(entry);
             }
             return 0;
         }
