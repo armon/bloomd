@@ -97,6 +97,13 @@ int hashmap_destroy(bloom_hashmap *map) {
 }
 
 /**
+ * Returns the size of the hashmap in items
+ */
+int hashmap_size(bloom_hashmap *map) {
+    return map->count;
+}
+
+/**
  * Gets a value.
  * @arg key The key to look for
  * @arg key_len The key length
@@ -240,7 +247,7 @@ static void hashmap_double_size(bloom_hashmap *map) {
  * @notes This method is not thread safe.
  * @arg key_len The key length
  * @arg value The value to set.
- * 0 on success.
+ * 0 if updated, 1 if added.
  */
 int hashmap_put(bloom_hashmap *map, char *key, void *value) {
     // Check if we need to double the size
@@ -254,20 +261,19 @@ int hashmap_put(bloom_hashmap *map, char *key, void *value) {
     int new = hashmap_insert_table(map->table, map->table_size, key, strlen(key), value, 1, 1);
     if (new) map->count += 1;
 
-    return 0;
+    return new;
 }
 
 /**
  * Deletes a key/value pair.
  * @notes This method is not thread safe.
  * @arg key The key to delete
- * @arg key_len The key length
  * 0 on success. -1 if not found.
  */
-int hashmap_delete(bloom_hashmap *map, char *key, int key_len) {
+int hashmap_delete(bloom_hashmap *map, char *key) {
     // Compute the hash value of the key
     uint64_t out[2];
-    MurmurHash3_x64_128(key, key_len, 0, &out);
+    MurmurHash3_x64_128(key, strlen(key), 0, &out);
 
     // Mod the lower 64bits of the hash function with the table
     // size to get the index
@@ -283,6 +289,7 @@ int hashmap_delete(bloom_hashmap *map, char *key, int key_len) {
         if (strcmp(entry->key, key) == 0) {
             // Free the key
             free(entry->key);
+            map->count -= 1;
 
             // Check if we are in the table
             if (last_entry == NULL) {
@@ -324,16 +331,17 @@ int hashmap_delete(bloom_hashmap *map, char *key, int key_len) {
  * If the callback returns 1, then the iteration stops.
  * @arg map The hashmap to iterate over
  * @arg cb The callback function to invoke
+ * @arg data Opaque handle passed to the callback
  * @return 0 on success
  */
-int hashmap_iter(bloom_hashmap *map, hashmap_callback cb) {
+int hashmap_iter(bloom_hashmap *map, hashmap_callback cb, void *data) {
     hashmap_entry *entry;
     int should_break = 0;
     for (int i=0; i < map->table_size && !should_break; i++) {
         entry = map->table+i;
         while (entry && entry->key && !should_break) {
             // Invoke the callback
-            should_break = cb(entry->key, entry->value);
+            should_break = cb(data, entry->key, entry->value);
             entry = entry->next;
         }
     }

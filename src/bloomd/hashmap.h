@@ -5,8 +5,7 @@
  * Opaque hashmap reference
  */
 typedef struct bloom_hashmap bloom_hashmap;
-typedef int(*hashmap_callback)(const char *key, void *value);
-
+typedef int(*hashmap_callback)(void *data, const char *key, void *value);
 
 /**
  * Creates a new hashmap and allocates space for it.
@@ -23,6 +22,11 @@ int hashmap_init(int initial_size, bloom_hashmap **map);
 int hashmap_destroy(bloom_hashmap *map);
 
 /**
+ * Returns the size of the hashmap in items
+ */
+int hashmap_size(bloom_hashmap *map);
+
+/**
  * Gets a value.
  * @arg key The key to look for. Must be null terminated.
  * @arg value Output. Set to the value of th key.
@@ -37,7 +41,7 @@ int hashmap_get(bloom_hashmap *map, char *key, void **value);
  * @notes This method is not thread safe.
  * @arg key_len The key length
  * @arg value The value to set.
- * 0 on success. -1 if not found.
+ * 0 if updated, 1 if added.
  */
 int hashmap_put(bloom_hashmap *map, char *key, void *value);
 
@@ -48,7 +52,7 @@ int hashmap_put(bloom_hashmap *map, char *key, void *value);
  * @arg key_len The key length
  * 0 on success. -1 if not found.
  */
-int hashmap_delete(bloom_hashmap *map, char *key, int key_len);
+int hashmap_delete(bloom_hashmap *map, char *key);
 
 /**
  * Iterates through the key/value pairs in the map,
@@ -57,8 +61,9 @@ int hashmap_delete(bloom_hashmap *map, char *key, int key_len);
  * If the callback returns 1, then the iteration stops.
  * @arg map The hashmap to iterate over
  * @arg cb The callback function to invoke
+ * @arg data Opaque handle passed to the callback
  * @return 0 on success
  */
-int hashmap_iter(bloom_hashmap *map, hashmap_callback cb);
+int hashmap_iter(bloom_hashmap *map, hashmap_callback cb, void *data);
 
 #endif
