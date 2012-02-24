@@ -12,7 +12,8 @@
  * Representation of a bloom filters
  */
 struct bloom_filter {
-    bloom_config *config;           // Filter configuration
+    bloom_config *config;           // bloomd configuration
+    bloom_filter_config filter_config; // Filter-specific conbif
 
     char *filter_name;              // The name of the filter
     char *full_path;                // Path to our data

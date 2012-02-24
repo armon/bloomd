@@ -23,6 +23,22 @@ typedef struct {
 } bloom_config;
 
 /**
+ * This structure is used to persist
+ * filter specific settings to an INI file.
+ */
+typedef struct {
+    uint64_t initial_capacity;
+    double default_probability;
+    int scale_size;
+    double probability_reduction;
+    int in_memory;
+    uint64_t size;          // Total size
+    uint64_t capacity;      // Total capacity
+    uint64_t bytes;         // Total byte size
+} bloom_filter_config;
+
+
+/**
  * Initializes the configuration from a filename.
  * Reads the file as an INI configuration, and sets up the
  * config object.
