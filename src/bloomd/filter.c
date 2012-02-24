@@ -493,6 +493,13 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
     // Cast the input pointer
     bloom_filter *filt = in;
 
+    // Check if we are in-memory
+    if (filt->filter_config.in_memory) {
+        syslog(LOG_INFO, "Creating new in-memory bitmap for filter %s. Size: %lld",
+            filt->filter_name, bytes);
+        return bitmap_from_file(-1, bytes, out);
+    }
+
     // Scan through the folder looking for data files
     struct dirent **namelist;
     int num_files;
