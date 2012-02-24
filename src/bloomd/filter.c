@@ -125,6 +125,12 @@ int bloomf_in_memory(bloom_filter *filter) {
 int bloomf_flush(bloom_filter *filter) {
     // Only do things if we are non-proxied
     if (filter->sbf) {
+        // Store our properties for a future unmap
+        filter->filter_config.size = bloomf_size(filter);
+        filter->filter_config.capacity = bloomf_capacity(filter);
+        filter->filter_config.bytes= bloomf_byte_size(filter);
+
+        // Flush the filter
         return sbf_flush(filter->sbf);
     }
     return 0;
@@ -198,7 +204,22 @@ int bloomf_delete(bloom_filter *filter) {
  * @return 0 if not contained, 1 if contained.
  */
 int bloomf_contains(bloom_filter *filter, char *key) {
-    return 0;
+    if (!filter->sbf) {
+        // TODO: Fault in
+    }
+
+    // Check the SBF
+    int res = sbf_contains(filter->sbf, key);
+
+    // Safely update the counters
+    LOCK_BLOOM_SPIN(&filter->counter_lock);
+    if (res == 1)
+        filter->counters.check_hits += 1;
+    else
+        filter->counters.check_misses += 1;
+    UNLOCK_BLOOM_SPIN(&filter->counter_lock);
+
+    return res;
 }
 
 /**
@@ -208,7 +229,22 @@ int bloomf_contains(bloom_filter *filter, char *key) {
  * @return 0 if not added, 1 if added.
  */
 int bloomf_add(bloom_filter *filter, char *key) {
-    return 0;
+    if (!filter->sbf) {
+        // TODO: Fault in
+    }
+
+    // Add the SBF
+    int res = sbf_add(filter->sbf, key);
+
+    // Safely update the counters
+    LOCK_BLOOM_SPIN(&filter->counter_lock);
+    if (res == 1)
+        filter->counters.set_hits += 1;
+    else
+        filter->counters.set_misses += 1;
+    UNLOCK_BLOOM_SPIN(&filter->counter_lock);
+
+    return res;
 }
 
 /**

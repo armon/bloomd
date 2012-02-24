@@ -8,8 +8,8 @@
  * filter.
  */
 typedef struct {
-    uint64_t get_hits;
-    uint64_t get_misses;
+    uint64_t check_hits;
+    uint64_t check_misses;
     uint64_t set_hits;
     uint64_t set_misses;
     uint64_t page_ins;
