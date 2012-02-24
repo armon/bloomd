@@ -74,6 +74,13 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
  * @return 0 on success
  */
 int destroy_bloom_filter(bloom_filter *filter) {
+    // Close first
+    bloomf_close(filter);
+
+    // Cleanup
+    free(filter->filter_name);
+    free(filter->full_path);
+    free(filter);
     return 0;
 }
 
@@ -102,6 +109,10 @@ int bloomf_in_memory(bloom_filter *filter) {
  * @return 0 on success.
  */
 int bloomf_flush(bloom_filter *filter) {
+    // Only do things if we are non-proxied
+    if (filter->sbf) {
+        return sbf_flush(filter->sbf);
+    }
     return 0;
 }
 
@@ -111,6 +122,12 @@ int bloomf_flush(bloom_filter *filter) {
  * @return 0 on success.
  */
 int bloomf_close(bloom_filter *filter) {
+    // Only act if we are non-proxied
+    if (filter->sbf) {
+        sbf_close(filter->sbf);
+        free(filter->sbf);
+        filter->sbf = NULL;
+    }
     return 0;
 }
 
