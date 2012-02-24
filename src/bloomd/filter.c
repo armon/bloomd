@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <pthread.h>
 #include "spinlock.h"
 #include "filter.h"
 #include "sbf.h"
@@ -19,6 +20,7 @@ struct bloom_filter {
     char *full_path;                // Path to our data
 
     bloom_sbf *sbf;                 // Underlying SBF
+    pthread_mutex_t sbf_lock;       // Protects faulting in the SBF
 
     filter_counters counters;       // Counters
     bloom_spinlock counter_lock;    // Protect the counters
@@ -37,6 +39,7 @@ static const char* DATA_FILE_NAME = "data.%03d.mmap";
 /*
  * Static delarations
  */
+static int thread_safe_fault(bloom_filter *f);
 static int discover_existing_filters(bloom_filter *f);
 static int create_sbf(bloom_filter *f, int num, bloom_bloomfilter **filters);
 static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out);
@@ -72,8 +75,9 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     f->full_path = join_path(config->data_dir, folder_name);
     free(folder_name);
 
-    // Initialize the spin lock
+    // Initialize the locks
     INIT_BLOOM_SPIN(&f->counter_lock);
+    pthread_mutex_init(&f->sbf_lock, NULL);
 
     // Discover the existing filters if we need to
     if (discover && !f->filter_config.in_memory) {
@@ -206,7 +210,7 @@ int bloomf_delete(bloom_filter *filter) {
  */
 int bloomf_contains(bloom_filter *filter, char *key) {
     if (!filter->sbf) {
-        if (discover_existing_filters(filter) != 0) return -1;
+        if (thread_safe_fault(filter) != 0) return -1;
     }
 
     // Check the SBF
@@ -231,7 +235,7 @@ int bloomf_contains(bloom_filter *filter, char *key) {
  */
 int bloomf_add(bloom_filter *filter, char *key) {
     if (!filter->sbf) {
-        if (discover_existing_filters(filter) != 0) return -1;
+        if (thread_safe_fault(filter) != 0) return -1;
     }
 
     // Add the SBF
@@ -285,6 +289,25 @@ uint64_t bloomf_byte_size(bloom_filter *filter) {
     } else {
         return filter->filter_config.bytes;
     }
+}
+
+/**
+ * Provides a thread safe faulting of filters.
+ * The main use case of this is to allow
+ * bloomf_contains to be safe.
+ */
+static int thread_safe_fault(bloom_filter *f) {
+    // Acquire lock
+    pthread_mutex_lock(&f->sbf_lock);
+
+    int res = 0;
+    if (!f->sbf) {
+        res = discover_existing_filters(f);
+    }
+
+    // Release lock
+    pthread_mutex_unlock(&f->sbf_lock);
+    return res;
 }
 
 /**
