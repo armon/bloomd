@@ -372,6 +372,9 @@ static int discover_existing_filters(bloom_filter *f) {
         }
     }
 
+    // Increase our page ins
+    f->counters.page_ins += 1;
+
     // Remove the filters list
     free(maps);
     free(filters);
