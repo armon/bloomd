@@ -38,6 +38,7 @@ static const char* DATA_FILE_NAME = "data.%03d.mmap";
  * Static delarations
  */
 static int discover_existing_filters(bloom_filter *f);
+static int create_sbf(bloom_filter *f, int num, bloom_bloomfilter **filters);
 static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out);
 
 /**
@@ -333,6 +334,14 @@ static int discover_existing_filters(bloom_filter *f) {
     num = scandir(f->full_path, &namelist, filter_data_files, alphasort);
     syslog(LOG_INFO, "Found %d files for filter %s.", num, f->filter_name);
 
+    // Speical case when there are no filters
+    if (num == 0) {
+        int res = create_sbf(f, 0, NULL);
+        for (int i=0; i < num; i++) free(namelist[i]);
+        free(namelist);
+        return res;
+    }
+
     // Allocate space for all the filter
     bloom_bitmap **maps = malloc(num * sizeof(bloom_bitmap*));
     bloom_bloomfilter **filters = malloc(num * sizeof(bloom_bloomfilter*));
@@ -385,33 +394,20 @@ static int discover_existing_filters(bloom_filter *f) {
     }
 
     // Free the memory associated with scandir
-    for (int i=0; i < num; i++) {
-        free(namelist[i]);
-    }
+    for (int i=0; i < num; i++) free(namelist[i]);
     free(namelist);
 
     // Return if there was an error
     if (err) return -1;
 
-    // Setup the SBF params
-    bloom_sbf_params params = {
-        f->filter_config.initial_capacity,
-        f->filter_config.default_probability,
-        f->filter_config.scale_size,
-        f->filter_config.probability_reduction
-    };
-
     // Create the SBF
-    f->sbf = malloc(sizeof(bloom_sbf));
-    res = sbf_from_filters(&params, bloomf_sbf_callback, f, num, filters, f->sbf);
+    res = create_sbf(f, num, filters);
 
     // Cleanup on err
     if (res != 0) {
         syslog(LOG_ERR, "Failed to make scalable bloom filter for: %s.", f->filter_name);
 
         // For fucks sake. We need to clean up so much shit now.
-        free(f->sbf);
-        f->sbf = NULL;
         for (int i=0; i < num; i++) {
             bf_close(filters[i]);
             bitmap_close(maps[i]);
@@ -427,6 +423,30 @@ static int discover_existing_filters(bloom_filter *f) {
     free(maps);
     free(filters);
     return (err) ? -1 : 0;
+}
+
+/**
+ * Internal method to create the SBF
+ */
+static int create_sbf(bloom_filter *f, int num, bloom_bloomfilter **filters) {
+    // Setup the SBF params
+    bloom_sbf_params params = {
+        f->filter_config.initial_capacity,
+        f->filter_config.default_probability,
+        f->filter_config.scale_size,
+        f->filter_config.probability_reduction
+    };
+
+    // Create the SBF
+    f->sbf = malloc(sizeof(bloom_sbf));
+    int res = sbf_from_filters(&params, bloomf_sbf_callback, f, num, filters, f->sbf);
+
+    // Handle a failure
+    if (res != 0) {
+        free(f->sbf);
+        f->sbf = NULL;
+    }
+    return res;
 }
 
 /**
