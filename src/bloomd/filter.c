@@ -13,7 +13,6 @@
 struct bloom_filter {
     bloom_config *config;           // Filter configuration
 
-    int dirty;                      // Is the filter dirty
     char *filter_name;              // The name of the filter
     char *full_path;                // Path to our data
 
@@ -48,7 +47,6 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
 
     // Store the things
     f->config = config;
-    f->dirty = 0;       // Not dirty yet
     f->filter_name = strdup(filter_name);
 
     // Get the folder name
