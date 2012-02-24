@@ -29,6 +29,11 @@ struct bloom_filter {
  */
 static const char* FILTER_FOLDER_NAME = "bloomd.%s";
 
+/**
+ * Format for the data file names.
+ */
+static const char* DATA_FILE_NAME = "data.%03d.mmap";
+
 /*
  * Static delarations
  */
@@ -262,7 +267,7 @@ static int filter_data_files(struct dirent *d) {
     if (name_len < 6) return 0;
 
     // Compare the ending
-    if (strcmp(name+(name_len-5), ".data") == 0) {
+    if (strcmp(name+(name_len-5), ".mmap") == 0) {
         return 1;
     }
 
@@ -379,5 +384,42 @@ static int discover_existing_filters(bloom_filter *f) {
     free(maps);
     free(filters);
     return (err) ? -1 : 0;
+}
+
+/**
+ * Callback used with SBF to generate file names.
+ */
+static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
+    // Cast the input pointer
+    bloom_filter *filt = in;
+
+    // Scan through the folder looking for data files
+    struct dirent **namelist;
+    int num_files;
+
+    // Filter only data dirs, in sorted order
+    num_files = scandir(filt->full_path, &namelist, filter_data_files, NULL);
+    syslog(LOG_INFO, "Found %d files for filter %s.", num_files, filt->filter_name);
+
+    // Free the memory associated with scandir
+    for (int i=0; i < num_files; i++) {
+        free(namelist[i]);
+    }
+    free(namelist);
+
+    // Generate the new file name
+    char *filename = NULL;
+    asprintf(&filename, DATA_FILE_NAME, num_files);
+
+    // Get the full path
+    char *full_path = join_path(filt->full_path, filename);
+    free(filename);
+    syslog(LOG_INFO, "Creating new file: %s for filter %s. Size: %lld",
+            full_path, filt->filter_name, bytes);
+
+    // Create the bitmap
+    int res = bitmap_from_filename(full_path, bytes, 1, 1, out);
+    free(full_path);
+    return res;
 }
 
