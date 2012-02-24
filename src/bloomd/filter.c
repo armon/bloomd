@@ -200,12 +200,29 @@ int bloomf_add(bloom_filter *filter, char *key) {
 }
 
 /**
+ * Gets the size of the filter in keys
+ * @arg filter The filter to check
+ * @return The total size of the filter
+ */
+uint64_t bloomf_size(bloom_filter *filter) {
+    if (filter->sbf) {
+        return sbf_size(filter->sbf);
+    } else {
+        return filter->filter_config.size;
+    }
+}
+
+/**
  * Gets the maximum capacity of the filter
  * @arg filter The filter to check
  * @return The total capacity of the filter
  */
 uint64_t bloomf_capacity(bloom_filter *filter) {
-    return 0;
+    if (filter->sbf) {
+        return sbf_total_capacity(filter->sbf);
+    } else {
+        return filter->filter_config.capacity;
+    }
 }
 
 /**
@@ -213,8 +230,12 @@ uint64_t bloomf_capacity(bloom_filter *filter) {
  * @arg filter The filter
  * @return The total byte size of the filter
  */
-uint64_t bloomf_byte_size() {
-    return 0;
+uint64_t bloomf_byte_size(bloom_filter *filter) {
+    if (filter->sbf) {
+        return sbf_total_byte_size(filter->sbf);
+    } else {
+        return filter->filter_config.bytes;
+    }
 }
 
 /**
