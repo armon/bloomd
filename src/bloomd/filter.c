@@ -125,6 +125,7 @@ int bloomf_flush(bloom_filter *filter) {
 int bloomf_close(bloom_filter *filter) {
     // Only act if we are non-proxied
     if (filter->sbf) {
+        bloomf_flush(filter);
         sbf_close(filter->sbf);
         free(filter->sbf);
         filter->sbf = NULL;
@@ -228,7 +229,7 @@ static uint64_t get_size(char* filename) {
 /**
  * Works with scandir to filter out non-data files.
  */
-int filter_data_files(struct dirent *d) {
+static int filter_data_files(struct dirent *d) {
     // Get the file name
     char *name = d->d_name;
 
