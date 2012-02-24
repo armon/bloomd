@@ -13,7 +13,7 @@
  */
 struct bloom_filter {
     bloom_config *config;           // bloomd configuration
-    bloom_filter_config filter_config; // Filter-specific conbif
+    bloom_filter_config filter_config; // Filter-specific config
 
     char *filter_name;              // The name of the filter
     char *full_path;                // Path to our data
@@ -56,6 +56,13 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     f->config = config;
     f->filter_name = strdup(filter_name);
 
+    // Copy filter configs
+    f->filter_config.initial_capacity = config->initial_capacity;
+    f->filter_config.default_probability = config->default_probability;
+    f->filter_config.scale_size = config->scale_size;
+    f->filter_config.probability_reduction = config->scale_size;
+    f->filter_config.in_memory = config->in_memory;
+
     // Get the folder name
     char *folder_name = NULL;
     asprintf(&folder_name, FILTER_FOLDER_NAME, f->filter_name);
@@ -68,7 +75,7 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     INIT_BLOOM_SPIN(&f->counter_lock);
 
     // Discover the existing filters if we need to
-    if (discover && !config->in_memory) {
+    if (discover && !f->filter_config.in_memory) {
         discover_existing_filters(f);
     }
 
@@ -150,7 +157,7 @@ int bloomf_delete(bloom_filter *filter) {
     bloomf_close(filter);
 
     // Do nothing if we are in memory
-    if (filter->config->in_memory) return 0;
+    if (filter->filter_config.in_memory) return 0;
 
     // Delete the files
     struct dirent **namelist;
@@ -352,10 +359,10 @@ static int discover_existing_filters(bloom_filter *f) {
 
     // Setup the SBF params
     bloom_sbf_params params = {
-        f->config->initial_capacity,
-        f->config->default_probability,
-        f->config->scale_size,
-        f->config->probability_reduction
+        f->filter_config.initial_capacity,
+        f->filter_config.default_probability,
+        f->filter_config.scale_size,
+        f->filter_config.probability_reduction
     };
 
     // Create the SBF
