@@ -206,7 +206,7 @@ int bloomf_delete(bloom_filter *filter) {
  */
 int bloomf_contains(bloom_filter *filter, char *key) {
     if (!filter->sbf) {
-        // TODO: Fault in
+        if (discover_existing_filters(filter) != 0) return -1;
     }
 
     // Check the SBF
@@ -231,7 +231,7 @@ int bloomf_contains(bloom_filter *filter, char *key) {
  */
 int bloomf_add(bloom_filter *filter, char *key) {
     if (!filter->sbf) {
-        // TODO: Fault in
+        if (discover_existing_filters(filter) != 0) return -1;
     }
 
     // Add the SBF
