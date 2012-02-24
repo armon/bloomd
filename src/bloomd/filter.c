@@ -83,8 +83,8 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     // TODO: Read in the filter_config
 
     // Discover the existing filters if we need to
-    if (discover && !f->filter_config.in_memory) {
-        discover_existing_filters(f);
+    if (discover) {
+        thread_safe_fault(f);
     }
 
     return 0;
@@ -313,7 +313,10 @@ static int thread_safe_fault(bloom_filter *f) {
 
     int res = 0;
     if (!f->sbf) {
-        res = discover_existing_filters(f);
+        if (f->filter_config.in_memory)
+            res = create_sbf(f, 0, NULL);
+        else
+            res = discover_existing_filters(f);
     }
 
     // Release lock
