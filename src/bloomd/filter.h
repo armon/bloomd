@@ -24,7 +24,7 @@ typedef struct bloom_filter bloom_filter;
  * @arg filter Output parameter, the new filter
  * @return 0 on success
  */
-int init_bloom_filter(bloom_config *config, bloom_filter **filter);
+int init_bloom_filter(bloom_config *config, char *filter_name, int discover, bloom_filter **filter);
 
 /**
  * Destroys a bloom filter
