@@ -25,6 +25,9 @@ typedef struct bloom_filter bloom_filter;
 /**
  * Initializes a bloom filter wrapper.
  * @arg config The configuration to use
+ * @arg filter_name The name of the filter
+ * @arg discover Should existing data files be discovered. Otherwise
+ * they will be faulted in on-demand.
  * @arg filter Output parameter, the new filter
  * @return 0 on success
  */

@@ -48,7 +48,8 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out);
  * Initializes a bloom filter wrapper.
  * @arg config The configuration to use
  * @arg filter_name The name of the filter
- * @arg discover Should existing data files be discovered
+ * @arg discover Should existing data files be discovered. Otherwise
+ * they will be faulted in on-demand.
  * @arg filter Output parameter, the new filter
  * @return 0 on success
  */
@@ -78,6 +79,8 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     // Initialize the locks
     INIT_BLOOM_SPIN(&f->counter_lock);
     pthread_mutex_init(&f->sbf_lock, NULL);
+
+    // TODO: Read in the filter_config
 
     // Discover the existing filters if we need to
     if (discover && !f->filter_config.in_memory) {
@@ -136,6 +139,8 @@ int bloomf_flush(bloom_filter *filter) {
         filter->filter_config.size = bloomf_size(filter);
         filter->filter_config.capacity = bloomf_capacity(filter);
         filter->filter_config.bytes= bloomf_byte_size(filter);
+
+        // TODO: Write out filter_config
 
         // Flush the filter
         return sbf_flush(filter->sbf);
@@ -474,7 +479,10 @@ static int create_sbf(bloom_filter *f, int num, bloom_bloomfilter **filters) {
     if (res != 0) {
         free(f->sbf);
         f->sbf = NULL;
+    } else {
+        syslog(LOG_INFO, "Loaded SBF: %s. Num filters: %d.", f->filter_name, num);
     }
+
     return res;
 }
 
