@@ -2,6 +2,10 @@
 #define BLOOM_FILTER_H
 #include "config.h"
 
+/*
+ * Functions are NOT thread safe unless explicitly documented
+ */
+
 /**
  * These are the counters
  * that are maintained for each
@@ -35,6 +39,7 @@ int destroy_bloom_filter(bloom_filter *filter);
 
 /**
  * Gets the counters that belong to a filter
+ * @notes Thread safe, but may be inconsistent.
  * @arg filter The filter
  * @return A reference to the counters of a filter
  */
@@ -43,6 +48,7 @@ filter_counters* bloomf_counters(bloom_filter *filter);
 /**
  * Checks if a filter is currectly mapped into
  * memory or if it is proxied.
+ * @notes Thread safe.
  * @return 1 if in-memory, 0 if proxied.
  */
 int bloomf_in_memory(bloom_filter *filter);
@@ -72,6 +78,7 @@ int bloomf_delete(bloom_filter *filter);
 
 /**
  * Checks if the filter contains a given key
+ * @note Thread safe, as long as bloomf_add is not invoked.
  * @arg filter The filter to check
  * @arg key The key to check
  * @return 0 if not contained, 1 if contained.
@@ -88,6 +95,7 @@ int bloomf_add(bloom_filter *filter, char *key);
 
 /**
  * Gets the size of the filter in keys
+ * @note Thread safe.
  * @arg filter The filter to check
  * @return The total size of the filter
  */
@@ -95,6 +103,7 @@ uint64_t bloomf_size(bloom_filter *filter);
 
 /**
  * Gets the maximum capacity of the filter
+ * @note Thread safe.
  * @arg filter The filter to check
  * @return The total capacity of the filter
  */
@@ -102,6 +111,7 @@ uint64_t bloomf_capacity(bloom_filter *filter);
 
 /**
  * Gets the current byte size of the filter
+ * @note Thread safe.
  * @arg filter The filter
  * @return The total byte size of the filter
  */
