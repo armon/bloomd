@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
+#include <unistd.h>
 #include "spinlock.h"
 #include "filter.h"
 #include "sbf.h"
@@ -138,6 +139,41 @@ int bloomf_close(bloom_filter *filter) {
  * @return 0 on success.
  */
 int bloomf_delete(bloom_filter *filter) {
+    // Close first
+    bloomf_close(filter);
+
+    // Do nothing if we are in memory
+    if (filter->config->in_memory) return 0;
+
+    // Delete the files
+    struct dirent **namelist;
+    int num;
+
+    // Filter only data dirs, in sorted order
+    num = scandir(filter->full_path, &namelist, NULL, NULL);
+    syslog(LOG_INFO, "Deleting %d files for filter %s.", num, filter->filter_name);
+
+    // Free the memory associated with scandir
+    for (int i=0; i < num; i++) {
+        char *file_path = join_path(filter->full_path, namelist[i]->d_name);
+        syslog(LOG_INFO, "Deleting: %s.", file_path);
+        if (unlink(file_path)) {
+            syslog(LOG_ERR, "Failed to delete: %s. %s", file_path, strerror(errno));
+        }
+        free(file_path);
+    }
+
+    // Free the memory associated with scandir
+    for (int i=0; i < num; i++) {
+        free(namelist[i]);
+    }
+    free(namelist);
+
+    // Delete the directory
+    if (unlink(filter->full_path)) {
+        syslog(LOG_ERR, "Failed to delete: %s. %s", filter->full_path, strerror(errno));
+    }
+
     return 0;
 }
 
