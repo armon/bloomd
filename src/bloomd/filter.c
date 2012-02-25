@@ -134,7 +134,7 @@ int bloomf_in_memory(bloom_filter *filter) {
  */
 int bloomf_flush(bloom_filter *filter) {
     // Only do things if we are non-proxied
-    if (filter->sbf) {
+    if (filter->sbf && !filter->filter_config.in_memory) {
         // Store our properties for a future unmap
         filter->filter_config.size = bloomf_size(filter);
         filter->filter_config.capacity = bloomf_capacity(filter);
