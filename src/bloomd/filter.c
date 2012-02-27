@@ -48,6 +48,7 @@ static int thread_safe_fault(bloom_filter *f);
 static int discover_existing_filters(bloom_filter *f);
 static int create_sbf(bloom_filter *f, int num, bloom_bloomfilter **filters);
 static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out);
+static int filter_out_special(struct dirent *d);
 
 /**
  * Initializes a bloom filter wrapper.
@@ -70,7 +71,7 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     f->filter_config.initial_capacity = config->initial_capacity;
     f->filter_config.default_probability = config->default_probability;
     f->filter_config.scale_size = config->scale_size;
-    f->filter_config.probability_reduction = config->scale_size;
+    f->filter_config.probability_reduction = config->probability_reduction;
     f->filter_config.in_memory = config->in_memory;
 
     // Get the folder name
@@ -213,7 +214,7 @@ int bloomf_delete(bloom_filter *filter) {
     int num;
 
     // Filter only data dirs, in sorted order
-    num = scandir(filter->full_path, &namelist, NULL, NULL);
+    num = scandir(filter->full_path, &namelist, filter_out_special, NULL);
     syslog(LOG_INFO, "Deleting %d files for filter %s.", num, filter->filter_name);
 
     // Free the memory associated with scandir
@@ -233,7 +234,7 @@ int bloomf_delete(bloom_filter *filter) {
     free(namelist);
 
     // Delete the directory
-    if (unlink(filter->full_path)) {
+    if (rmdir(filter->full_path)) {
         syslog(LOG_ERR, "Failed to delete: %s. %s", filter->full_path, strerror(errno));
     }
 
@@ -363,6 +364,20 @@ static uint64_t get_size(char* filename) {
     buf.st_size = 0;
     stat(filename, &buf);
     return buf.st_size;
+}
+
+/**
+ * Works with scandir to filter out special files
+ */
+static int filter_out_special(struct dirent *d) {
+    // Get the file name
+    char *name = d->d_name;
+
+    // Make sure its not speci
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+        return 0;
+    }
+    return 1;
 }
 
 /**
@@ -515,6 +530,7 @@ static int create_sbf(bloom_filter *f, int num, bloom_bloomfilter **filters) {
 
     // Handle a failure
     if (res != 0) {
+        syslog(LOG_ERR, "Failed to create SBF: %s. Err: %d", f->filter_name, res);
         free(f->sbf);
         f->sbf = NULL;
     } else {
@@ -564,6 +580,10 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
 
     // Create the bitmap
     int res = bitmap_from_filename(full_path, bytes, 1, 1, out);
+    if (res) {
+        syslog(LOG_ERR, "Failed to create new file: %s for filter %s. Err: %s",
+            full_path, filt->filter_name, strerror(errno));
+    }
     free(full_path);
     return res;
 }
