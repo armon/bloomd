@@ -2,16 +2,18 @@
 #include <stdio.h>
 #include "test_config.c"
 #include "test_hashmap.c"
+#include "test_filter.c"
 
 int main(void)
 {
     Suite *s1 = suite_create("Bloomd");
     TCase *tc1 = tcase_create("config");
     TCase *tc2 = tcase_create("hashmap");
+    TCase *tc3 = tcase_create("filter");
     SRunner *sr = srunner_create(s1);
     int nf;
 
-    // Add the bitmap tests
+    // Add the config tests
     suite_add_tcase(s1, tc1);
     tcase_add_test(tc1, test_config_get_default);
     tcase_add_test(tc1, test_config_bad_file);
@@ -49,6 +51,10 @@ int main(void)
     tcase_add_test(tc2, test_map_iter_no_keys);
     tcase_add_test(tc2, test_map_put_iter_break);
     tcase_add_test(tc2, test_map_put_grow);
+
+    // Add the filter tests
+    suite_add_tcase(s1, tc3);
+    tcase_add_test(tc3, test_filter_init_destroy);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);

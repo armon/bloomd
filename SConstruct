@@ -13,13 +13,14 @@ envtest.Program('test_libbloom_runner', spooky + murmur + bloom +  Glob("tests/l
 envinih = Environment(CPATH = ['deps/inih/'], CFLAGS="-O2")
 inih = envinih.Library('inih', Glob("deps/inih/*.c"))
 
-envbloomd_with_err = Environment(CCFLAGS = '-std=c99 -g -Wall -Werror -O2 -pthread -Ideps/inih/ -Ideps/libev/')
-envbloomd_without_err = Environment(CCFLAGS = '-std=c99 -g -O2 -pthread -Isrc/bloomd/ -Ideps/inih/ -Ideps/libev/')
+envbloomd_with_err = Environment(CCFLAGS = '-std=c99 -g -Wall -Werror -O2 -pthread -Ideps/inih/ -Ideps/libev/ -Isrc/libbloom/')
+envbloomd_without_err = Environment(CCFLAGS = '-std=c99 -g -O2 -pthread -Isrc/bloomd/ -Ideps/inih/ -Ideps/libev/ -Isrc/libbloom/')
 
 objs =  envbloomd_with_err.Object('src/config/config', 'src/bloomd/config.c') + \
         envbloomd_without_err.Object('src/config/networking', 'src/bloomd/networking.c') + \
         envbloomd_with_err.Object('src/config/conn_handler', 'src/bloomd/conn_handler.c') + \
-        envbloomd_with_err.Object('src/config/hashmap', 'src/bloomd/hashmap.c')
+        envbloomd_with_err.Object('src/config/hashmap', 'src/bloomd/hashmap.c') + \
+        envbloomd_with_err.Object('src/config/filter', 'src/bloomd/filter.c')
 
 envbloomd_with_err.Program('bloomd', spooky + murmur + bloom + inih + objs + ["src/bloomd/bloomd.c"])
 envbloomd_without_err.Program('test_bloomd_runner', spooky + murmur + bloom + inih + objs + Glob("tests/bloomd/runner.c"), LIBS=["libcheck"])

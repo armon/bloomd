@@ -411,7 +411,6 @@ static int discover_existing_filters(bloom_filter *f) {
     bloom_bloomfilter **filters = malloc(num * sizeof(bloom_bloomfilter*));
 
     // Initialize the bitmaps and bloom filters
-    bloom_bitmap *map;
     int res;
     int err = 0;
     uint64_t size;
