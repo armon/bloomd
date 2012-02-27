@@ -49,6 +49,24 @@ typedef struct {
 int config_from_filename(char *filename, bloom_config *config);
 
 /**
+ * Updates the configuration from a filename.
+ * Reads the file as an INI configuration and updates the config.
+ * @arg filename The name of the file to read.
+ * @arg config Output. The config object to update. Does not initialize!
+ * @return 0 on success, negative on error.
+ */
+int filter_config_from_filename(char *filename, bloom_filter_config *config);
+
+/**
+ * Writes the configuration to a filename.
+ * Writes the file as an INI configuration
+ * @arg filename The name of the file to write.
+ * @arg config The config object to write out.
+ * @return 0 on success, negative on error.
+ */
+int update_filename_from_filter_config(char *filename, bloom_filter_config *config);
+
+/**
  * Validates the configuration
  * @arg config The config object to validate.
  * @return 0 on success, negative on error.

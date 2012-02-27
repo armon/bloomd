@@ -388,3 +388,112 @@ int validate_config(bloom_config *config) {
     return res;
 }
 
+/**
+ * Callback function to use with INI-H.
+ * @arg user Opaque user value. We use the bloom_config pointer
+ * @arg section The INI seciton
+ * @arg name The config name
+ * @arg value The config value
+ * @return 1 on success.
+ */
+static int filter_config_callback(void* user, const char* section, const char* name, const char* value) {
+    // Ignore any non-bloomd sections
+    if (strcasecmp("bloomd", section) != 0) {
+        return 0;
+    }
+
+    // Cast the user handle
+    bloom_filter_config *config = (bloom_filter_config*)user;
+
+    // Switch on the config
+    #define NAME_MATCH(param) (strcasecmp(param, name) == 0)
+
+    // Handle the int cases
+    if (NAME_MATCH("scale_size")) {
+        return value_to_int(value, &config->scale_size);
+    } else if (NAME_MATCH("in_memory")) {
+         return value_to_int(value, &config->in_memory);
+
+    // Handle the int64 cases
+    } else if (NAME_MATCH("initial_capacity")) {
+         return value_to_int64(value, &config->initial_capacity);
+    } else if (NAME_MATCH("size")) {
+         return value_to_int64(value, &config->size);
+    } else if (NAME_MATCH("capacity")) {
+         return value_to_int64(value, &config->capacity);
+    } else if (NAME_MATCH("bytes")) {
+         return value_to_int64(value, &config->bytes);
+
+    // Handle the double cases
+    } else if (NAME_MATCH("default_probability")) {
+         return value_to_double(value, &config->default_probability);
+    } else if (NAME_MATCH("probability_reduction")) {
+         return value_to_double(value, &config->probability_reduction);
+
+    // Unknown parameter?
+    } else {
+        // Log it, but ignore
+        syslog(LOG_NOTICE, "Unrecognized filter config parameter: %s", value);
+    }
+
+    // Success
+    return 1;
+}
+
+/**
+ * Updates the configuration from a filename.
+ * Reads the file as an INI configuration and updates the config.
+ * @arg filename The name of the file to read.
+ * @arg config Output. The config object to update. Does not initialize!
+ * @return 0 on success, negative on error.
+ */
+int filter_config_from_filename(char *filename, bloom_filter_config *config) {
+    // If there is no filename, return now
+    if (filename == NULL)
+        return 0;
+
+    // Try to open the file
+    int res = ini_parse(filename, filter_config_callback, config);
+    if (res == -1) {
+        return -ENOENT;
+    }
+
+    return 0;
+}
+
+/**
+ * Writes the configuration to a filename.
+ * Writes the file as an INI configuration
+ * @arg filename The name of the file to write.
+ * @arg config The config object to write out.
+ * @return 0 on success, negative on error.
+ */
+int update_filename_from_filter_config(char *filename, bloom_filter_config *config) {
+    // Try to open the file
+    FILE* f = fopen(filename, "w+");
+    if (!f) return -errno;
+
+    // Write out
+    fprintf(f, "[bloomd]\n\
+initial_capacity = %llu\n\
+default_probability = %f\n\
+scale_size = %d\n\
+probability_reduction = %f\n\
+in_memory = %d\n\
+size = %llu\n\
+capacity = %llu\n\
+bytes = %llu\n", config->initial_capacity,
+                 config->default_probability,
+                 config->scale_size,
+                 config->probability_reduction,
+                 config->in_memory,
+                 config->size,
+                 config->capacity,
+                 config->bytes
+    );
+
+    // Close
+    fclose(f);
+    return 0;
+}
+

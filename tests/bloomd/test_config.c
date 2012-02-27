@@ -263,3 +263,114 @@ START_TEST(test_sane_worker_threads)
 }
 END_TEST
 
+START_TEST(test_filter_config_bad_file)
+{
+    bloom_filter_config config;
+    memset(&config, '\0', sizeof(config));
+    int res = filter_config_from_filename("/tmp/does_not_exist", &config);
+    fail_unless(res == -ENOENT);
+
+    // Should get the defaults...
+    fail_unless(config.initial_capacity == 0);
+    fail_unless(config.default_probability == 0);
+    fail_unless(config.scale_size == 0);
+    fail_unless(config.probability_reduction == 0);
+    fail_unless(config.size == 0);
+    fail_unless(config.capacity == 0);
+    fail_unless(config.bytes == 0);
+}
+END_TEST
+
+START_TEST(test_filter_config_empty_file)
+{
+    int fh = open("/tmp/zero_file", O_CREAT|O_RDWR);
+    fchmod(fh, 777);
+    close(fh);
+
+    bloom_filter_config config;
+    memset(&config, '\0', sizeof(config));
+    int res = filter_config_from_filename("/tmp/zero_file", &config);
+    fail_unless(res == 0);
+
+    // Should get the defaults...
+    fail_unless(config.initial_capacity == 0);
+    fail_unless(config.default_probability == 0);
+    fail_unless(config.scale_size == 0);
+    fail_unless(config.probability_reduction == 0);
+    fail_unless(config.size == 0);
+    fail_unless(config.capacity == 0);
+    fail_unless(config.bytes == 0);
+
+    unlink("/tmp/zero_file");
+}
+END_TEST
+
+START_TEST(test_filter_config_basic_config)
+{
+    int fh = open("/tmp/filter_basic_config", O_CREAT|O_RDWR);
+    char *buf = "[bloomd]\n\
+size = 256\n\
+bytes = 999999\n\
+capacity = 4000000\n\
+scale_size = 2\n\
+in_memory = 1\n\
+initial_capacity = 2000000\n\
+default_probability = 0.005\n\
+probability_reduction = 0.8\n";
+    write(fh, buf, strlen(buf));
+    fchmod(fh, 777);
+    close(fh);
+
+    bloom_filter_config config;
+    memset(&config, '\0', sizeof(config));
+    int res = filter_config_from_filename("/tmp/filter_basic_config", &config);
+    fail_unless(res == 0);
+
+    // Should get the config
+    fail_unless(config.initial_capacity == 2000000);
+    fail_unless(config.default_probability == 0.005);
+    fail_unless(config.scale_size == 2);
+    fail_unless(config.probability_reduction == 0.8);
+    fail_unless(config.size == 256);
+    fail_unless(config.capacity == 4000000);
+    fail_unless(config.bytes == 999999);
+
+    unlink("/tmp/filter_basic_config");
+}
+END_TEST
+
+START_TEST(test_update_filename_from_filter_config)
+{
+    bloom_filter_config config;
+    config.initial_capacity = 2000000;
+    config.default_probability = 0.005;
+    config.scale_size = 2;
+    config.probability_reduction = 0.8;
+    config.size = 256;
+    config.capacity = 4000000;
+    config.bytes = 999999;
+    config.in_memory = 0;
+
+    int res = update_filename_from_filter_config("/tmp/update_filter", &config);
+    chmod("/tmp/update_filter", 777);
+    fail_unless(res == 0);
+
+    // Should get the config
+    bloom_filter_config config2;
+    memset(&config2, '\0', sizeof(config2));
+    res = filter_config_from_filename("/tmp/update_filter", &config2);
+    fail_unless(res == 0);
+
+    fail_unless(config2.initial_capacity == 2000000);
+    fail_unless(config2.default_probability == 0.005);
+    fail_unless(config2.scale_size == 2);
+    fail_unless(config2.probability_reduction == 0.8);
+    fail_unless(config2.size == 256);
+    fail_unless(config2.capacity == 4000000);
+    fail_unless(config2.bytes == 999999);
+    fail_unless(config2.in_memory == 0);
+
+    unlink("/tmp/update_filter");
+}
+END_TEST
+

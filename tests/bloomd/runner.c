@@ -30,6 +30,10 @@ int main(void)
     tcase_add_test(tc1, test_sane_cold_interval);
     tcase_add_test(tc1, test_sane_in_memory);
     tcase_add_test(tc1, test_sane_worker_threads);
+    tcase_add_test(tc1, test_filter_config_bad_file);
+    tcase_add_test(tc1, test_filter_config_empty_file);
+    tcase_add_test(tc1, test_filter_config_basic_config);
+    tcase_add_test(tc1, test_update_filename_from_filter_config);
 
     // Add the hashmap tests
     suite_add_tcase(s1, tc2);
