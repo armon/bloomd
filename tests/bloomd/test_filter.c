@@ -18,13 +18,14 @@ static int filter_out_special(struct dirent *d) {
     return 1;
 }
 
-void delete_dir(char *path) {
+static int delete_dir(char *path) {
     // Delete the files
-    struct dirent **namelist;
+    struct dirent **namelist = NULL;
     int num;
 
     // Filter only data dirs, in sorted order
     num = scandir(path, &namelist, filter_out_special, NULL);
+    if (num == -1) return 0;
 
     // Free the memory associated with scandir
     for (int i=0; i < num; i++) {
@@ -39,12 +40,13 @@ void delete_dir(char *path) {
     for (int i=0; i < num; i++) {
         free(namelist[i]);
     }
-    free(namelist);
+    if (namelist != NULL) free(namelist);
 
     // Delete the directory
     if (rmdir(path)) {
         printf("Failed to delete dir: %s. %s\n", path, strerror(errno));
     }
+    return num;
 }
 
 START_TEST(test_filter_init_destroy)
@@ -68,15 +70,32 @@ START_TEST(test_filter_init_discover_destroy)
     int res = config_from_filename(NULL, &config);
     fail_unless(res == 0);
 
-    mkdir("/tmp/bloomd/bloomd.test_filter", 0777);
-
     bloom_filter *filter = NULL;
     res = init_bloom_filter(&config, "test_filter", 1, &filter);
     fail_unless(res == 0);
 
     res = destroy_bloom_filter(filter);
     fail_unless(res == 0);
-    delete_dir("/tmp/bloomd/bloomd.test_filter");
+    fail_unless(delete_dir("/tmp/bloomd/bloomd.test_filter") == 2);
+}
+END_TEST
+
+START_TEST(test_filter_init_discover_delete)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filter *filter = NULL;
+    res = init_bloom_filter(&config, "test_filter2", 1, &filter);
+    fail_unless(res == 0);
+
+    res = bloomf_delete(filter);
+    fail_unless(res == 0);
+
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+    fail_unless(delete_dir("/tmp/bloomd/bloomd.test_filter2") == 0);
 }
 END_TEST
 
