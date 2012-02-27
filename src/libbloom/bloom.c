@@ -54,12 +54,38 @@ int bf_from_bitmap(bloom_bitmap *map, uint32_t k_num, int new_filter, bloom_bloo
     // Setup the offset
     filter->offset = filter->bitmap_size / filter->header->k_num;
 
-    // Allocate space for the hashes
-    filter->hashes = calloc(filter->header->k_num, sizeof(uint64_t));
-
     // Done, return
     return 0;
 }
+
+
+/**
+ * Internal bf_contains method.
+ * @arg filter The filter
+ * @arg key The key to check
+ * @arg hashes Contains at least K num hashes
+ * @return 0 if not contained, 1 if contained.
+ */
+static int bf_internal_contains(bloom_bloomfilter *filter, char *key, uint64_t *hashes) {
+    uint64_t m = filter->offset;
+    uint64_t offset;
+    uint64_t h;
+    uint32_t i;
+    uint64_t bit;
+    int res;
+
+    for (i=0; i< filter->header->k_num; i++) {
+        h = hashes[i];           // Get the hash value
+        offset = i * m;          // Get the partition offset
+        bit = offset + (h % m);  // Compute the bit offset
+        res = BITMAP_GETBIT(filter, bit);
+        if (res == 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 
 /**
  * Adds a new key to the bloom filter.
@@ -68,8 +94,14 @@ int bf_from_bitmap(bloom_bitmap *map, uint32_t k_num, int new_filter, bloom_bloo
  * @returns 1 if the key was added, 0 if present. Negative on failure.
  */
 int bf_add(bloom_bloomfilter *filter, char* key) {
+    // Allocate the hash space
+    uint64_t *hashes = alloca(filter->header->k_num * sizeof(uint64_t));
+
+    // Compute the hashes
+    bf_compute_hashes(filter->header->k_num, key, hashes);
+
     // Check if the item exists
-    int res = bf_contains(filter, key);
+    int res = bf_internal_contains(filter, key, hashes);
     if (res == 1) {
         return 0;  // Key already present, do not add.
     }
@@ -81,7 +113,7 @@ int bf_add(bloom_bloomfilter *filter, char* key) {
     uint64_t bit;
 
     for (i=0; i< filter->header->k_num; i++) {
-        h = filter->hashes[i];  // Get the hash value
+        h = hashes[i];           // Get the hash value
         offset = i * m;          // Get the partition offset
         bit = offset + (h % m);  // Compute the bit offset
         BITMAP_SETBIT(filter, bit, 1);
@@ -94,30 +126,18 @@ int bf_add(bloom_bloomfilter *filter, char* key) {
 /**
  * Checks the filter for a key
  * @arg filter The filter to check
- * @arg key The key to check 
+ * @arg key The key to check
  * @returns 1 if present, 0 if not present, negative on error.
  */
 int bf_contains(bloom_bloomfilter *filter, char* key) {
+    // Allocate the hash space
+    uint64_t *hashes = alloca(filter->header->k_num * sizeof(uint64_t));
+
     // Compute the hashes
-    bf_compute_hashes(filter->header->k_num, key, filter->hashes);
+    bf_compute_hashes(filter->header->k_num, key, hashes);
 
-    uint64_t m = filter->offset;
-    uint64_t offset;
-    uint64_t h;
-    uint32_t i;
-    uint64_t bit;
-    int res;
-
-    for (i=0; i< filter->header->k_num; i++) {
-        h = filter->hashes[i];  // Get the hash value
-        offset = i * m;          // Get the partition offset
-        bit = offset + (h % m);  // Compute the bit offset
-        res = BITMAP_GETBIT(filter, bit);
-        if (res == 0) {
-            return 0;
-        }
-    }
-    return 1;
+    // Use the internal contains method
+    return bf_internal_contains(filter, key, hashes);
 }
 
 /**
@@ -163,8 +183,6 @@ int bf_close(bloom_bloomfilter *filter) {
     filter->header = NULL;
     filter->offset = 0;
     filter->bitmap_size = 0;
-    free(filter->hashes);
-    filter->hashes = NULL;
 
     return 0;
 }
@@ -193,7 +211,7 @@ int bf_params_for_capacity(bloom_filter_params *params) {
 }
 
 /*
- * Expects capacity and probability to be set, computes the 
+ * Expects capacity and probability to be set, computes the
  * minimum byte size required.
  * @return 0 on success, negative on error.
  */
@@ -274,7 +292,7 @@ void bf_compute_hashes(uint32_t k_num, char *key, uint64_t *hashes) {
 
     // Get the length of the key
     uint64_t len = strlen(key);
-   
+
     // Compute the first hash
     uint64_t out[2];
     MurmurHash3_x64_128(key, len, 0, &out);

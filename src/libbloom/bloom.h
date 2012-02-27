@@ -26,7 +26,6 @@ typedef struct {
     bloom_bitmap *map;             // Underlying bitmap
     uint64_t offset;                // The offset size between hash regions
     uint64_t bitmap_size;           // The size of the bitmap to use, minus buffers
-    uint64_t *hashes;               // Pre-allocated buffers for the hashes 
 } bloom_bloomfilter;
 
 /*
@@ -62,7 +61,7 @@ int bf_add(bloom_bloomfilter *filter, char* key);
 /**
  * Checks the filter for a key
  * @arg filter The filter to check
- * @arg key The key to check 
+ * @arg key The key to check
  * @returns 1 if present, 0 if not present, negative on error.
  */
 int bf_contains(bloom_bloomfilter *filter, char* key);
@@ -106,7 +105,7 @@ void bf_compute_hashes(uint32_t k_num, char *key, uint64_t *hashes);
 int bf_params_for_capacity(bloom_filter_params *params);
 
 /*
- * Expects capacity and probability to be set, computes the 
+ * Expects capacity and probability to be set, computes the
  * minimum byte size required. Does not include header size.
  * @return 0 on success, negative on error.
  */
