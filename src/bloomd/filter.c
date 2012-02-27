@@ -86,12 +86,20 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     INIT_BLOOM_SPIN(&f->counter_lock);
     pthread_mutex_init(&f->sbf_lock, NULL);
 
+    // Try to create the folder path
+    int res = mkdir(f->full_path, 0755);
+    if (res && errno != EEXIST) {
+        syslog(LOG_ERR, "Failed to create filter director '%s'. Err: %d", f->full_path, res);
+        return res;
+    }
+
     // Read in the filter_config
     char *config_name = join_path(f->full_path, (char*)CONFIG_FILENAME);
-    int res = filter_config_from_filename(config_name, &f->filter_config);
+    res = filter_config_from_filename(config_name, &f->filter_config);
     free(config_name);
-    if (res) {
+    if (res && res != -ENOENT) {
         syslog(LOG_ERR, "Failed to read filter '%s' configuration. Err: %d", f->filter_name, res);
+        return res;
     }
 
     // Discover the existing filters if we need to
@@ -150,7 +158,7 @@ int bloomf_is_proxied(bloom_filter *filter) {
  */
 int bloomf_flush(bloom_filter *filter) {
     // Only do things if we are non-proxied
-    if (filter->sbf && !filter->filter_config.in_memory) {
+    if (filter->sbf) {
         // Store our properties for a future unmap
         filter->filter_config.size = bloomf_size(filter);
         filter->filter_config.capacity = bloomf_capacity(filter);
@@ -166,7 +174,9 @@ int bloomf_flush(bloom_filter *filter) {
         }
 
         // Flush the filter
-        return sbf_flush(filter->sbf);
+        if (!filter->filter_config.in_memory) {
+            return sbf_flush(filter->sbf);
+        }
     }
     return 0;
 }
