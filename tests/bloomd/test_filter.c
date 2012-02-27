@@ -359,3 +359,48 @@ START_TEST(test_filter_grow)
 }
 END_TEST
 
+START_TEST(test_filter_grow_restore)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+    config.initial_capacity = 10000;
+
+    bloom_filter *filter = NULL;
+    res = init_bloom_filter(&config, "test_filter9", 1, &filter);
+    fail_unless(res == 0);
+
+    // Check all the keys get added
+    char buf[100];
+    for (int i=0;i<100000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_add(filter, (char*)&buf);
+    }
+    uint64_t size = bloomf_size(filter);
+    uint64_t byte_size = bloomf_byte_size(filter);
+    uint64_t cap = bloomf_capacity(filter);
+
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+
+    // FUCKING annoying umask permissions bullshit
+    // Cused by the Check test framework
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter9/config.ini", 0777) == 0);
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter9/data.000.mmap", 0777) == 0);
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter9/data.001.mmap", 0777) == 0);
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter9/data.002.mmap", 0777) == 0);
+
+    res = init_bloom_filter(&config, "test_filter9", 1, &filter);
+    fail_unless(res == 0);
+
+    fail_unless(bloomf_size(filter) == size);
+    fail_unless(bloomf_byte_size(filter) == byte_size);
+    fail_unless(bloomf_capacity(filter) == cap);
+
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+
+    fail_unless(delete_dir("/tmp/bloomd/bloomd.test_filter9") == 4);
+}
+END_TEST
+
