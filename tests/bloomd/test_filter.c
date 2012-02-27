@@ -224,3 +224,138 @@ START_TEST(test_filter_restore)
 }
 END_TEST
 
+START_TEST(test_filter_flush)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filter *filter = NULL;
+    res = init_bloom_filter(&config, "test_filter6", 0, &filter);
+    fail_unless(res == 0);
+
+    // Check all the keys get added
+    char buf[100];
+    for (int i=0;i<10000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_add(filter, (char*)&buf);
+        fail_unless(res == 1);
+    }
+
+    // Flush
+    fail_unless(bloomf_flush(filter) == 0);
+
+    // FUCKING annoying umask permissions bullshit
+    // Cused by the Check test framework
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter6/config.ini", 0777) == 0);
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter6/data.000.mmap", 0777) == 0);
+
+    // Remake the filter
+    bloom_filter *filter2 = NULL;
+    res = init_bloom_filter(&config, "test_filter6", 1, &filter2);
+    fail_unless(res == 0);
+    filter_counters *counters2 = bloomf_counters(filter2);
+
+    // Re-check
+    fail_unless(bloomf_size(filter2) == 10000);
+    fail_unless(bloomf_byte_size(filter2) > 32*1024);
+    fail_unless(bloomf_capacity(filter2) == 100000);
+
+    // Check all the keys exist
+    for (int i=0;i<10000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_contains(filter2, (char*)&buf);
+        fail_unless(res == 1);
+    }
+
+    fail_unless(counters2->set_hits == 0);
+    fail_unless(counters2->check_hits == 10000);
+
+    // Destroy the filter
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+
+    res = destroy_bloom_filter(filter2);
+    fail_unless(res == 0);
+    fail_unless(delete_dir("/tmp/bloomd/bloomd.test_filter6") == 2);
+}
+END_TEST
+
+START_TEST(test_filter_add_check_in_mem)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    config.in_memory = 1;
+    fail_unless(res == 0);
+
+    bloom_filter *filter = NULL;
+    res = init_bloom_filter(&config, "test_filter7", 0, &filter);
+    fail_unless(res == 0);
+
+    filter_counters *counters = bloomf_counters(filter);
+
+    // Check all the keys get added
+    char buf[100];
+    for (int i=0;i<10000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_add(filter, (char*)&buf);
+        fail_unless(res == 1);
+    }
+
+    fail_unless(bloomf_size(filter) == 10000);
+    fail_unless(bloomf_byte_size(filter) > 32*1024);
+    fail_unless(bloomf_capacity(filter) == 100000);
+    fail_unless(counters->set_hits == 10000);
+
+    // Check all the keys exist
+    for (int i=0;i<10000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_contains(filter, (char*)&buf);
+        fail_unless(res == 1);
+    }
+
+    fail_unless(counters->check_hits == 10000);
+
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+    fail_unless(delete_dir("/tmp/bloomd/bloomd.test_filter7") == 1);
+}
+END_TEST
+
+START_TEST(test_filter_grow)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+    config.initial_capacity = 10000;
+
+    bloom_filter *filter = NULL;
+    res = init_bloom_filter(&config, "test_filter8", 1, &filter);
+    fail_unless(res == 0);
+
+    filter_counters *counters = bloomf_counters(filter);
+
+    // Check all the keys get added
+    char buf[100];
+    for (int i=0;i<100000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_add(filter, (char*)&buf);
+    }
+    fail_unless(bloomf_size(filter) > 99000);
+    fail_unless(bloomf_byte_size(filter) > 512*1024);
+    fail_unless(bloomf_capacity(filter) == 210000);
+    fail_unless(counters->set_hits > 99000);
+
+    // Check all the keys exist
+    for (int i=0;i<100000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_contains(filter, (char*)&buf);
+    }
+    fail_unless(counters->check_hits == 100000);
+
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+    fail_unless(delete_dir("/tmp/bloomd/bloomd.test_filter8") == 4);
+}
+END_TEST
+
