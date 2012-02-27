@@ -1,11 +1,14 @@
 #include <check.h>
 #include <stdio.h>
+#include <syslog.h>
 #include "test_config.c"
 #include "test_hashmap.c"
 #include "test_filter.c"
 
 int main(void)
 {
+    setlogmask(LOG_UPTO(LOG_DEBUG));
+
     Suite *s1 = suite_create("Bloomd");
     TCase *tc1 = tcase_create("config");
     TCase *tc2 = tcase_create("hashmap");
