@@ -69,6 +69,7 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
 
     // Copy filter configs
     f->filter_config.initial_capacity = config->initial_capacity;
+    f->filter_config.capacity = config->initial_capacity;
     f->filter_config.default_probability = config->default_probability;
     f->filter_config.scale_size = config->scale_size;
     f->filter_config.probability_reduction = config->probability_reduction;
