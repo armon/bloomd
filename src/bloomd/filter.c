@@ -37,6 +37,11 @@ static const char* FILTER_FOLDER_NAME = "bloomd.%s";
 static const char* DATA_FILE_NAME = "data.%03d.mmap";
 
 /*
+ * Generates the config file name
+ */
+static const char* CONFIG_FILENAME = "config.ini";
+
+/*
  * Static delarations
  */
 static int thread_safe_fault(bloom_filter *f);
@@ -80,7 +85,13 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     INIT_BLOOM_SPIN(&f->counter_lock);
     pthread_mutex_init(&f->sbf_lock, NULL);
 
-    // TODO: Read in the filter_config
+    // Read in the filter_config
+    char *config_name = join_path(f->full_path, (char*)CONFIG_FILENAME);
+    int res = filter_config_from_filename(config_name, &f->filter_config);
+    free(config_name);
+    if (res) {
+        syslog(LOG_ERR, "Failed to read filter '%s' configuration. Err: %d", f->filter_name, res);
+    }
 
     // Discover the existing filters if we need to
     if (discover) {
@@ -140,7 +151,14 @@ int bloomf_flush(bloom_filter *filter) {
         filter->filter_config.capacity = bloomf_capacity(filter);
         filter->filter_config.bytes= bloomf_byte_size(filter);
 
-        // TODO: Write out filter_config
+        // Write out filter_config
+        char *config_name = join_path(filter->full_path, (char*)CONFIG_FILENAME);
+        int res = update_filename_from_filter_config(config_name, &filter->filter_config);
+        free(config_name);
+        if (res) {
+            syslog(LOG_ERR, "Failed to write filter '%s' configuration. Err: %d.",
+                    filter->filter_name, res);
+        }
 
         // Flush the filter
         return sbf_flush(filter->sbf);
