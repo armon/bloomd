@@ -55,6 +55,7 @@ int main(void)
     // Add the filter tests
     suite_add_tcase(s1, tc3);
     tcase_add_test(tc3, test_filter_init_destroy);
+    tcase_add_test(tc3, test_filter_init_discover_destroy);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
