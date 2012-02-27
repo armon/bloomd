@@ -94,11 +94,15 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     }
 
     // Discover the existing filters if we need to
+    res = 0;
     if (discover) {
-        thread_safe_fault(f);
+        res = thread_safe_fault(f);
+        if (res) {
+            syslog(LOG_ERR, "Failed to fault in the filter '%s'. Err: %d", f->filter_name, res);
+        }
     }
 
-    return 0;
+    return res;
 }
 
 /**
@@ -396,6 +400,11 @@ static int discover_existing_filters(bloom_filter *f) {
 
     // Filter only data dirs, in sorted order
     num = scandir(f->full_path, &namelist, filter_data_files, alphasort);
+    if (num == -1) {
+        syslog(LOG_ERR, "Failed to scan files for filter '%s'. %s",
+                f->filter_name, strerror(errno));
+        return -1;
+    }
     syslog(LOG_INFO, "Found %d files for filter %s.", num, f->filter_name);
 
     // Speical case when there are no filters
