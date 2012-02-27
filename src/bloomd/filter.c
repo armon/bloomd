@@ -172,13 +172,21 @@ int bloomf_flush(bloom_filter *filter) {
  * @return 0 on success.
  */
 int bloomf_close(bloom_filter *filter) {
+    // Acquire lock
+    pthread_mutex_lock(&filter->sbf_lock);
+
     // Only act if we are non-proxied
     if (filter->sbf) {
         bloomf_flush(filter);
-        sbf_close(filter->sbf);
-        free(filter->sbf);
+
+        bloom_sbf *sbf = filter->sbf;
         filter->sbf = NULL;
+        sbf_close(sbf);
+        free(sbf);
     }
+
+    // Release lock
+    pthread_mutex_unlock(&filter->sbf_lock);
     return 0;
 }
 
