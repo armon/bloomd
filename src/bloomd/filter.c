@@ -181,6 +181,7 @@ int bloomf_close(bloom_filter *filter) {
 
         bloom_sbf *sbf = filter->sbf;
         filter->sbf = NULL;
+
         sbf_close(sbf);
         free(sbf);
     }
