@@ -62,6 +62,7 @@ int main(void)
     tcase_add_test(tc3, test_filter_init_discover_delete);
     tcase_add_test(tc3, test_filter_init_proxied);
     tcase_add_test(tc3, test_filter_add_check);
+    tcase_add_test(tc3, test_filter_restore);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);

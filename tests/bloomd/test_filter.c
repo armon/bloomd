@@ -151,6 +151,8 @@ START_TEST(test_filter_add_check)
     }
 
     fail_unless(bloomf_size(filter) == 10000);
+    fail_unless(bloomf_byte_size(filter) > 32*1024);
+    fail_unless(bloomf_capacity(filter) == 100000);
     fail_unless(counters->set_hits == 10000);
 
     // Check all the keys exist
@@ -165,6 +167,60 @@ START_TEST(test_filter_add_check)
     res = destroy_bloom_filter(filter);
     fail_unless(res == 0);
     fail_unless(delete_dir("/tmp/bloomd/bloomd.test_filter4") == 2);
+}
+END_TEST
+
+START_TEST(test_filter_restore)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filter *filter = NULL;
+    res = init_bloom_filter(&config, "test_filter5", 0, &filter);
+    fail_unless(res == 0);
+    filter_counters *counters = bloomf_counters(filter);
+
+    // Check all the keys get added
+    char buf[100];
+    for (int i=0;i<10000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_add(filter, (char*)&buf);
+        fail_unless(res == 1);
+    }
+
+    // Destroy the filter
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+
+    // FUCKING annoying umask permissions bullshit
+    // Cused by the Check test framework
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter5/config.ini", 0777) == 0);
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter5/data.000.mmap", 0777) == 0);
+
+    // Remake the filter
+    res = init_bloom_filter(&config, "test_filter5", 1, &filter);
+    fail_unless(res == 0);
+    counters = bloomf_counters(filter);
+
+    // Re-check
+    fail_unless(bloomf_size(filter) == 10000);
+    fail_unless(bloomf_byte_size(filter) > 32*1024);
+    fail_unless(bloomf_capacity(filter) == 100000);
+
+    // Check all the keys exist
+    for (int i=0;i<10000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_contains(filter, (char*)&buf);
+        fail_unless(res == 1);
+    }
+
+    fail_unless(counters->set_hits == 0);
+    fail_unless(counters->check_hits == 10000);
+
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+    fail_unless(delete_dir("/tmp/bloomd/bloomd.test_filter5") == 2);
 }
 END_TEST
 
