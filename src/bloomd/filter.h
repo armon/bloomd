@@ -54,7 +54,7 @@ filter_counters* bloomf_counters(bloom_filter *filter);
  * @notes Thread safe.
  * @return 1 if in-memory, 0 if proxied.
  */
-int bloomf_in_memory(bloom_filter *filter);
+int bloomf_is_proxied(bloom_filter *filter);
 
 /**
  * Flushes the filter. Idempotent if the
