@@ -126,9 +126,6 @@ int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name) {
     // Release the lock
     pthread_rwlock_unlock(&filt->rwlock);
 
-    // Mark as hot
-    add_hot_filter(mgr, filter_name);
-
     // Return the filter
     return_filter(mgr, filter_name);
     return 0;
