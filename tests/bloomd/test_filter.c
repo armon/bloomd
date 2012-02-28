@@ -425,6 +425,8 @@ START_TEST(test_filter_page_out)
     }
 
     fail_unless(bloomf_close(filter) == 0);
+    fail_unless(bloomf_size(filter) == 10000);
+    fail_unless(bloomf_capacity(filter) == 100000);
     fail_unless(counters->page_outs == 1);
     fail_unless(counters->page_ins == 0);
 
