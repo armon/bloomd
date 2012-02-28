@@ -135,14 +135,6 @@ int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name) {
 }
 
 /**
- * Checks the number of mapped filters
- * @return The number of mapped filters.
- */
-int filtmgr_num_filters(bloom_filtmgr *mgr) {
-    return hashmap_size(mgr->filter_map);
-}
-
-/**
  * Checks for the presence of keys in a given filter
  * @arg filter_name The name of the filter containing the keys
  * @arg keys A list of points to character arrays to check
