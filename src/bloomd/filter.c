@@ -200,6 +200,8 @@ int bloomf_close(bloom_filter *filter) {
 
         sbf_close(sbf);
         free(sbf);
+
+        filter->counters.page_outs += 1;
     }
 
     // Release lock
