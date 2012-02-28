@@ -20,6 +20,7 @@ typedef struct {
 
     bloom_filter *filter;    // The actual filter object
     pthread_rwlock_t rwlock; // Protects the filter
+    bloom_config *custom;   // Custom config to cleanup
 } bloom_filter_wrapper;
 
 struct bloom_filtmgr {
@@ -365,6 +366,11 @@ static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt) {
     // Cleanup the filter
     destroy_bloom_filter(filt->filter);
 
+    // Release any custom configs
+    if (filt->custom) {
+        free(filt->custom);
+    }
+
     // Release the struct
     free(filt);
     return;
@@ -383,6 +389,11 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
     filt->ref_count = 1;
     filt->is_active = 1;
     pthread_rwlock_init(&filt->rwlock, NULL);
+
+    // Set the custom filter if its not the same
+    if (mgr->config != config) {
+        filt->custom = config;
+    }
 
     // Try to create the underlying filter
     int res = init_bloom_filter(config, filter_name, 1, &filt->filter);
