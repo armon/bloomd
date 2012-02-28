@@ -8,6 +8,19 @@
 typedef struct bloom_filtmgr bloom_filtmgr;
 
 /**
+ * Lists of filters
+ */
+typedef struct bloom_filter_list {
+    char *filter_name;
+    struct bloom_filter_list *next;
+} bloom_filter_list;
+
+typedef struct {
+   int size;
+   bloom_filter_list *head;
+} bloom_filter_list_head;
+
+/**
  * Initializer
  * @arg config The configuration
  * @arg mgr Output, resulting manager.
@@ -77,5 +90,26 @@ int filtmgr_drop_filter(bloom_filtmgr *mgr, char *filter_name);
  * @return 0 on success, -1 if the filter does not exist.
  */
 int filtmgr_unmap_filter(bloom_filtmgr *mgr, char *filter_name);
+
+/**
+ * Allocates space for and returns a linked
+ * list of all the filters. The memory should be free'd by
+ * the caller.
+ * @arg mgr The manager to list from
+ * @arg head Output, sets to the address of the list header
+ * @return 0 on success.
+ */
+int filtmgr_list_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head);
+
+/**
+ * Allocates space for and returns a linked
+ * list of all the cold filters. This has the side effect
+ * of clearing the list of cold filters! The memory should
+ * be free'd by the caller.
+ * @arg mgr The manager to list from
+ * @arg head Output, sets to the address of the list header
+ * @return 0 on success.
+ */
+int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head);
 
 #endif

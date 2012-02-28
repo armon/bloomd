@@ -46,7 +46,11 @@ static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name);
 static void return_filter(bloom_filtmgr *mgr, char *filter_name);
 static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt);
 static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config);
+static int filter_map_list_cb(void *data, const char *key, void *value);
+static int filter_map_list_cold_cb(void *data, const char *key, void *value);
 static int filter_map_delete_cb(void *data, const char *key, void *value);
+static int filter_map_set_cold_cb(void *data, const char *key, void *value);
+static int filter_map_set_hot_cb(void *data, const char *key, void *value);
 static int load_existing_filters(bloom_filtmgr *mgr);
 
 /**
@@ -286,6 +290,62 @@ int filtmgr_unmap_filter(bloom_filtmgr *mgr, char *filter_name) {
 }
 
 /**
+ * Allocates space for and returns a linked
+ * list of all the filters.
+ * @arg mgr The manager to list from
+ * @arg head Output, sets to the address of the list header
+ * @return 0 on success.
+ */
+int filtmgr_list_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head) {
+    // Allocate the head
+    bloom_filter_list_head *h = *head = calloc(1, sizeof(bloom_filter_list_head));
+
+    // Iterate through a callback to append
+    LOCK_BLOOM_SPIN(&mgr->filter_lock);
+    hashmap_iter(mgr->filter_map, filter_map_list_cb, h);
+    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
+
+    return 0;
+}
+
+/**
+ * Allocates space for and returns a linked
+ * list of all the cold filters. This has the side effect
+ * of clearing the list of cold filters!
+ * @arg mgr The manager to list from
+ * @arg head Output, sets to the address of the list header
+ * @return 0 on success.
+ */
+int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head) {
+    // Allocate a new hash map, 2x the size of the filters
+    // This is to avoid having to do a resize during the callback
+    int size = hashmap_size(mgr->filter_map);
+    bloom_hashmap *filters = NULL;
+    int res = hashmap_init(size*2, &filters);
+    if (res) return -1;
+
+    // Add all the filters to the map, value 0
+    LOCK_BLOOM_SPIN(&mgr->filter_lock);
+    hashmap_iter(mgr->filter_map, filter_map_set_cold_cb, filters);
+    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
+
+    // Mark the hot filters with a 1, clears the hot filters
+    LOCK_BLOOM_SPIN(&mgr->hot_lock);
+    hashmap_iter(mgr->hot_filters, filter_map_set_hot_cb, filters);
+    hashmap_clear(mgr->hot_filters);
+    UNLOCK_BLOOM_SPIN(&mgr->hot_lock);
+
+    // Iterate through and build a list now with only cold values
+    bloom_filter_list_head *h = *head = calloc(1, sizeof(bloom_filter_list_head));
+    hashmap_iter(filters, filter_map_list_cold_cb, h);
+
+    // Destroy the hash map
+    hashmap_destroy(filters);
+
+    return 0;
+}
+
+/**
  * Marks a filter as hot. Does it in a thread safe way.
  * @arg mgr The manager
  * @arg filter_name The name of the hot filter
@@ -400,6 +460,53 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
 
 /**
  * Called as part of the hashmap callback
+ * to list all the filters. Only works if value is
+ * not NULL.
+ */
+static int filter_map_list_cb(void *data, const char *key, void *value) {
+    // Cast the inputs
+    bloom_filter_list_head *head = data;
+
+    // Allocate a new entry
+    bloom_filter_list *node = malloc(sizeof(bloom_filter_list));
+
+    // Setup
+    node->filter_name = strdup(key);
+    node->next = head->head;
+
+    // Inject
+    head->head = node;
+    head->size++;
+    return 0;
+}
+
+/**
+ * Called as part of the hashmap callback
+ * to list all the filters. Only works if value is
+ * not NULL.
+ */
+static int filter_map_list_cold_cb(void *data, const char *key, void *value) {
+    // Only continue if the value is 0
+    if (value != 0) return 0;
+
+    // Cast the inputs
+    bloom_filter_list_head *head = data;
+
+    // Allocate a new entry
+    bloom_filter_list *node = malloc(sizeof(bloom_filter_list));
+
+    // Setup
+    node->filter_name = strdup(key);
+    node->next = head->head;
+
+    // Inject
+    head->head = node;
+    head->size++;
+    return 0;
+}
+
+/**
+ * Called as part of the hashmap callback
  * to cleanup the filters.
  */
 static int filter_map_delete_cb(void *data, const char *key, void *value) {
@@ -409,6 +516,26 @@ static int filter_map_delete_cb(void *data, const char *key, void *value) {
 
     // Delete
     delete_filter(mgr, filt);
+    return 0;
+}
+
+/**
+ * Sets a filter in a hash map with a value of 0
+ * to indicate that it is cold
+ */
+static int filter_map_set_cold_cb(void *data, const char *key, void *value) {
+    bloom_hashmap *map = data;
+    hashmap_put(map, (char*)key, 0);
+    return 0;
+}
+
+/**
+ * Sets a filter in a hash map with a value of 1
+ * to indicate that it is hot
+ */
+static int filter_map_set_hot_cb(void *data, const char *key, void *value) {
+    bloom_hashmap *map = data;
+    hashmap_put(map, (char*)key, (void*)1);
     return 0;
 }
 
