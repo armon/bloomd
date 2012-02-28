@@ -73,13 +73,13 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
 
     // Allocate the hash tables
     int res = hashmap_init(0, &m->filter_map);
-    if (!res) {
+    if (res) {
         syslog(LOG_ERR, "Failed to allocate filter hash map!");
         free(m);
         return -1;
     }
     res = hashmap_init(0, &m->hot_filters);
-    if (!res) {
+    if (res) {
         syslog(LOG_ERR, "Failed to allocate hot filter hash map!");
         hashmap_destroy(m->filter_map);
         free(m);
