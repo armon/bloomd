@@ -57,7 +57,7 @@ int main(void)
 
     // Add the filter tests
     suite_add_tcase(s1, tc3);
-    tcase_set_timeout(tc3, 10);
+    tcase_set_timeout(tc3, 5);
     tcase_add_test(tc3, test_filter_init_destroy);
     tcase_add_test(tc3, test_filter_init_discover_destroy);
     tcase_add_test(tc3, test_filter_init_discover_delete);
@@ -69,6 +69,7 @@ int main(void)
     tcase_add_test(tc3, test_filter_grow);
     tcase_add_test(tc3, test_filter_grow_restore);
     tcase_add_test(tc3, test_filter_page_out);
+    tcase_add_test(tc3, test_filter_bounded_fp);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);

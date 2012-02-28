@@ -451,3 +451,41 @@ START_TEST(test_filter_page_out)
 }
 END_TEST
 
+START_TEST(test_filter_bounded_fp)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+    config.initial_capacity = 10000;
+    config.in_memory = 1;
+    config.default_probability = 0.001; // 1/1K
+
+    bloom_filter *filter = NULL;
+    res = init_bloom_filter(&config, "test_filter11", 1, &filter);
+    fail_unless(res == 0);
+
+    // Check all the keys get added
+    char buf[100];
+    for (int i=0;i<1000000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        bloomf_add(filter, (char*)&buf);
+    }
+
+    filter_counters *counters = bloomf_counters(filter);
+    fail_unless(bloomf_size(filter) > 999000);
+    fail_unless(bloomf_capacity(filter) > 1000000);
+    fail_unless(counters->set_hits > 990000);
+    fail_unless(counters->set_misses < 1000);
+
+    // Check all the keys exist
+    for (int i=0;i<1000000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        bloomf_contains(filter, (char*)&buf);
+    }
+    fail_unless(counters->check_hits == 1000000);
+
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+}
+END_TEST
+
