@@ -176,7 +176,7 @@ int bloomf_flush(bloom_filter *filter) {
 
         // Flush the filter
         if (!filter->filter_config.in_memory) {
-            return sbf_flush(filter->sbf);
+            return sbf_flush((bloom_sbf*)filter->sbf);
         }
     }
     return 0;
@@ -195,7 +195,7 @@ int bloomf_close(bloom_filter *filter) {
     if (filter->sbf) {
         bloomf_flush(filter);
 
-        bloom_sbf *sbf = filter->sbf;
+        bloom_sbf *sbf = (bloom_sbf*)filter->sbf;
         filter->sbf = NULL;
 
         sbf_close(sbf);
@@ -267,7 +267,7 @@ int bloomf_contains(bloom_filter *filter, char *key) {
     }
 
     // Check the SBF
-    int res = sbf_contains(filter->sbf, key);
+    int res = sbf_contains((bloom_sbf*)filter->sbf, key);
 
     // Safely update the counters
     LOCK_BLOOM_SPIN(&filter->counter_lock);
@@ -292,7 +292,7 @@ int bloomf_add(bloom_filter *filter, char *key) {
     }
 
     // Add the SBF
-    int res = sbf_add(filter->sbf, key);
+    int res = sbf_add((bloom_sbf*)filter->sbf, key);
 
     // Safely update the counters
     LOCK_BLOOM_SPIN(&filter->counter_lock);
@@ -313,7 +313,7 @@ int bloomf_add(bloom_filter *filter, char *key) {
  */
 uint64_t bloomf_size(bloom_filter *filter) {
     if (filter->sbf) {
-        return sbf_size(filter->sbf);
+        return sbf_size((bloom_sbf*)filter->sbf);
     } else {
         return filter->filter_config.size;
     }
@@ -327,7 +327,7 @@ uint64_t bloomf_size(bloom_filter *filter) {
  */
 uint64_t bloomf_capacity(bloom_filter *filter) {
     if (filter->sbf) {
-        return sbf_total_capacity(filter->sbf);
+        return sbf_total_capacity((bloom_sbf*)filter->sbf);
     } else {
         return filter->filter_config.capacity;
     }
@@ -341,7 +341,7 @@ uint64_t bloomf_capacity(bloom_filter *filter) {
  */
 uint64_t bloomf_byte_size(bloom_filter *filter) {
     if (filter->sbf) {
-        return sbf_total_byte_size(filter->sbf);
+        return sbf_total_byte_size((bloom_sbf*)filter->sbf);
     } else {
         return filter->filter_config.bytes;
     }
@@ -539,12 +539,12 @@ static int create_sbf(bloom_filter *f, int num, bloom_bloomfilter **filters) {
 
     // Create the SBF
     f->sbf = malloc(sizeof(bloom_sbf));
-    int res = sbf_from_filters(&params, bloomf_sbf_callback, f, num, filters, f->sbf);
+    int res = sbf_from_filters(&params, bloomf_sbf_callback, f, num, filters, (bloom_sbf*)f->sbf);
 
     // Handle a failure
     if (res != 0) {
         syslog(LOG_ERR, "Failed to create SBF: %s. Err: %d", f->filter_name, res);
-        free(f->sbf);
+        free((bloom_sbf*)f->sbf);
         f->sbf = NULL;
     } else {
         syslog(LOG_INFO, "Loaded SBF: %s. Num filters: %d.", f->filter_name, num);
