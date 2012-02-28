@@ -30,12 +30,6 @@ int destroy_filter_manager(bloom_filtmgr *mgr);
 int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name);
 
 /**
- * Unmaps all the cold filters.
- * @return 0 on success.
- */
-int filtmgr_unmap_cold(bloom_filtmgr *mgr);
-
-/**
  * Checks the number of mapped filters
  * @return The number of mapped filters.
  */

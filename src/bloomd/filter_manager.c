@@ -28,6 +28,8 @@ struct bloom_filtmgr {
 
     bloom_hashmap *hot_filters; // Maps key names of hot filters
     bloom_spinlock hot_lock;    // Protects the hot filters
+
+    pthread_mutex_t create_lock; // Serializes create operatiosn
 };
 
 /*
@@ -37,6 +39,7 @@ static void add_hot_filter(bloom_filtmgr *mgr, char *filter_name);
 static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name);
 static void return_filter(bloom_filtmgr *mgr, char *filter_name);
 static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt);
+static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config);
 
 /**
  * Initializer
@@ -54,6 +57,7 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
     // Initialize the locks
     INIT_BLOOM_SPIN(&m->filter_lock);
     INIT_BLOOM_SPIN(&m->hot_lock);
+    pthread_mutex_init(&m->create_lock, NULL);
 
     // Allocate the hash tables
     int res = hashmap_init(0, &m->filter_map);
@@ -114,15 +118,6 @@ int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name) {
 }
 
 /**
- * Unmaps all the cold filters.
- * @return 0 on success.
- */
-int filtmgr_unmap_cold(bloom_filtmgr *mgr) {
-    // TODO: TUBEZ
-    return 0;
-}
-
-/**
  * Checks the number of mapped filters
  * @return The number of mapped filters.
  */
@@ -147,7 +142,10 @@ int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int n
     // Acquire the write lock
     pthread_rwlock_rdlock(&filt->rwlock);
 
-    // TODO: Check the keys
+    // Check the keys, store the results
+    for (int i=0; i<num_keys; i++) {
+        *(result+i) = bloomf_contains(filt->filter, keys[i]);
+    }
 
     // Release the lock
     pthread_rwlock_unlock(&filt->rwlock);
@@ -177,7 +175,10 @@ int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num
     // Acquire the write lock
     pthread_rwlock_wrlock(&filt->rwlock);
 
-    // TODO: Set the keys
+    // Set the keys, store the results
+    for (int i=0; i<num_keys; i++) {
+        *(result+i) = bloomf_add(filt->filter, keys[i]);
+    }
 
     // Release the lock
     pthread_rwlock_unlock(&filt->rwlock);
@@ -197,8 +198,35 @@ int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num
  * @return 0 on success, -1 if the filter already exists.
  */
 int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *custom_config) {
-    // TODO: Create filters
-    return 0;
+    // Store our result
+    int res = 0;
+
+    // Lock the creation
+    pthread_mutex_lock(&mgr->create_lock);
+
+    /*
+     * Check if it already exists.
+     * Don't use take_filter, since we don't want to increment
+     * the ref count or check is_active
+     */
+    bloom_filter_wrapper *filt = NULL;
+    LOCK_BLOOM_SPIN(&mgr->filter_lock);
+    hashmap_get(mgr->filter_map, filter_name, (void**)&filt);
+    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
+
+    // Only continue if it does not exist
+    if (!filt) {
+        // Use a custom config if provided, else the default
+        bloom_config *config = (custom_config) ? custom_config : mgr->config;
+
+        // Add the filter
+        res = add_filter(mgr, filter_name, config);
+    } else
+        res = -1; // Already exists
+
+    // Release the lock
+    pthread_mutex_unlock(&mgr->create_lock);
+    return res;
 }
 
 /**
@@ -315,7 +343,43 @@ static void return_filter(bloom_filtmgr *mgr, char *filter_name) {
  * have hit 0 remaining references.
  */
 static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt) {
-    // TODO: Delete the shit
+    // Close the filter
+    bloomf_close(filt->filter);
+
+    // Cleanup the filter
+    destroy_bloom_filter(filt->filter);
+    filt->filter = NULL;
+
+    // Release the struct
+    free(filt);
     return;
+}
+
+/**
+ * Creates a new filter and adds it to the filter set.
+ * @arg mgr The manager to add to
+ * @arg filter_name The name of the filter
+ * @arg config The configuration for the filter
+ * @return 0 on success, -1 on error
+ */
+static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config) {
+    // Create the filter
+    bloom_filter_wrapper *filt = calloc(1, sizeof(bloom_filter_wrapper));
+    filt->ref_count = 1;
+    filt->is_active = 1;
+    pthread_rwlock_init(&filt->rwlock, NULL);
+
+    // Try to create the underlying filter
+    int res = init_bloom_filter(config, filter_name, 1, &filt->filter);
+    if (res != 0) {
+        free(filt);
+        return -1;
+    }
+
+    // Add to the hash map
+    LOCK_BLOOM_SPIN(&mgr->filter_lock);
+    hashmap_put(mgr->filter_map, filter_name, filt);
+    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
+    return 0;
 }
 
