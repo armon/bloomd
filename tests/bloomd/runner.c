@@ -13,6 +13,7 @@ int main(void)
     TCase *tc1 = tcase_create("config");
     TCase *tc2 = tcase_create("hashmap");
     TCase *tc3 = tcase_create("filter");
+    TCase *tc4 = tcase_create("filter manager");
     SRunner *sr = srunner_create(s1);
     int nf;
 
@@ -57,7 +58,7 @@ int main(void)
 
     // Add the filter tests
     suite_add_tcase(s1, tc3);
-    tcase_set_timeout(tc3, 5);
+    tcase_set_timeout(tc3, 3);
     tcase_add_test(tc3, test_filter_init_destroy);
     tcase_add_test(tc3, test_filter_init_discover_destroy);
     tcase_add_test(tc3, test_filter_init_discover_delete);
@@ -70,6 +71,11 @@ int main(void)
     tcase_add_test(tc3, test_filter_grow_restore);
     tcase_add_test(tc3, test_filter_page_out);
     tcase_add_test(tc3, test_filter_bounded_fp);
+
+    // Add the filter tests
+    suite_add_tcase(s1, tc4);
+    tcase_set_timeout(tc4, 3);
+    tcase_add_test(tc4, NULL);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
