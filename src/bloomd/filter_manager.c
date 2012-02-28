@@ -40,6 +40,7 @@ static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name);
 static void return_filter(bloom_filtmgr *mgr, char *filter_name);
 static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt);
 static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config);
+static int filter_map_delete_cb(void *data, const char *key, void *value);
 
 /**
  * Initializer
@@ -86,7 +87,15 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
  * @return 0 on success.
  */
 int destroy_filter_manager(bloom_filtmgr *mgr) {
-    // TODO: TUBEZ
+    // Nuke all the keys
+    hashmap_iter(mgr->filter_map, filter_map_delete_cb, mgr);
+
+    // Destroy the hashmaps
+    hashmap_destroy(mgr->filter_map);
+    hashmap_destroy(mgr->hot_filters);
+
+    // Free the manager
+    free(mgr);
     return 0;
 }
 
@@ -348,7 +357,6 @@ static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt) {
 
     // Cleanup the filter
     destroy_bloom_filter(filt->filter);
-    filt->filter = NULL;
 
     // Release the struct
     free(filt);
@@ -380,6 +388,20 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
     LOCK_BLOOM_SPIN(&mgr->filter_lock);
     hashmap_put(mgr->filter_map, filter_name, filt);
     UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
+    return 0;
+}
+
+/**
+ * Called as part of the hashmap callback
+ * to cleanup the filters.
+ */
+static int filter_map_delete_cb(void *data, const char *key, void *value) {
+    // Cast the inputs
+    bloom_filtmgr *mgr = data;
+    bloom_filter_wrapper *filt = value;
+
+    // Delete
+    delete_filter(mgr, filt);
     return 0;
 }
 
