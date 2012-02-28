@@ -4,6 +4,7 @@
 #include "test_config.c"
 #include "test_hashmap.c"
 #include "test_filter.c"
+#include "test_filtmgr.c"
 
 int main(void)
 {
@@ -75,7 +76,7 @@ int main(void)
     // Add the filter tests
     suite_add_tcase(s1, tc4);
     tcase_set_timeout(tc4, 3);
-    tcase_add_test(tc4, NULL);
+    tcase_add_test(tc4, test_mgr_init_destroy);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);

@@ -486,6 +486,7 @@ START_TEST(test_filter_bounded_fp)
 
     res = destroy_bloom_filter(filter);
     fail_unless(res == 0);
+    delete_dir("/tmp/bloomd/bloomd.test_filter11");
 }
 END_TEST
 
