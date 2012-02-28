@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <pthread.h>
+#include <dirent.h>
+#include <string.h>
 #include "spinlock.h"
 #include "filter_manager.h"
 #include "hashmap.h"
@@ -35,12 +37,16 @@ struct bloom_filtmgr {
 /*
  * Static declarations
  */
+static const char FOLDER_PREFIX[] = "bloomd.";
+static const int FOLDER_PREFIX_LEN = sizeof(FOLDER_PREFIX);
+
 static void add_hot_filter(bloom_filtmgr *mgr, char *filter_name);
 static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name);
 static void return_filter(bloom_filtmgr *mgr, char *filter_name);
 static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt);
 static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config);
 static int filter_map_delete_cb(void *data, const char *key, void *value);
+static int load_existing_filters(bloom_filtmgr *mgr);
 
 /**
  * Initializer
@@ -75,7 +81,8 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
         return -1;
     }
 
-    // TODO: Discover existing filters...
+    // Discover existing filters
+    load_existing_filters(m);
 
     // Done
     return 0;
@@ -403,5 +410,53 @@ static int filter_map_delete_cb(void *data, const char *key, void *value) {
     // Delete
     delete_filter(mgr, filt);
     return 0;
+}
+
+/**
+ * Works with scandir to filter out non-bloomd folders.
+ */
+static int filter_bloomd_folders(struct dirent *d) {
+    // Get the file name
+    char *name = d->d_name;
+
+    // Look if it ends in ".data"
+    int name_len = strlen(name);
+
+    // Too short
+    if (name_len < 8) return 0;
+
+    // Compare the prefix
+    if (strncmp(name, FOLDER_PREFIX, FOLDER_PREFIX_LEN) == 0) {
+        return 1;
+    }
+
+    // Do not store
+    return 0;
+}
+
+/**
+ * Loads the existing filters. This is not thread
+ * safe and assumes that we are being initialized.
+ */
+static int load_existing_filters(bloom_filtmgr *mgr) {
+    struct dirent **namelist;
+    int num;
+
+    num = scandir(mgr->config->data_dir, &namelist, filter_bloomd_folders, NULL);
+    if (num == -1) {
+        syslog(LOG_ERR, "Failed to scan files for existing filters!");
+        return -1;
+    }
+    syslog(LOG_INFO, "Found %d existing filters", num);
+
+    // Add all the filters
+    for (int i=0; i< num; i++) {
+        char *folder_name = namelist[i]->d_name;
+        char *filter_name = folder_name + FOLDER_PREFIX_LEN;
+        add_filter(mgr, filter_name, mgr->config);
+    }
+
+    for (int i=0; i < num; i++) free(namelist[i]);
+    free(namelist);
 }
 
