@@ -68,6 +68,7 @@ int main(void)
     tcase_add_test(tc3, test_filter_add_check_in_mem);
     tcase_add_test(tc3, test_filter_grow);
     tcase_add_test(tc3, test_filter_grow_restore);
+    tcase_add_test(tc3, test_filter_page_out);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
