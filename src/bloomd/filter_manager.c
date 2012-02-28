@@ -7,11 +7,15 @@
 #include "hashmap.h"
 #include "filter.h"
 
+/**
+ * Wraps a bloom_filter to ensure only a single
+ * writer access it at a time. Tracks the outstanding
+ * references, to allow a sane close to take place.
+ */
 typedef struct {
-    int is_active;          // Set to 0 when we are trying to delete it
-    uint32_t ref_count;     // Used to manage outstanding handles
+    volatile int is_active;          // Set to 0 when we are trying to delete it
+    volatile uint32_t ref_count;     // Used to manage outstanding handles
 
-    char *filter_name;
     bloom_filter *filter;    // The actual filter object
     pthread_rwlock_t rwlock; // Protects the filter
 } bloom_filter_wrapper;
@@ -69,7 +73,7 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
  * @arg mgr The manager to destroy
  * @return 0 on success.
  */
-int destroy_init_filter_manager(bloom_filtmgr *mgr) {
+int destroy_filter_manager(bloom_filtmgr *mgr) {
     return 0;
 }
 
@@ -87,15 +91,6 @@ int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name) {
  * @return 0 on success.
  */
 int filtmgr_unmap_cold(bloom_filtmgr *mgr) {
-    return 0;
-}
-
-/**
- * Checks if a given filter exists
- * @arg filter_name The name of the filter
- * @return 1 if contained, 0 if not contained.
- */
-int filtmgr_contains_filter(bloom_filtmgr *mgr, char *filter_name) {
     return 0;
 }
 

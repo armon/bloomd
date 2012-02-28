@@ -20,7 +20,7 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr);
  * @arg mgr The manager to destroy
  * @return 0 on success.
  */
-int destroy_init_filter_manager(bloom_filtmgr *mgr);
+int destroy_filter_manager(bloom_filtmgr *mgr);
 
 /**
  * Flushes the filter with the given name
@@ -33,20 +33,13 @@ int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name);
  * Unmaps all the cold filters.
  * @return 0 on success.
  */
-int filtmgr_unmap_cold(bloom_filtmgr *mgr, );
-
-/**
- * Checks if a given filter exists
- * @arg filter_name The name of the filter
- * @return 1 if contained, 0 if not contained.
- */
-int filtmgr_contains_filter(bloom_filtmgr *mgr, char *filter_name);
+int filtmgr_unmap_cold(bloom_filtmgr *mgr);
 
 /**
  * Checks the number of mapped filters
  * @return The number of mapped filters.
  */
-int filtmgr_num_filters(bloom_filtmgr *mgr, );
+int filtmgr_num_filters(bloom_filtmgr *mgr);
 
 /**
  * Checks for the presence of keys in a given filter

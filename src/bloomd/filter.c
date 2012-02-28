@@ -19,7 +19,7 @@ struct bloom_filter {
     char *filter_name;              // The name of the filter
     char *full_path;                // Path to our data
 
-    bloom_sbf *sbf;                 // Underlying SBF
+    volatile bloom_sbf *sbf;        // Underlying SBF
     pthread_mutex_t sbf_lock;       // Protects faulting in the SBF
 
     filter_counters counters;       // Counters
