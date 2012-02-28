@@ -458,5 +458,6 @@ static int load_existing_filters(bloom_filtmgr *mgr) {
 
     for (int i=0; i < num; i++) free(namelist[i]);
     free(namelist);
+    return 0;
 }
 
