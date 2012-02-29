@@ -467,7 +467,31 @@ START_TEST(test_mgr_unmap_in_mem)
 END_TEST
 
 /* Custom config */
+START_TEST(test_mgr_create_custom_config)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
 
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    // Custom config
+    bloom_config *custom = malloc(sizeof(bloom_config));
+    memcpy(custom, &config, sizeof(bloom_config));
+    custom->in_memory = 1;
+
+    res = filtmgr_create_filter(mgr, "custom1", custom);
+    fail_unless(res == 0);
+
+    res = filtmgr_drop_filter(mgr, "custom1");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
 
 /* Scale up */
 
