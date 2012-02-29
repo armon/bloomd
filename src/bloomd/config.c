@@ -212,7 +212,7 @@ int sane_data_dir(char *data_dir) {
 
     // Try to test we have permissions to write
     char *test_path = join_path(data_dir, "PERMTEST");
-    int fh = open(test_path, O_CREAT|O_RDWR);
+    int fh = open(test_path, O_CREAT|O_RDWR, 0644);
 
     // Cleanup
     if (fh != -1) close(fh);

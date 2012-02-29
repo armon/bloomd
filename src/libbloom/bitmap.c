@@ -42,7 +42,7 @@ int bitmap_from_file(int fileno, uint64_t len, bloom_bitmap *map) {
         return -errno;
     }
 
-    // Fault the memory in 
+    // Fault the memory in
     if (mode == SHARED) {
         int res = madvise(addr, len, MADV_WILLNEED);
         if (res != 0) {
@@ -79,7 +79,7 @@ int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, b
     }
 
     // Open the file
-    int fileno = open(filename, flags);
+    int fileno = open(filename, flags, 0644);
     if (fileno == -1) {
         return -errno;
     }
@@ -87,7 +87,7 @@ int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, b
     // Check if we need to resize
     if (resize) {
         struct stat buf;
-        int res = fstat(fileno, &buf);        
+        int res = fstat(fileno, &buf);
         if (res != 0) {
             perror("fstat failed on bitmap!");
             return -errno;
@@ -103,7 +103,7 @@ int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, b
     }
 
     // Use the filehandler mode
-    int res = bitmap_from_file(fileno, len, map); 
+    int res = bitmap_from_file(fileno, len, map);
 
     // Handle is dup'ed, we can close
     close(fileno);
