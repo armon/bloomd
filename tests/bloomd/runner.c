@@ -74,7 +74,7 @@ int main(void)
     tcase_add_test(tc3, test_filter_bounded_fp);
 
     // Add the filter tests
-    //suite_add_tcase(s1, tc4);
+    suite_add_tcase(s1, tc4);
     tcase_set_timeout(tc4, 3);
     tcase_add_test(tc4, test_mgr_init_destroy);
     tcase_add_test(tc4, test_mgr_create_drop);

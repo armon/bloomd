@@ -36,10 +36,10 @@ START_TEST(test_mgr_create_drop)
     res = init_filter_manager(&config, &mgr);
     fail_unless(res == 0);
 
-    res = filtmgr_create_filter(mgr, "bar1", NULL);
+    res = filtmgr_create_filter(mgr, "foo1", NULL);
     fail_unless(res == 0);
 
-    res = filtmgr_drop_filter(mgr, "bar1");
+    res = filtmgr_drop_filter(mgr, "foo1");
     fail_unless(res == 0);
 
     res = destroy_filter_manager(mgr);
