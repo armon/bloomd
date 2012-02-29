@@ -2,6 +2,7 @@
 #define BLOOM_CONN_HANDLER_H
 #include "config.h"
 #include "networking.h"
+#include "filter_manager.h"
 
 /**
  * This structure is used to communicate
@@ -10,6 +11,7 @@
  */
 typedef struct {
     bloom_config *config;     // Global bloom configuration
+    bloom_filtmgr *mgr;       // Filter manager
     bloom_conn_info *conn;    // Opaque handle into the networking stack
 } bloom_conn_handler;
 

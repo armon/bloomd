@@ -110,6 +110,7 @@ typedef struct async_event async_event;
 struct bloom_networking {
     volatile int should_run;  // Should the workers continue to run
     bloom_config *config;
+    bloom_filtmgr *mgr;
     pthread_mutex_t leader_lock; // Serializes the leaders
 
     ev_io tcp_client;
@@ -215,9 +216,10 @@ static int setup_udp_listener(bloom_networking *netconf) {
 /**
  * Initializes the networking interfaces
  * @arg config Takes the bloom server configuration
+ * @arg mgr The filter manager to pass up to the connection handlers
  * @arg netconf Output. The configuration for the networking stack.
  */
-int init_networking(bloom_config *config, bloom_networking **netconf_out) {
+int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking **netconf_out) {
     // Make the netconf structure
     bloom_networking *netconf = calloc(1, sizeof(struct bloom_networking));
 
@@ -227,6 +229,7 @@ int init_networking(bloom_config *config, bloom_networking **netconf_out) {
     pthread_mutex_init(&netconf->event_lock, NULL);
     netconf->events = NULL;
     netconf->config = config;
+    netconf->mgr = mgr;
     netconf->should_run = 1;
     netconf->num_threads = 0;
     netconf->threads = calloc(config->worker_threads, sizeof(pthread_t));
@@ -606,6 +609,7 @@ static void invoke_event_handler(worker_ev_userdata* data) {
     if (res == 0) {
         bloom_conn_handler handle;
         handle.config = data->netconf->config;
+        handle.mgr = data->netconf->mgr;
         handle.conn = conn;
         res = handle_client_connect(&handle);
     }

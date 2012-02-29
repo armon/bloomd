@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
 
     // Initialize the networking
     bloom_networking *netconf = NULL;
-    int net_res = init_networking(config, &netconf);
+    int net_res = init_networking(config, mgr, &netconf);
     if (net_res != 0) {
         syslog(LOG_ERR, "Failed to initialize bloomd networking!");
         return 1;

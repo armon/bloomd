@@ -1,6 +1,7 @@
 #ifndef BLOOM_NETWORKING_H
 #define BLOOM_NETWORKING_H
 #include "config.h"
+#include "filter_manager.h"
 
 // Network configuration struct
 typedef struct bloom_networking bloom_networking;
@@ -9,9 +10,10 @@ typedef struct conn_info bloom_conn_info;
 /**
  * Initializes the networking interfaces
  * @arg config Takes the bloom server configuration
+ * @arg mgr The filter manager to pass up to the connection handlers
  * @arg netconf Output. The configuration for the networking stack.
  */
-int init_networking(bloom_config *config, bloom_networking **netconf);
+int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking **netconf_out);
 
 /**
  * Entry point for threads to join the networking
