@@ -375,7 +375,7 @@ static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name) 
  */
 static void return_filter(bloom_filtmgr *mgr, char *filter_name) {
     bloom_filter_wrapper *filt = NULL;
-    int delete;
+    int delete = 0;
 
     // Lock the filters
     LOCK_BLOOM_SPIN(&mgr->filter_lock);
