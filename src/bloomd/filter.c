@@ -200,9 +200,6 @@ int bloomf_delete(bloom_filter *filter) {
     // Close first
     bloomf_close(filter);
 
-    // Do nothing if we are in memory
-    if (filter->filter_config.in_memory) return 0;
-
     // Delete the files
     struct dirent **namelist;
     int num;
@@ -450,7 +447,7 @@ static int discover_existing_filters(bloom_filter *f) {
         res = bitmap_from_filename(bitmap_path, size, 0, 0, bitmap);
         if (res != 0) {
             err = 1;
-            syslog(LOG_ERR, "Failed to load bitmap for: %s.", bitmap_path);
+            syslog(LOG_ERR, "Failed to load bitmap for: %s. %s", bitmap_path, strerror(errno));
             free(bitmap);
             free(bitmap_path);
             break;
