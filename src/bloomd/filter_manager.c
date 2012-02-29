@@ -275,14 +275,17 @@ int filtmgr_unmap_filter(bloom_filtmgr *mgr, char *filter_name) {
     bloom_filter_wrapper *filt = take_filter(mgr, filter_name);
     if (!filt) return -1;
 
-    // Acquire the write lock
-    pthread_rwlock_wrlock(&filt->rwlock);
+    // Only do it if we are not in memory
+    if (!filt->filter->filter_config.in_memory) {
+        // Acquire the write lock
+        pthread_rwlock_wrlock(&filt->rwlock);
 
-    // Close the filter
-    bloomf_close(filt->filter);
+        // Close the filter
+        bloomf_close(filt->filter);
 
-    // Release the lock
-    pthread_rwlock_unlock(&filt->rwlock);
+        // Release the lock
+        pthread_rwlock_unlock(&filt->rwlock);
+    }
 
     // Return the filter
     return_filter(mgr, filter_name);
