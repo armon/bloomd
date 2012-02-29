@@ -358,10 +358,11 @@ static int thread_safe_fault(bloom_filter *f) {
 
     int res = 0;
     if (!f->sbf) {
-        if (f->filter_config.in_memory)
+        if (f->filter_config.in_memory) {
             res = create_sbf(f, 0, NULL);
-        else
+        } else {
             res = discover_existing_filters(f);
+        }
     }
 
     // Release lock
@@ -438,8 +439,6 @@ static int discover_existing_filters(bloom_filter *f) {
     // Speical case when there are no filters
     if (num == 0) {
         int res = create_sbf(f, 0, NULL);
-        for (int i=0; i < num; i++) free(namelist[i]);
-        free(namelist);
         return res;
     }
 
@@ -568,18 +567,24 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
     }
 
     // Scan through the folder looking for data files
-    struct dirent **namelist;
+    struct dirent **namelist = NULL;
     int num_files;
 
     // Filter only data dirs, in sorted order
     num_files = scandir(filt->full_path, &namelist, filter_data_files, NULL);
     syslog(LOG_INFO, "Found %d files for filter %s.", num_files, filt->filter_name);
+    if (num_files < 0) {
+        syslog(LOG_ERR, "Error discovering files for filter '%s'. %s",
+                filt->filter_name, strerror(errno));
+        return -1;
+    }
+
 
     // Free the memory associated with scandir
     for (int i=0; i < num_files; i++) {
         free(namelist[i]);
     }
-    free(namelist);
+    if (namelist) free(namelist);
 
     // Generate the new file name
     char *filename = NULL;
