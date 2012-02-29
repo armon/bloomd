@@ -254,7 +254,7 @@ int bloomf_contains(bloom_filter *filter, char *key) {
     LOCK_BLOOM_SPIN(&filter->counter_lock);
     if (res == 1)
         filter->counters.check_hits += 1;
-    else
+    else if (res == 0)
         filter->counters.check_misses += 1;
     UNLOCK_BLOOM_SPIN(&filter->counter_lock);
 
@@ -279,7 +279,7 @@ int bloomf_add(bloom_filter *filter, char *key) {
     LOCK_BLOOM_SPIN(&filter->counter_lock);
     if (res == 1)
         filter->counters.set_hits += 1;
-    else
+    else if (res == 0)
         filter->counters.set_misses += 1;
     UNLOCK_BLOOM_SPIN(&filter->counter_lock);
 
