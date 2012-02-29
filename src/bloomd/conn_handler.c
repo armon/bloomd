@@ -20,7 +20,7 @@ static int buffer_after_terminator(char *buf, int buf_len, char terminator, char
 void init_conn_handler() {
     // Compile our regexes
     int res;
-    res = regcomp(&VALID_FILTER_NAMES_RE, VALID_FILTER_NAMES_PATTERN, REG_NOSUB);
+    res = regcomp(&VALID_FILTER_NAMES_RE, VALID_FILTER_NAMES_PATTERN, REG_EXTENDED|REG_NOSUB);
     assert(res == 0);
 
 }
@@ -112,44 +112,87 @@ static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_le
 
 
 static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_len) {
-    #define CHECK_ARG_ERR() { \
-        handle_client_err(handle->conn, (char*)&FILT_KEY_NEEDED, FILT_KEY_NEEDED_LEN); \
-        return; \
-    }
     // If we have no args, complain.
-    if (!args) CHECK_ARG_ERR();
+    if (!args) {
+        handle_client_err(handle->conn, (char*)&FILT_NEEDED, FILT_NEEDED_LEN);
+        return;
+    }
 
-    // Scan past the filter name
-    char *key;
-    int key_len;
-    int err = buffer_after_terminator(args, args_len, ' ', &key, &key_len);
-    if (err || key_len <= 1) CHECK_ARG_ERR();
+    // Scan for options after the filter name
+    char *options;
+    int options_len;
+    int res = buffer_after_terminator(args, args_len, ' ', &options, &options_len);
 
-    // Setup the buffers
-    char *key_buf[] = {key};
-    char result_buf[1];
+    // Verify the filter name is valid
+    char *filter_name = args;
+    if (regexec(&VALID_FILTER_NAMES_RE, filter_name, 0, NULL, 0)) {
+        handle_client_err(handle->conn, (char*)&BAD_FILT_NAME, BAD_FILT_NAME_LEN);
+        return;
+    }
 
-    // Call into the filter manager
-    int res = filtmgr_check_keys(handle->mgr, args, (char**)&key_buf, 1, (char*)&result_buf);
+    // Parse the options
+    bloom_config *config = NULL;
+    int err = 0;
+    if (res == 0) {
+        // Make a new config store, copy the current
+        config = malloc(sizeof(bloom_config));
+        memcpy(config, handle->config, sizeof(bloom_config));
+
+        // Parse any options
+        char *param = options;
+        while (param) {
+            // Adds a zero terminator to the current param, scans forward
+            buffer_after_terminator(options, options_len, ' ', &options, &options_len);
+
+            // Check for the custom params
+            int match = 0;
+            match |= sscanf(param, "capacity=%llu", &config->initial_capacity);
+            match |= sscanf(param, "prob=%lf", &config->default_probability);
+            match |= sscanf(param, "in_memory=%d", &config->in_memory);
+
+            // Check if there was no match
+            if (!match) {
+                err = 1;
+                handle_client_err(handle->conn, (char*)&BAD_ARGS, BAD_ARGS_LEN);
+                break;
+            }
+
+            // Advance to the next param
+            param = options;
+        }
+
+        // Validate the params
+        int invalid_config = 0;
+        invalid_config |= sane_initial_capacity(config->initial_capacity);
+        invalid_config |= sane_default_probability(config->default_probability);
+        invalid_config |= sane_in_memory(config->in_memory);
+
+        // Barf if the configs are bad
+        if (invalid_config) {
+            err = 1;
+            handle_client_err(handle->conn, (char*)&BAD_ARGS, BAD_ARGS_LEN);
+        }
+    }
+
+    // Clean up an leave on errors
+    if (err) {
+        if (config) free(config);
+        return;
+    }
+
+    // Create a new filter
+    res = filtmgr_create_filter(handle->mgr, filter_name, config);
     switch (res) {
         case 0:
-            switch (result_buf[0]) {
-                case 0:
-                    handle_client_resp(handle->conn, (char*)NO_RESP, NO_RESP_LEN);
-                    break;
-                case 1:
-                    handle_client_resp(handle->conn, (char*)YES_RESP, YES_RESP_LEN);
-                    break;
-                default:
-                    handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
-                    break;
-            }
+            handle_client_resp(handle->conn, (char*)DONE_RESP, DONE_RESP_LEN);
             break;
         case -1:
-            handle_client_resp(handle->conn, (char*)FILT_NOT_EXIST, FILT_NOT_EXIST_LEN);
+            handle_client_resp(handle->conn, (char*)EXISTS_RESP, EXISTS_RESP_LEN);
+            if (config) free(config);
             break;
         default:
             handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
+            if (config) free(config);
             break;
     }
 }
@@ -246,7 +289,10 @@ static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char *
 static int buffer_after_terminator(char *buf, int buf_len, char terminator, char **after_term, int *after_len) {
     // Scan for a space
     char *term_addr = memchr(buf, terminator, buf_len);
-    if (!term_addr) return -1;
+    if (!term_addr) {
+        *after_term = NULL;
+        return -1;
+    }
 
     // Convert the space to a null-seperator
     *term_addr = '\0';
