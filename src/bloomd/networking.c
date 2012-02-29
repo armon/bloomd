@@ -272,6 +272,9 @@ int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking *
     ev_async_init(&netconf->loop_async, handle_async_event);
     ev_async_start(&netconf->loop_async);
 
+    // Prepare the conn handlers
+    init_conn_handler();
+
     // Success!
     *netconf_out = netconf;
     return 0;

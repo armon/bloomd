@@ -16,6 +16,11 @@ typedef struct {
 } bloom_conn_handler;
 
 /**
+ * Invoked to initialize the conn handler layer.
+ */
+void init_conn_handler();
+
+/**
  * Invoked by the networking layer when there is new
  * data to be handled. The connection handler should
  * consume all the input possible, and generate responses
