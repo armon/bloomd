@@ -177,7 +177,7 @@ int config_from_filename(char *filename, bloom_config *config) {
 char* join_path(char *path, char *part2) {
     int len = strlen(path);
     int has_end_slash = path[len-1] == '/';
-    int total_len = len + strlen(part2);
+    int total_len = len + strlen(part2) + 1;
 
     // Add an extra byte for the missing slash
     if (!has_end_slash)
