@@ -483,6 +483,10 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
  * not NULL.
  */
 static int filter_map_list_cb(void *data, const char *key, void *value) {
+    // Filter out the non-active nodes
+    bloom_filter_wrapper *filt = value;
+    if (!filt->is_active) return 0;
+
     // Cast the inputs
     bloom_filter_list_head *head = data;
 
