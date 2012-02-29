@@ -1,0 +1,49 @@
+#include <regex.h>
+
+/*
+ * Various messages and responses
+ */
+static const char CLIENT_ERR[] = "Client Error: ";
+static const int CLIENT_ERR_LEN = sizeof(CLIENT_ERR) - 1;
+
+static const char CMD_NOT_SUP[] = "Command not supported";
+static const int CMD_NOT_SUP_LEN = sizeof(CMD_NOT_SUP) - 1;
+
+static const char FILT_KEY_NEEDED[] = "Must provide filter name and key";
+static const int FILT_KEY_NEEDED_LEN = sizeof(FILT_KEY_NEEDED) - 1;
+
+static const char INTERNAL_ERR[] = "Internal Error\n";
+static const int INTERNAL_ERR_LEN = sizeof(INTERNAL_ERR) - 1;
+
+static const char FILT_NOT_EXIST[] = "Filter does not exist\n";
+static const int FILT_NOT_EXIST_LEN = sizeof(FILT_NOT_EXIST) - 1;
+
+static const char YES_RESP[] = "Yes\n";
+static const int YES_RESP_LEN = sizeof(YES_RESP) - 1;
+
+static const char NO_RESP[] = "No\n";
+static const int NO_RESP_LEN = sizeof(YES_RESP) - 1;
+
+static const char NEW_LINE[] = "\n";
+static const int NEW_LINE_LEN = sizeof(NEW_LINE) - 1;
+
+typedef enum {
+    UNKNOWN = 0,    // Unrecognized command
+    CHECK,          // Check a single key
+    CHECK_MULTI,    // Check multiple space-seperated keys
+    SET,            // Set a single key
+    SET_MULTI,      // Set multiple space-seperated keys
+    LIST,           // List filters
+    INFO,           // Info about a fileter
+    CREATE,         // Creates a filter
+    DROP,           // Drop a filter
+    CLOSE,          // Close a filter
+    FLUSH,          // Force flush a filter
+    CONF,           // Configuration dump
+    QUIT            // Bloomd should quit
+} conn_cmd_type;
+
+/* Static regexes */
+static regex_t VALID_FILTER_NAMES_RE;
+static const char *VALID_FILTER_NAMES_PATTERN = "[a-zA-Z0-9._-]{1,200}";
+
