@@ -47,6 +47,30 @@ START_TEST(test_mgr_create_drop)
 }
 END_TEST
 
+START_TEST(test_mgr_create_double_drop)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "dub1", NULL);
+    fail_unless(res == 0);
+
+    res = filtmgr_drop_filter(mgr, "dub1");
+    fail_unless(res == 0);
+
+    res = filtmgr_drop_filter(mgr, "dub1");
+    fail_unless(res == -1);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
 START_TEST(test_mgr_list)
 {
     bloom_config config;
@@ -321,4 +345,133 @@ START_TEST(test_mgr_unmap_add_keys)
 END_TEST
 
 /* List Cold */
+START_TEST(test_mgr_list_cold_no_filters)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    bloom_filter_list_head *head;
+    res = filtmgr_list_cold_filters(mgr, &head);
+    fail_unless(res == 0);
+    fail_unless(head->size == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+START_TEST(test_mgr_list_cold)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "zab6", NULL);
+    fail_unless(res == 0);
+    res = filtmgr_create_filter(mgr, "zab7", NULL);
+    fail_unless(res == 0);
+
+    bloom_filter_list_head *head;
+    res = filtmgr_list_cold_filters(mgr, &head);
+    fail_unless(res == 0);
+    fail_unless(head->size == 0);
+
+    // Check the keys in one, so that it stays hot
+    char *keys[] = {"hey","there","person"};
+    char result[] = {0, 0, 0};
+    res = filtmgr_set_keys(mgr, "zab6", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(result[0]);
+    fail_unless(result[1]);
+    fail_unless(result[2]);
+
+    // Check cold again
+    res = filtmgr_list_cold_filters(mgr, &head);
+    fail_unless(res == 0);
+    fail_unless(head->size == 1);
+
+    int has_zab6 = 0;
+    int has_zab7 = 0;
+
+    bloom_filter_list *node = head->head;
+    while (node) {
+        if (strcmp(node->filter_name, "zab6") == 0)
+            has_zab6 = 1;
+        else if (strcmp(node->filter_name, "zab7") == 0)
+            has_zab7 = 1;
+        node = node->next;
+    }
+    fail_unless(!has_zab6);
+    fail_unless(has_zab7);
+
+    res = filtmgr_drop_filter(mgr, "zab6");
+    fail_unless(res == 0);
+    res = filtmgr_drop_filter(mgr, "zab7");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+/* Unmap in memory */
+START_TEST(test_mgr_unmap_in_mem)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+    config.in_memory = 1;
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "mem1", NULL);
+    fail_unless(res == 0);
+
+    // Try to add keys now
+    char *keys[] = {"hey","there","person"};
+    char result[] = {0, 0, 0};
+    res = filtmgr_set_keys(mgr, "mem1", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(result[0]);
+    fail_unless(result[1]);
+    fail_unless(result[2]);
+
+    res = filtmgr_unmap_filter(mgr, "mem1");
+    fail_unless(res == 0);
+
+    // Try to add keys now
+    for (int i=0;i<3;i++) result[i] = 0;
+    res = filtmgr_check_keys(mgr, "mem1", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(result[0]);
+    fail_unless(result[1]);
+    fail_unless(result[2]);
+
+    res = filtmgr_drop_filter(mgr, "mem1");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+/* Custom config */
+
+
+/* Scale up */
+
+
+/* Close & Restore */
+
 

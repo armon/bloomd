@@ -78,6 +78,7 @@ int main(void)
     tcase_set_timeout(tc4, 3);
     tcase_add_test(tc4, test_mgr_init_destroy);
     tcase_add_test(tc4, test_mgr_create_drop);
+    tcase_add_test(tc4, test_mgr_create_double_drop);
     tcase_add_test(tc4, test_mgr_list);
     tcase_add_test(tc4, test_mgr_list_no_filters);
     tcase_add_test(tc4, test_mgr_add_check_keys);
@@ -88,6 +89,9 @@ int main(void)
     tcase_add_test(tc4, test_mgr_unmap_no_filter);
     tcase_add_test(tc4, test_mgr_unmap);
     tcase_add_test(tc4, test_mgr_unmap_add_keys);
+    tcase_add_test(tc4, test_mgr_list_cold_no_filters);
+    tcase_add_test(tc4, test_mgr_list_cold);
+    tcase_add_test(tc4, test_mgr_unmap_in_mem);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
