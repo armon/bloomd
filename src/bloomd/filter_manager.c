@@ -214,6 +214,7 @@ int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num
  * @arg filter_name The name of the filter
  * @arg custom_config Optional, can be null. Configs that override the defaults.
  * @return 0 on success, -1 if the filter already exists.
+ * -2 for internal error.
  */
 int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *custom_config) {
     // Store our result
@@ -239,6 +240,7 @@ int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *c
 
         // Add the filter
         res = add_filter(mgr, filter_name, config);
+        if (res != 0) res = -2; // Internal error
     } else
         res = -1; // Already exists
 
