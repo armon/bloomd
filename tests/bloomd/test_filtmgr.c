@@ -327,6 +327,11 @@ START_TEST(test_mgr_unmap_add_keys)
     res = filtmgr_unmap_filter(mgr, "zab5");
     fail_unless(res == 0);
 
+    // FUCKING annoying umask permissions bullshit
+    // Cused by the Check test framework
+    fail_unless(chmod("/tmp/bloomd/bloomd.zab5/config.ini", 0777) == 0);
+    fail_unless(chmod("/tmp/bloomd/bloomd.zab5/data.000.mmap", 0777) == 0);
+
     // Try to add keys now
     char *keys[] = {"hey","there","person"};
     char result[] = {0, 0, 0};
@@ -494,8 +499,88 @@ START_TEST(test_mgr_create_custom_config)
 END_TEST
 
 /* Scale up */
+START_TEST(test_mgr_grow)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+    config.in_memory = 1;
+    config.initial_capacity = 10000;
 
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "scale1", NULL);
+    fail_unless(res == 0);
+
+    // Try to add keys now
+    char *keys[10];
+    char result[10];
+    for (int iter=0;iter<10000;iter++) {
+        // Generate the keys
+        for (int i=0;i<10;i++) asprintf(&keys[i], "test_key_%d", i*iter);
+        res = filtmgr_set_keys(mgr, "scale1", (char**)&keys, 10, (char*)&result);
+        fail_unless(res == 0);
+        for (int i=0;i<10;i++) free(keys[i]);
+    }
+
+    res = filtmgr_drop_filter(mgr, "scale1");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
 
 /* Close & Restore */
 
+START_TEST(test_mgr_restore)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "zab8", NULL);
+    fail_unless(res == 0);
+
+    char *keys[] = {"hey","there","person"};
+    char result[] = {0, 0, 0};
+    res = filtmgr_set_keys(mgr, "zab8", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(result[0]);
+    fail_unless(result[1]);
+    fail_unless(result[2]);
+
+    // Shutdown
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+
+    // FUCKING annoying umask permissions bullshit
+    // Cused by the Check test framework
+    fail_unless(chmod("/tmp/bloomd/bloomd.zab8/config.ini", 0777) == 0);
+    fail_unless(chmod("/tmp/bloomd/bloomd.zab8/data.000.mmap", 0777) == 0);
+
+    // Restrore
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    for (int i=0;i<3;i++) result[i] = 0;
+    res = filtmgr_check_keys(mgr, "zab8", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(result[0]);
+    fail_unless(result[1]);
+    fail_unless(result[2]);
+
+    res = filtmgr_drop_filter(mgr, "zab8");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
 
