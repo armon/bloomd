@@ -175,28 +175,16 @@ int config_from_filename(char *filename, bloom_config *config) {
  * @return A new string, that uses a malloc()'d buffer.
  */
 char* join_path(char *path, char *part2) {
+    // Check for the end slash
     int len = strlen(path);
     int has_end_slash = path[len-1] == '/';
-    int total_len = len + strlen(part2) + 1;
 
-    // Add an extra byte for the missing slash
-    if (!has_end_slash)
-        total_len++;
-
-    // Make new buffer
-    char *buf = malloc(total_len * sizeof(char));
-
-    // Copy part 1
-    memcpy(buf, path, len);
-
-    // Add the slash
-    if (!has_end_slash) {
-        buf[len] = '/';
-        len++;
-    }
-
-    // Copy part 2
-    memcpy(buf+len, part2, total_len-len+1);
+    // Use the proper format string
+    char *buf;
+    if (has_end_slash)
+        asprintf(&buf, "%s%s", path, part2);
+    else
+        asprintf(&buf, "%s/%s", path, part2);
 
     // Return the new buffer
     return buf;
