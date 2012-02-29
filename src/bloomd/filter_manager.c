@@ -39,7 +39,7 @@ struct bloom_filtmgr {
  * Static declarations
  */
 static const char FOLDER_PREFIX[] = "bloomd.";
-static const int FOLDER_PREFIX_LEN = sizeof(FOLDER_PREFIX);
+static const int FOLDER_PREFIX_LEN = sizeof(FOLDER_PREFIX) - 1;
 
 static void add_hot_filter(bloom_filtmgr *mgr, char *filter_name);
 static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name);
@@ -143,6 +143,7 @@ int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name) {
  * @arg result Ouput array, stores a 0 if the key does not exist
  * or 1 if the key does exist.
  * @return 0 on success, -1 if the filter does not exist.
+ * -2 on internal error.
  */
 int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num_keys, char *result) {
     // Get the filter
@@ -153,8 +154,11 @@ int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int n
     pthread_rwlock_rdlock(&filt->rwlock);
 
     // Check the keys, store the results
+    int res = 0;
     for (int i=0; i<num_keys; i++) {
-        *(result+i) = bloomf_contains(filt->filter, keys[i]);
+        res = bloomf_contains(filt->filter, keys[i]);
+        if (res == -1) break;
+        *(result+i) = res;
     }
 
     // Release the lock
@@ -165,7 +169,7 @@ int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int n
 
     // Return the filter
     return_filter(mgr, filter_name);
-    return 0;
+    return (res == -1) ? -2 : 0;
 }
 
 /**
@@ -175,7 +179,8 @@ int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int n
  * @arg num_keys The number of keys to add
  * @arg result Ouput array, stores a 0 if the key already is set
  * or 1 if the key is set.
- * @return 0 on success, -1 if the filter does not exist.
+ * * @return 0 on success, -1 if the filter does not exist.
+ * -2 on internal error.
  */
 int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num_keys, char *result) {
     // Get the filter
@@ -186,8 +191,11 @@ int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num
     pthread_rwlock_wrlock(&filt->rwlock);
 
     // Set the keys, store the results
+    int res = 0;
     for (int i=0; i<num_keys; i++) {
-        *(result+i) = bloomf_add(filt->filter, keys[i]);
+        res = bloomf_add(filt->filter, keys[i]);
+        if (res == -1) break;
+        *(result+i) = res;
     }
 
     // Release the lock
@@ -198,7 +206,7 @@ int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num
 
     // Return the filter
     return_filter(mgr, filter_name);
-    return 0;
+    return (res == -1) ? -2 : 0;
 }
 
 /**

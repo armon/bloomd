@@ -50,6 +50,7 @@ int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name);
  * @arg result Ouput array, stores a 0 if the key does not exist
  * or 1 if the key does exist.
  * @return 0 on success, -1 if the filter does not exist.
+ * -2 on internal error.
  */
 int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num_keys, char *result);
 
@@ -61,6 +62,7 @@ int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int n
  * @arg result Ouput array, stores a 0 if the key already is set
  * or 1 if the key is set.
  * @return 0 on success, -1 if the filter does not exist.
+ * -2 on internal error.
  */
 int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num_keys, char *result);
 
