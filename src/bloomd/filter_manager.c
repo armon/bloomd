@@ -459,6 +459,10 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
     LOCK_BLOOM_SPIN(&mgr->filter_lock);
     hashmap_put(mgr->filter_map, filter_name, filt);
     UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
+
+    // Mark as hot
+    add_hot_filter(mgr, filter_name);
+
     return 0;
 }
 
