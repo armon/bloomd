@@ -1,6 +1,8 @@
 #ifndef BLOOM_FILTER_H
 #define BLOOM_FILTER_H
 #include "config.h"
+#include "spinlock.h"
+#include "sbf.h"
 
 /*
  * Functions are NOT thread safe unless explicitly documented
@@ -20,7 +22,22 @@ typedef struct {
     uint64_t page_outs;
 } filter_counters;
 
-typedef struct bloom_filter bloom_filter;
+/**
+ * Representation of a bloom filters
+ */
+typedef struct bloom_filter {
+    bloom_config *config;           // bloomd configuration
+    bloom_filter_config filter_config; // Filter-specific config
+
+    char *filter_name;              // The name of the filter
+    char *full_path;                // Path to our data
+
+    volatile bloom_sbf *sbf;        // Underlying SBF
+    pthread_mutex_t sbf_lock;       // Protects faulting in the SBF
+
+    filter_counters counters;       // Counters
+    bloom_spinlock counter_lock;    // Protect the counters
+} bloom_filter;
 
 /**
  * Initializes a bloom filter wrapper.

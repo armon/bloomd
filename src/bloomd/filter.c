@@ -5,26 +5,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <pthread.h>
-#include "spinlock.h"
 #include "filter.h"
-#include "sbf.h"
-
-/**
- * Representation of a bloom filters
- */
-struct bloom_filter {
-    bloom_config *config;           // bloomd configuration
-    bloom_filter_config filter_config; // Filter-specific config
-
-    char *filter_name;              // The name of the filter
-    char *full_path;                // Path to our data
-
-    volatile bloom_sbf *sbf;        // Underlying SBF
-    pthread_mutex_t sbf_lock;       // Protects faulting in the SBF
-
-    filter_counters counters;       // Counters
-    bloom_spinlock counter_lock;    // Protect the counters
-};
 
 /*
  * Generates the folder name, given a filter name.
