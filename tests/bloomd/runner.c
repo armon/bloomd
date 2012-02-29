@@ -79,6 +79,8 @@ int main(void)
     tcase_add_test(tc4, test_mgr_init_destroy);
     tcase_add_test(tc4, test_mgr_create_drop);
     tcase_add_test(tc4, test_mgr_list);
+    tcase_add_test(tc4, test_mgr_add_check_keys);
+    tcase_add_test(tc4, test_mgr_check_no_keys);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);

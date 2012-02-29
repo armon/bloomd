@@ -90,3 +90,68 @@ START_TEST(test_mgr_list)
 }
 END_TEST
 
+START_TEST(test_mgr_add_check_keys)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "zab1", NULL);
+    fail_unless(res == 0);
+
+    char *keys[] = {"hey","there","person"};
+    char result[] = {0, 0, 0};
+    res = filtmgr_set_keys(mgr, "zab1", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(result[0]);
+    fail_unless(result[1]);
+    fail_unless(result[2]);
+
+    for (int i=0;i<3;i++) result[i] = 0;
+    res = filtmgr_check_keys(mgr, "zab1", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(result[0]);
+    fail_unless(result[1]);
+    fail_unless(result[2]);
+
+    res = filtmgr_drop_filter(mgr, "zab1");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+START_TEST(test_mgr_check_no_keys)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "zab2", NULL);
+    fail_unless(res == 0);
+
+    char *keys[] = {"hey","there","person"};
+    char result[] = {1, 1, 1};
+    res = filtmgr_check_keys(mgr, "zab2", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(!result[0]);
+    fail_unless(!result[1]);
+    fail_unless(!result[2]);
+
+    res = filtmgr_drop_filter(mgr, "zab2");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
