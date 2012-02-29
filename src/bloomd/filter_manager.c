@@ -44,7 +44,7 @@ static const int FOLDER_PREFIX_LEN = sizeof(FOLDER_PREFIX);
 static void add_hot_filter(bloom_filtmgr *mgr, char *filter_name);
 static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name);
 static void return_filter(bloom_filtmgr *mgr, char *filter_name);
-static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt);
+static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt, int should_delete);
 static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config);
 static int filter_map_list_cb(void *data, const char *key, void *value);
 static int filter_map_list_cold_cb(void *data, const char *key, void *value);
@@ -400,17 +400,21 @@ static void return_filter(bloom_filtmgr *mgr, char *filter_name) {
 
     // Handle the deletion
     if (delete)  {
-        delete_filter(mgr, filt);
+        delete_filter(mgr, filt, 1);
     }
 }
 
 /**
  * Invoked to cleanup a filter once we
  * have hit 0 remaining references.
+ * @arg should_delete Use bloomf_delete() to remove all the files
  */
-static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt) {
-    // Close the filter
-    bloomf_close(filt->filter);
+static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt, int should_delete) {
+    // Delete or Close the filter
+    if (should_delete)
+        bloomf_delete(filt->filter);
+    else
+        bloomf_close(filt->filter);
 
     // Cleanup the filter
     destroy_bloom_filter(filt->filter);
@@ -514,8 +518,8 @@ static int filter_map_delete_cb(void *data, const char *key, void *value) {
     bloom_filtmgr *mgr = data;
     bloom_filter_wrapper *filt = value;
 
-    // Delete
-    delete_filter(mgr, filt);
+    // Delete, but not the underlying files
+    delete_filter(mgr, filt, 0);
     return 0;
 }
 
