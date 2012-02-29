@@ -3,6 +3,9 @@
 #include <string.h>
 #include "conn_handler.h"
 
+/*
+ * Static result definitions
+ */
 static const char CLIENT_ERR[] = "Client Error: ";
 static const int CLIENT_ERR_LEN = sizeof(CLIENT_ERR) - 1;
 
@@ -12,8 +15,17 @@ static const int CMD_NOT_SUP_LEN = sizeof(CMD_NOT_SUP) - 1;
 static const char FILT_KEY_NEEDED[] = "Must provide filter name and key";
 static const int FILT_KEY_NEEDED_LEN = sizeof(FILT_KEY_NEEDED) - 1;
 
+static const char INTERNAL_ERR[] = "Internal Error\n";
+static const int INTERNAL_ERR_LEN = sizeof(INTERNAL_ERR) - 1;
+
+static const char FILT_NOT_EXIST[] = "Filter does not exist\n";
+static const int FILT_NOT_EXIST_LEN = sizeof(FILT_NOT_EXIST) - 1;
+
 static const char YES_RESP[] = "Yes\n";
 static const int YES_RESP_LEN = sizeof(YES_RESP) - 1;
+
+static const char NO_RESP[] = "No\n";
+static const int NO_RESP_LEN = sizeof(YES_RESP) - 1;
 
 static const char NEW_LINE[] = "\n";
 static const int NEW_LINE_LEN = sizeof(NEW_LINE) - 1;
@@ -94,10 +106,33 @@ static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_le
     int err = buffer_after_terminator(args, args_len, ' ', &key, &key_len);
     if (err || key_len <= 1) CHECK_ARG_ERR();
 
-    // Print
-    printf("Filter: %s\n", args);
-    printf("Key (%d): %s\n", key_len, key);
-    handle_client_resp(handle->conn, (char*)&YES_RESP, YES_RESP_LEN);
+    // Setup the buffers
+    char *key_buf[] = {key};
+    char result_buf[1];
+
+    // Call into the filter manager
+    int res = filtmgr_check_keys(handle->mgr, args, (char**)&key_buf, 1, (char*)&result_buf);
+    switch (res) {
+        case 0:
+            switch (result_buf[0]) {
+                case 0:
+                    handle_client_resp(handle->conn, (char*)NO_RESP, NO_RESP_LEN);
+                    break;
+                case 1:
+                    handle_client_resp(handle->conn, (char*)YES_RESP, YES_RESP_LEN);
+                    break;
+                default:
+                    handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
+                    break;
+            }
+            break;
+        case -1:
+            handle_client_resp(handle->conn, (char*)FILT_NOT_EXIST, FILT_NOT_EXIST_LEN);
+            break;
+        default:
+            handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
+            break;
+    }
 }
 
 /**
