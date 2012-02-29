@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include "config.h"
 #include "networking.h"
+#include "filter_manager.h"
 
 /**
  * By default we should run. Our signal
@@ -140,8 +141,15 @@ int main(int argc, char **argv) {
     // Log that we are starting up
     syslog(LOG_INFO, "Starting bloomd.");
 
-    // TODO: Initialize the filters
-    //
+    // Initialize the filters
+    bloom_filtmgr *mgr;
+    int mgr_res = init_filter_manager(config, &mgr);
+    if (mgr_res != 0) {
+        syslog(LOG_ERR, "Failed to initialize bloomd filter manager!");
+        return 1;
+    }
+
+    // TODO: Start the background tasks
 
     // Initialize the networking
     bloom_networking *netconf = NULL;
@@ -170,7 +178,10 @@ int main(int argc, char **argv) {
     // Begin the shutdown/cleanup
     shutdown_networking(netconf);
 
-    // TODO: Cleanup the filters
+    // TODO: shutdown the background tasks
+
+    // Cleanup the filters
+    destroy_filter_manager(mgr);
 
     // Free our memory
     free(config);
