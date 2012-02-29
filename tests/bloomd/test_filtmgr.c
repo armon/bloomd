@@ -65,6 +65,7 @@ START_TEST(test_mgr_list)
     bloom_filter_list_head *head;
     res = filtmgr_list_filters(mgr, &head);
     fail_unless(res == 0);
+    fail_unless(head->size == 2);
 
     int has_bar1 = 0;
     int has_bar2 = 0;
@@ -89,6 +90,27 @@ START_TEST(test_mgr_list)
     fail_unless(res == 0);
 }
 END_TEST
+
+START_TEST(test_mgr_list_no_filters)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    bloom_filter_list_head *head;
+    res = filtmgr_list_filters(mgr, &head);
+    fail_unless(res == 0);
+    fail_unless(head->size == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
 
 START_TEST(test_mgr_add_check_keys)
 {
@@ -154,4 +176,149 @@ START_TEST(test_mgr_check_no_keys)
     fail_unless(res == 0);
 }
 END_TEST
+
+START_TEST(test_mgr_add_check_no_filter)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    char *keys[] = {"hey","there","person"};
+    char result[] = {0, 0, 0};
+    res = filtmgr_set_keys(mgr, "noop1", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == -1);
+
+    for (int i=0;i<3;i++) result[i] = 0;
+    res = filtmgr_check_keys(mgr, "noop1", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == -1);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+/* Flush */
+START_TEST(test_mgr_flush_no_filter)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_flush_filter(mgr, "noop1");
+    fail_unless(res == -1);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+START_TEST(test_mgr_flush)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "zab3", NULL);
+    fail_unless(res == 0);
+
+    res = filtmgr_flush_filter(mgr, "zab3");
+    fail_unless(res == 0);
+
+    res = filtmgr_drop_filter(mgr, "zab3");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+/* Unmap */
+START_TEST(test_mgr_unmap_no_filter)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_unmap_filter(mgr, "noop2");
+    fail_unless(res == -1);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+START_TEST(test_mgr_unmap)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "zab4", NULL);
+    fail_unless(res == 0);
+
+    res = filtmgr_unmap_filter(mgr, "zab4");
+    fail_unless(res == 0);
+
+    res = filtmgr_drop_filter(mgr, "zab4");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+START_TEST(test_mgr_unmap_add_keys)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "zab5", NULL);
+    fail_unless(res == 0);
+
+    res = filtmgr_unmap_filter(mgr, "zab5");
+    fail_unless(res == 0);
+
+    // Try to add keys now
+    char *keys[] = {"hey","there","person"};
+    char result[] = {0, 0, 0};
+    res = filtmgr_set_keys(mgr, "zab5", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(result[0]);
+    fail_unless(result[1]);
+    fail_unless(result[2]);
+
+    res = filtmgr_drop_filter(mgr, "zab5");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+/* List Cold */
 
