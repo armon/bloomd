@@ -18,6 +18,8 @@
 /* Static method declarations */
 static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_check_multi_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static void handle_set_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static void handle_set_multi_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int num_keys, char *res_buf, int end_of_input);
 static inline void handle_client_resp(bloom_conn_info *conn, char* resp_mesg, int resp_len);
@@ -65,6 +67,12 @@ int handle_client_connect(bloom_conn_handler *handle) {
             case CHECK_MULTI:
                 handle_check_multi_cmd(handle, arg_buf, arg_buf_len);
                 break;
+            case SET:
+                handle_set_cmd(handle, arg_buf, arg_buf_len);
+                break;
+            case SET_MULTI:
+                handle_set_multi_cmd(handle, arg_buf, arg_buf_len);
+                break;
             case CREATE:
                 handle_create_cmd(handle, arg_buf, arg_buf_len);
                 break;
@@ -81,7 +89,13 @@ int handle_client_connect(bloom_conn_handler *handle) {
 }
 
 
-static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+/**
+ * Internal method to handle a command that relies
+ * on a filter name and a single key, responses are handled using
+ * handle_multi_response.
+ */
+static void handle_filt_key_cmd(bloom_conn_handler *handle, char *args, int args_len,
+        int(*filtmgr_func)(bloom_filtmgr *, char*, char **, int, char*)) {
     #define CHECK_ARG_ERR() { \
         handle_client_err(handle->conn, (char*)&FILT_KEY_NEEDED, FILT_KEY_NEEDED_LEN); \
         return; \
@@ -100,12 +114,26 @@ static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_le
     char result_buf[1];
 
     // Call into the filter manager
-    int res = filtmgr_check_keys(handle->mgr, args, (char**)&key_buf, 1, (char*)&result_buf);
+    int res = filtmgr_func(handle->mgr, args, (char**)&key_buf, 1, (char*)&result_buf);
     handle_multi_response(handle, res, 1, (char*)&result_buf, 1);
 }
 
+static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    handle_filt_key_cmd(handle, args, args_len, filtmgr_check_keys);
+}
 
-static void handle_check_multi_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+static void handle_set_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    handle_filt_key_cmd(handle, args, args_len, filtmgr_set_keys);
+}
+
+
+/**
+ * Internal method to handle a command that relies
+ * on a filter name and multiple keys, responses are handled using
+ * handle_multi_response.
+ */
+static void handle_filt_multi_key_cmd(bloom_conn_handler *handle, char *args, int args_len,
+        int(*filtmgr_func)(bloom_filtmgr *, char*, char **, int, char*)) {
     #define CHECK_ARG_ERR() { \
         handle_client_err(handle->conn, (char*)&FILT_KEY_NEEDED, FILT_KEY_NEEDED_LEN); \
         return; \
@@ -140,8 +168,8 @@ static void handle_check_multi_cmd(bloom_conn_handler *handle, char *args, int a
 
         // If we have filled the buffer, check now
         if (index == MULTI_OP_SIZE) {
-            // Check + write response
-            int res = filtmgr_check_keys(handle->mgr, args, (char**)&key_buf, index, (char*)&result_buf);
+            //  Handle the keys now
+            int res = filtmgr_func(handle->mgr, args, (char**)&key_buf, index, (char*)&result_buf);
             res = handle_multi_response(handle, res, index, (char*)&result_buf, !HAS_ANOTHER_KEY());
             if (res) return;
 
@@ -150,14 +178,25 @@ static void handle_check_multi_cmd(bloom_conn_handler *handle, char *args, int a
         }
     }
 
-    // Check for any remaining keys
+    // Handle any remaining keys
     if (index) {
-        int res = filtmgr_check_keys(handle->mgr, args, key_buf, index, result_buf);
+        int res = filtmgr_func(handle->mgr, args, key_buf, index, result_buf);
         handle_multi_response(handle, res, index, (char*)&result_buf, 1);
     }
 }
 
+static void handle_check_multi_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    handle_filt_multi_key_cmd(handle, args, args_len, filtmgr_check_keys);
+}
 
+static void handle_set_multi_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    handle_filt_multi_key_cmd(handle, args, args_len, filtmgr_set_keys);
+}
+
+
+/**
+ * Internal command used to handle filter creation.
+ */
 static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_len) {
     // If we have no args, complain.
     if (!args) {
@@ -300,6 +339,7 @@ static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int nu
     send_client_response(handle->conn, (char**)&resp_bufs, (int*)&resp_buf_lens, num_keys);
     return 0;
 }
+
 
 /**
  * Sends a client response message back. Simple convenience wrapper
