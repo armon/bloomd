@@ -21,6 +21,9 @@ static void handle_check_multi_cmd(bloom_conn_handler *handle, char *args, int a
 static void handle_set_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_set_multi_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static void handle_drop_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static void handle_close_cmd(bloom_conn_handler *handle, char *args, int args_len);
+
 static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int num_keys, char *res_buf, int end_of_input);
 static inline void handle_client_resp(bloom_conn_info *conn, char* resp_mesg, int resp_len);
 static void handle_client_err(bloom_conn_info *conn, char* err_msg, int msg_len);
@@ -76,6 +79,18 @@ int handle_client_connect(bloom_conn_handler *handle) {
             case CREATE:
                 handle_create_cmd(handle, arg_buf, arg_buf_len);
                 break;
+            case DROP:
+                handle_drop_cmd(handle, arg_buf, arg_buf_len);
+                break;
+            case CLOSE:
+                handle_close_cmd(handle, arg_buf, arg_buf_len);
+                break;
+
+            case LIST:
+            case INFO:
+            case FLUSH:
+            case CONF:
+            case QUIT:
             default:
                 handle_client_err(handle->conn, (char*)&CMD_NOT_SUP, CMD_NOT_SUP_LEN);
                 break;
@@ -283,6 +298,51 @@ static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_l
     }
 }
 
+
+/**
+ * Internal method to handle a command that relies
+ * on a filter name and a single key, responses are handled using
+ * handle_multi_response.
+ */
+static void handle_filt_cmd(bloom_conn_handler *handle, char *args, int args_len,
+        int(*filtmgr_func)(bloom_filtmgr *, char*)) {
+    // If we have no args, complain.
+    if (!args) {
+        handle_client_err(handle->conn, (char*)&FILT_NEEDED, FILT_NEEDED_LEN);
+        return;
+    }
+
+    // Scan past the filter name
+    char *key;
+    int key_len;
+    int after = buffer_after_terminator(args, args_len, ' ', &key, &key_len);
+    if (after == 0) {
+        handle_client_err(handle->conn, (char*)&UNEXPECTED_ARGS, UNEXPECTED_ARGS_LEN);
+        return;
+    }
+
+    // Call into the filter manager
+    int res = filtmgr_func(handle->mgr, args);
+    switch (res) {
+        case 0:
+            handle_client_resp(handle->conn, (char*)DONE_RESP, DONE_RESP_LEN);
+            break;
+        case -1:
+            handle_client_resp(handle->conn, (char*)FILT_NOT_EXIST, FILT_NOT_EXIST_LEN);
+            break;
+        default:
+            handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
+            break;
+    }
+}
+
+static void handle_drop_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    handle_filt_cmd(handle, args, args_len, filtmgr_drop_filter);
+}
+
+static void handle_close_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    handle_filt_cmd(handle, args, args_len, filtmgr_unmap_filter);
+}
 
 /**
  * Helper to handle sending the response to the multi commands,

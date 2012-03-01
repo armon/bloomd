@@ -12,6 +12,9 @@ static const int CMD_NOT_SUP_LEN = sizeof(CMD_NOT_SUP) - 1;
 static const char BAD_ARGS[] = "Bad arguments";
 static const int BAD_ARGS_LEN= sizeof(BAD_ARGS) - 1;
 
+static const char UNEXPECTED_ARGS[] = "Unexpected arguments";
+static const int UNEXPECTED_ARGS_LEN = sizeof(UNEXPECTED_ARGS) - 1;
+
 static const char FILT_KEY_NEEDED[] = "Must provide filter name and key";
 static const int FILT_KEY_NEEDED_LEN = sizeof(FILT_KEY_NEEDED) - 1;
 
