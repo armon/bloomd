@@ -90,7 +90,6 @@ int handle_client_connect(bloom_conn_handler *handle) {
             case INFO:
             case FLUSH:
             case CONF:
-            case QUIT:
             default:
                 handle_client_err(handle->conn, (char*)&CMD_NOT_SUP, CMD_NOT_SUP_LEN);
                 break;
@@ -470,8 +469,6 @@ static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char *
         type = FLUSH;
     } else if (CMD_MATCH("conf")) {
         type = CONF;
-    } else if (CMD_MATCH("quit")) {
-        type = QUIT;
     }
 
     return type;
