@@ -553,11 +553,12 @@ static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
     ssize_t read_bytes = readv(watch->fd, (struct iovec*)&vectors, num_vectors);
 
     // Make sure we actually read something
-    if (!read_bytes) {
-        if (errno == 0) {
-            syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
-            close_client_connection(conn);
-        } else if (errno != EAGAIN && errno != EINTR) {
+    if (read_bytes == 0) {
+        syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
+        close_client_connection(conn);
+    }
+    if (read_bytes == -1) {
+        if (errno != EAGAIN && errno != EINTR) {
             syslog(LOG_ERR, "Failed to read() from connection [%d]! %s.",
                     conn->client.fd, strerror(errno));
             close_client_connection(conn);
