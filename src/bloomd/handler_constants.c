@@ -33,6 +33,12 @@ static const int DONE_RESP_LEN = sizeof(DONE_RESP) - 1;
 static const char EXISTS_RESP[] = "Exists\n";
 static const int EXISTS_RESP_LEN = sizeof(EXISTS_RESP) - 1;
 
+static const char YES_SPACE[] = "Yes ";
+static const int YES_SPACE_LEN = sizeof(YES_SPACE) - 1;
+
+static const char NO_SPACE[] = "No ";
+static const int NO_SPACE_LEN = sizeof(NO_SPACE) - 1;
+
 static const char YES_RESP[] = "Yes\n";
 static const int YES_RESP_LEN = sizeof(YES_RESP) - 1;
 

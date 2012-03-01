@@ -6,9 +6,20 @@
 #include "conn_handler.h"
 #include "handler_constants.c"
 
+/**
+ * Defines the number of keys we set/check in a single
+ * iteration for our multi commands. We do not do all the
+ * keys at one time to prevent a client from holding locks
+ * for too long. This is especially critical for set
+ * operations which serialize access.
+ */
+#define MULTI_OP_SIZE 32
+
 /* Static method declarations */
 static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static void handle_check_multi_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int num_keys, char *res_buf, int end_of_input);
 static inline void handle_client_resp(bloom_conn_info *conn, char* resp_mesg, int resp_len);
 static void handle_client_err(bloom_conn_info *conn, char* err_msg, int msg_len);
 static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char **arg_buf, int *arg_len);
@@ -41,7 +52,7 @@ int handle_client_connect(bloom_conn_handler *handle) {
     while (1) {
         status = extract_to_terminator(handle->conn, '\n', &buf, &buf_len, &should_free);
         if (status == -1) return 0; // Return if no command is available
-        printf("Buffer: %s\n", buf);
+        //printf("Buffer: %s\n", buf);
 
         // Determine the command type
         conn_cmd_type type = determine_client_command(buf, buf_len, &arg_buf, &arg_buf_len);
@@ -50,6 +61,9 @@ int handle_client_connect(bloom_conn_handler *handle) {
         switch(type) {
             case CHECK:
                 handle_check_cmd(handle, arg_buf, arg_buf_len);
+                break;
+            case CHECK_MULTI:
+                handle_check_multi_cmd(handle, arg_buf, arg_buf_len);
                 break;
             case CREATE:
                 handle_create_cmd(handle, arg_buf, arg_buf_len);
@@ -87,26 +101,59 @@ static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_le
 
     // Call into the filter manager
     int res = filtmgr_check_keys(handle->mgr, args, (char**)&key_buf, 1, (char*)&result_buf);
-    switch (res) {
-        case 0:
-            switch (result_buf[0]) {
-                case 0:
-                    handle_client_resp(handle->conn, (char*)NO_RESP, NO_RESP_LEN);
-                    break;
-                case 1:
-                    handle_client_resp(handle->conn, (char*)YES_RESP, YES_RESP_LEN);
-                    break;
-                default:
-                    handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
-                    break;
-            }
-            break;
-        case -1:
-            handle_client_resp(handle->conn, (char*)FILT_NOT_EXIST, FILT_NOT_EXIST_LEN);
-            break;
-        default:
-            handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
-            break;
+    handle_multi_response(handle, res, 1, (char*)&result_buf, 1);
+}
+
+
+static void handle_check_multi_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    #define CHECK_ARG_ERR() { \
+        handle_client_err(handle->conn, (char*)&FILT_KEY_NEEDED, FILT_KEY_NEEDED_LEN); \
+        return; \
+    }
+    // If we have no args, complain.
+    if (!args) CHECK_ARG_ERR();
+
+    // Setup the buffers
+    char *key_buf[MULTI_OP_SIZE];
+    char result_buf[MULTI_OP_SIZE];
+
+    // Scan all the keys
+    char *key;
+    int key_len;
+    int err = buffer_after_terminator(args, args_len, ' ', &key, &key_len);
+    if (err || key_len <= 1) CHECK_ARG_ERR();
+
+    // Parse any options
+    char *curr_key = key;
+    int index = 0;
+    #define HAS_ANOTHER_KEY() (curr_key && *curr_key != '\0')
+    while (HAS_ANOTHER_KEY()) {
+        // Adds a zero terminator to the current key, scans forward
+        buffer_after_terminator(key, key_len, ' ', &key, &key_len);
+
+        // Set the key
+        key_buf[index] = curr_key;
+
+        // Advance to the next key
+        curr_key = key;
+        index++;
+
+        // If we have filled the buffer, check now
+        if (index == MULTI_OP_SIZE) {
+            // Check + write response
+            int res = filtmgr_check_keys(handle->mgr, args, (char**)&key_buf, index, (char*)&result_buf);
+            res = handle_multi_response(handle, res, index, (char*)&result_buf, !HAS_ANOTHER_KEY());
+            if (res) return;
+
+            // Reset the index
+            index = 0;
+        }
+    }
+
+    // Check for any remaining keys
+    if (index) {
+        int res = filtmgr_check_keys(handle->mgr, args, key_buf, index, result_buf);
+        handle_multi_response(handle, res, index, (char*)&result_buf, 1);
     }
 }
 
@@ -197,6 +244,62 @@ static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_l
     }
 }
 
+
+/**
+ * Helper to handle sending the response to the multi commands,
+ * either multi or bulk.
+ * @arg handle The conn handle
+ * @arg cmd_res The result of the command
+ * @arg num_keys The number of keys in the result buffer. This should NOT be
+ * more than MULTI_OP_SIZE.
+ * @arg res_buf The result buffer
+ * @arg end_of_input Should the last result include a new line
+ * @return 0 on success, 1 if we should stop.
+ */
+static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int num_keys, char *res_buf, int end_of_input) {
+    // Do nothing if we get too many keys
+    if (num_keys > MULTI_OP_SIZE || num_keys <= 0) return 1;
+
+    // Call into the filter manager
+    if (cmd_res != 0) {
+        switch (cmd_res) {
+            case -1:
+                handle_client_resp(handle->conn, (char*)FILT_NOT_EXIST, FILT_NOT_EXIST_LEN);
+                break;
+            default:
+                handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
+                break;
+        }
+        return 1;
+    }
+
+    // Allocate buffers for our response, plus a newline
+    char *resp_bufs[MULTI_OP_SIZE];
+    int resp_buf_lens[MULTI_OP_SIZE];
+
+    // Set the response buffers according to the results
+    int last_key = 1;
+    for (int i=0; i < num_keys; i++) {
+        last_key = end_of_input && (i == (num_keys - 1));
+        switch (res_buf[i]) {
+            case 0:
+                resp_bufs[i] = (char*)((last_key) ? NO_RESP : NO_SPACE);
+                resp_buf_lens[i] = (last_key) ? NO_RESP_LEN: NO_SPACE_LEN;
+                break;
+            case 1:
+                resp_bufs[i] = (char*)((last_key) ? YES_RESP : YES_SPACE);
+                resp_buf_lens[i] = (last_key) ? YES_RESP_LEN: YES_SPACE_LEN;
+                break;
+            default:
+                handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
+                return 1;
+        }
+    }
+
+    // Write out!
+    send_client_response(handle->conn, (char**)&resp_bufs, (int*)&resp_buf_lens, num_keys);
+    return 0;
+}
 
 /**
  * Sends a client response message back. Simple convenience wrapper
