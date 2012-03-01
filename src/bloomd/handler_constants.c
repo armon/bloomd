@@ -63,7 +63,6 @@ typedef enum {
     DROP,           // Drop a filter
     CLOSE,          // Close a filter
     FLUSH,          // Force flush a filter
-    CONF,           // Configuration dump
 } conn_cmd_type;
 
 /* Static regexes */
