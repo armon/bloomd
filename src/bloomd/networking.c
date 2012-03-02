@@ -155,9 +155,14 @@ static conn_info* get_fd_conn(int client_fd, bloom_networking *netconf);
 
 // Circular buffer method
 static void init_circular_buffer(circular_buffer *buf);
-static void alloc_circular_buffer(circular_buffer *buf);
-
-
+static void circbuf_alloc(circular_buffer *buf);
+static void circbuf_reset(circular_buffer *buf);
+static void circbuf_free(circular_buffer *buf);
+static uint64_t circbuf_avail_buf(circular_buffer *buf);
+static void circbuf_grow_buf(circular_buffer *buf);
+static void circbuf_setup_readv_iovec(circular_buffer *buf, struct iovec *vectors, int *num_vectors);
+static void circbuf_advance_write(circular_buffer *buf, uint64_t bytes);
+static void circbuf_advance_read(circular_buffer *buf, uint64_t bytes);
 
 /**
  * Initializes the TCP listener
@@ -425,8 +430,8 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
     conn_info *conn = get_fd_conn(client_fd, data->netconf);
 
     // Prepare the buffers
-    init_cicular_buffer(&conn->input);
-    init_cicular_buffer(&conn->output);
+    init_circular_buffer(&conn->input);
+    init_circular_buffer(&conn->output);
 
     // Initialize the libev stuff
     ev_io_init(&conn->client, prepare_event, client_fd, EV_READ);
@@ -455,70 +460,16 @@ static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
      * If we have < 50% free, we resize the buffer using
      * a multiplier.
      */
-    int avail_buf;
-    if (conn->write_cursor < conn->read_cursor) {
-        avail_buf = conn->read_cursor - conn->write_cursor;
-    } else {
-        avail_buf = conn->buf_size - conn->write_cursor + conn->read_cursor;
-    }
-
-    if (avail_buf < conn->buf_size / 2) {
-        int new_size = conn->buf_size * CONN_BUF_MULTIPLIER * sizeof(char);
-        char *new_buf = malloc(new_size);
-        int bytes_written = 0;
-
-        // Check if the write has wrapped around
-        if (conn->write_cursor < conn->read_cursor) {
-            // Copy from the read cursor to the end of the buffer
-            bytes_written = conn->buf_size - conn->read_cursor;
-            memcpy(new_buf,
-                   conn->buffer+conn->read_cursor,
-                   bytes_written);
-
-            // Copy from the start to the write cursor
-            memcpy(new_buf+bytes_written,
-                   conn->buffer,
-                   conn->write_cursor);
-            bytes_written += conn->write_cursor;
-
-        // We haven't wrapped yet...
-        } else {
-            // Copy from the read cursor up to the write cursor
-            bytes_written = conn->write_cursor - conn->read_cursor;
-            memcpy(new_buf,
-                   conn->buffer + conn->read_cursor,
-                   bytes_written);
-        }
-
-        // Update the buffer locations and everything
-        free(conn->buffer);
-        conn->buffer = new_buf;
-        conn->buf_size = new_size;
-        conn->read_cursor = 0;
-        conn->write_cursor = bytes_written;
-
-        // Recompute the available space
-        avail_buf = new_size - bytes_written;
+    int avail_buf = circbuf_avail_buf(&conn->input);
+    if (avail_buf < conn->input.buf_size / 2) {
+        circbuf_grow_buf(&conn->input);
+        avail_buf = circbuf_avail_buf(&conn->input);
     }
 
     // Build the IO vectors to perform the read
     struct iovec vectors[2];
-    int num_vectors = 1;
-
-    // Check if we've wrapped around
-    if (conn->write_cursor < conn->read_cursor) {
-        vectors[0].iov_base = conn->buffer + conn->write_cursor;
-        vectors[0].iov_len = conn->read_cursor - conn->write_cursor - 1;
-    } else {
-        vectors[0].iov_base = conn->buffer + conn->write_cursor;
-        vectors[0].iov_len = conn->buf_size - conn->write_cursor - 1;
-        if (conn->read_cursor > 0)  {
-            vectors[0].iov_len += 1;
-            vectors[1].iov_base = conn->buffer;
-            vectors[1].iov_len = conn->read_cursor - 1;
-            num_vectors = 2;
-        }
-    }
+    int num_vectors;
+    circbuf_setup_readv_iovec(&conn->input, (struct iovec*)&vectors, &num_vectors);
 
     // Issue the read
     ssize_t read_bytes = readv(watch->fd, (struct iovec*)&vectors, num_vectors);
@@ -538,7 +489,7 @@ static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
     }
 
     // Update the write cursor
-    conn->write_cursor = (conn->write_cursor + read_bytes) % conn->buf_size;
+    circbuf_advance_write(&conn->input, read_bytes);
     return 0;
 }
 
@@ -684,7 +635,8 @@ int shutdown_networking(bloom_networking *netconf) {
         }
 
         // Free all the buffers
-        if (conn->buffer) free(conn->buffer);
+        circbuf_free(&conn->input);
+        circbuf_free(&conn->output);
         free(conn);
     }
 
@@ -713,15 +665,8 @@ void close_client_connection(conn_info *conn) {
     conn->should_schedule = 0;
 
     // Clear everything out
-    conn->write_cursor = 0;
-    conn->read_cursor = 0;
-
-    // Clear the conn if it is larger than the initial size
-    if (conn->buf_size > INIT_CONN_BUF_SIZE) {
-        conn->buf_size = 0;
-        free(conn->buffer);
-        conn->buffer = NULL;
-    }
+    circbuf_reset(&conn->input);
+    circbuf_reset(&conn->output);
 
     // Close the fd
     close(conn->client.fd);
@@ -805,77 +750,77 @@ int send_client_response(conn_info *conn, char **response_buffers, int *buf_size
 int extract_to_terminator(bloom_conn_info *conn, char terminator, char **buf, int *buf_len, int *should_free) {
     // First we need to find the terminator...
     char *term_addr = NULL;
-    if (conn->write_cursor < conn->read_cursor) {
+    if (conn->input.write_cursor < conn->input.read_cursor) {
         /*
          * We need to scan from the read cursor to the end of
          * the buffer, and then from the start of the buffer to
          * the write cursor.
         */
-        term_addr = memchr(conn->buffer+conn->read_cursor,
+        term_addr = memchr(conn->input.buffer+conn->input.read_cursor,
                            terminator,
-                           conn->buf_size - conn->read_cursor);
+                           conn->input.buf_size - conn->input.read_cursor);
 
         // If we've found the terminator, we can just move up
         // the read cursor
         if (term_addr) {
-            *buf = conn->buffer + conn->read_cursor;
+            *buf = conn->input.buffer + conn->input.read_cursor;
             *buf_len = term_addr - *buf + 1;    // Difference between the terminator and location
             *term_addr = '\0';              // Add a null terminator
             *should_free = 0;               // No need to free, in the buffer
-            conn->read_cursor = term_addr - conn->buffer + 1; // Push the read cursor forward
+            conn->input.read_cursor = term_addr - conn->input.buffer + 1; // Push the read cursor forward
             return 0;
         }
 
         // Wrap around
-        term_addr = memchr(conn->buffer,
+        term_addr = memchr(conn->input.buffer,
                            terminator,
-                           conn->write_cursor);
+                           conn->input.write_cursor);
 
         // If we've found the terminator, we need to allocate
         // a contiguous buffer large enough to store everything
         // and provide a linear buffer
         if (term_addr) {
-            int start_size = term_addr - conn->buffer + 1;
-            int end_size = conn->buf_size - conn->read_cursor;
+            int start_size = term_addr - conn->input.buffer + 1;
+            int end_size = conn->input.buf_size - conn->input.read_cursor;
             *buf_len = start_size + end_size;
             *buf = malloc(*buf_len);
 
             // Copy from the read cursor to the end
-            memcpy(*buf, conn->buffer+conn->read_cursor, end_size);
+            memcpy(*buf, conn->input.buffer+conn->input.read_cursor, end_size);
 
             // Copy from the start to the terminator
             *term_addr = '\0';              // Add a null terminator
-            memcpy(*buf+end_size, conn->buffer, start_size);
+            memcpy(*buf+end_size, conn->input.buffer, start_size);
 
             *should_free = 1;               // Must free, not in the buffer
-            conn->read_cursor = start_size; // Push the read cursor forward
+            conn->input.read_cursor = start_size; // Push the read cursor forward
         }
 
     } else {
         /*
          * We need to scan from the read cursor to write buffer.
          */
-        term_addr = memchr(conn->buffer+conn->read_cursor,
+        term_addr = memchr(conn->input.buffer+conn->input.read_cursor,
                            terminator,
-                           conn->write_cursor - conn->read_cursor);
+                           conn->input.write_cursor - conn->input.read_cursor);
 
         // If we've found the terminator, we can just move up
         // the read cursor
         if (term_addr) {
-            *buf = conn->buffer + conn->read_cursor;
+            *buf = conn->input.buffer + conn->input.read_cursor;
             *buf_len = term_addr - *buf + 1; // Difference between the terminator and location
             *term_addr = '\0';               // Add a null terminator
             *should_free = 0;                // No need to free, in the buffer
-            conn->read_cursor = term_addr - conn->buffer + 1; // Push the read cursor forward
+            conn->input.read_cursor = term_addr - conn->input.buffer + 1; // Push the read cursor forward
         }
     }
 
     // Minor optimization, if our read-cursor has caught up
     // with the write cursor, reset them to the beginning
     // to avoid wrapping in the future
-    if (conn->read_cursor == conn->write_cursor) {
-        conn->read_cursor = 0;
-        conn->write_cursor = 0;
+    if (conn->input.read_cursor == conn->input.write_cursor) {
+        conn->input.read_cursor = 0;
+        conn->input.write_cursor = 0;
     }
 
     // Return success if we have a term address
@@ -978,14 +923,116 @@ static conn_info* get_fd_conn(int client_fd, bloom_networking *netconf) {
 static void init_circular_buffer(circular_buffer *buf) {
     buf->read_cursor = 0;
     buf->write_cursor = 0;
-    if (!buf->buf) {
-        alloc_circular_buffer(buf);
+    if (!buf->buffer) {
+        circbuf_alloc(buf);
     }
 }
 
 // Allocates a buffer
-static void alloc_circular_buffer(circular_buffer *buf) {
+static void circbuf_alloc(circular_buffer *buf) {
     buf->buf_size = INIT_CONN_BUF_SIZE * sizeof(char);
     buf->buffer = malloc(buf->buf_size);
+}
+
+// Resets a circular buffer
+static void circbuf_reset(circular_buffer *buf) {
+    buf->read_cursor = 0;
+    buf->write_cursor = 0;
+    if (buf->buf_size > INIT_CONN_BUF_SIZE) {
+        buf->buf_size = 0;
+        free(buf->buffer);
+        buf->buffer = NULL;
+    }
+}
+
+// Frees a buffer
+static void circbuf_free(circular_buffer *buf) {
+    buf->read_cursor = 0;
+    buf->write_cursor = 0;
+    buf->buf_size =0;
+    if (buf->buffer) free(buf->buffer);
+    buf->buffer = NULL;
+}
+
+// Calculates the available buffer size
+static uint64_t circbuf_avail_buf(circular_buffer *buf) {
+    uint64_t avail_buf;
+    if (buf->write_cursor < buf->read_cursor) {
+        avail_buf = buf->read_cursor - buf->write_cursor - 1;
+    } else {
+        avail_buf = buf->buf_size - buf->write_cursor + buf->read_cursor - 1;
+    }
+    return avail_buf;
+}
+
+// Grows the circular buffer to make room for more data
+static void circbuf_grow_buf(circular_buffer *buf) {
+    int new_size = buf->buf_size * CONN_BUF_MULTIPLIER * sizeof(char);
+    char *new_buf = malloc(new_size);
+    int bytes_written = 0;
+
+    // Check if the write has wrapped around
+    if (buf->write_cursor < buf->read_cursor) {
+        // Copy from the read cursor to the end of the buffer
+        bytes_written = buf->buf_size - buf->read_cursor;
+        memcpy(new_buf,
+               buf->buffer+buf->read_cursor,
+               bytes_written);
+
+        // Copy from the start to the write cursor
+        memcpy(new_buf+bytes_written,
+               buf->buffer,
+               buf->write_cursor);
+        bytes_written += buf->write_cursor;
+
+    // We haven't wrapped yet...
+    } else {
+        // Copy from the read cursor up to the write cursor
+        bytes_written = buf->write_cursor - buf->read_cursor;
+        memcpy(new_buf,
+               buf->buffer + buf->read_cursor,
+               bytes_written);
+    }
+
+    // Update the buffer locations and everything
+    free(buf->buffer);
+    buf->buffer = new_buf;
+    buf->buf_size = new_size;
+    buf->read_cursor = 0;
+    buf->write_cursor = bytes_written;
+}
+
+
+// Initializes a pair of iovectors to be used for readv
+static void circbuf_setup_readv_iovec(circular_buffer *buf, struct iovec *vectors, int *num_vectors) {
+    // Check if we've wrapped around
+    *num_vectors = 1;
+    if (buf->write_cursor < buf->read_cursor) {
+        vectors[0].iov_base = buf->buffer + buf->write_cursor;
+        vectors[0].iov_len = buf->read_cursor - buf->write_cursor - 1;
+    } else {
+        vectors[0].iov_base = buf->buffer + buf->write_cursor;
+        vectors[0].iov_len = buf->buf_size - buf->write_cursor - 1;
+        if (buf->read_cursor > 0)  {
+            vectors[0].iov_len += 1;
+            vectors[1].iov_base = buf->buffer;
+            vectors[1].iov_len = buf->read_cursor - 1;
+            *num_vectors = 2;
+        }
+    }
+}
+
+// Advances the cursors
+static void circbuf_advance_write(circular_buffer *buf, uint64_t bytes) {
+    buf->write_cursor = (buf->write_cursor + bytes) % buf->buf_size;
+}
+static void circbuf_advance_read(circular_buffer *buf, uint64_t bytes) {
+    buf->read_cursor = (buf->read_cursor + bytes) % buf->buf_size;
+
+    // Optimization, reset the cursors if they catchup with each other
+    if (buf->read_cursor == buf->write_cursor) {
+        buf->read_cursor = 0;
+        buf->write_cursor = 0;
+    }
 }
 
