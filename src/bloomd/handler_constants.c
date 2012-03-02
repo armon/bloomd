@@ -51,6 +51,12 @@ static const int NO_RESP_LEN = sizeof(NO_RESP) - 1;
 static const char NEW_LINE[] = "\n";
 static const int NEW_LINE_LEN = sizeof(NEW_LINE) - 1;
 
+static const char START_RESP[] = "START\n";
+static const int START_RESP_LEN = sizeof(START_RESP) - 1;
+
+static const char END_RESP[] = "END\n";
+static const int END_RESP_LEN = sizeof(END_RESP) - 1;
+
 typedef enum {
     UNKNOWN = 0,    // Unrecognized command
     CHECK,          // Check a single key

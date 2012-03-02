@@ -15,6 +15,12 @@
  */
 #define MULTI_OP_SIZE 32
 
+/**
+ * Invoked in any context with a bloom_conn_handler
+ * to send out an INTERNAL_ERROR message to the client.
+ */
+#define INTERNAL_ERROR() (handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN))
+
 /* Static method declarations */
 static void handle_check_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_check_multi_cmd(bloom_conn_handler *handle, char *args, int args_len);
@@ -23,6 +29,7 @@ static void handle_set_multi_cmd(bloom_conn_handler *handle, char *args, int arg
 static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_drop_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_close_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len);
 
 static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int num_keys, char *res_buf, int end_of_input);
 static inline void handle_client_resp(bloom_conn_info *conn, char* resp_mesg, int resp_len);
@@ -86,6 +93,8 @@ int handle_client_connect(bloom_conn_handler *handle) {
                 handle_close_cmd(handle, arg_buf, arg_buf_len);
                 break;
             case LIST:
+                handle_list_cmd(handle, arg_buf, arg_buf_len);
+                break;
             case INFO:
             case FLUSH:
             default:
@@ -289,7 +298,7 @@ static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_l
             if (config) free(config);
             break;
         default:
-            handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
+            INTERNAL_ERROR();
             if (config) free(config);
             break;
     }
@@ -328,7 +337,7 @@ static void handle_filt_cmd(bloom_conn_handler *handle, char *args, int args_len
             handle_client_resp(handle->conn, (char*)FILT_NOT_EXIST, FILT_NOT_EXIST_LEN);
             break;
         default:
-            handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
+            INTERNAL_ERROR();
             break;
     }
 }
@@ -340,6 +349,49 @@ static void handle_drop_cmd(bloom_conn_handler *handle, char *args, int args_len
 static void handle_close_cmd(bloom_conn_handler *handle, char *args, int args_len) {
     handle_filt_cmd(handle, args, args_len, filtmgr_unmap_filter);
 }
+
+
+static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    // List all the filters
+    bloom_filter_list_head *head;
+    int res = filtmgr_list_filters(handle->mgr, &head);
+    if (res != 0) {
+        INTERNAL_ERROR();
+        return;
+    }
+
+    // Allocate buffers for the responses
+    int num_out = (head->size+2);
+    char** output_bufs = malloc(num_out * sizeof(char*));
+    int* output_bufs_len = malloc(num_out * sizeof(int));
+
+    // Setup the START/END lines
+    output_bufs[0] = (char*)&START_RESP;
+    output_bufs_len[0] = START_RESP_LEN;
+    output_bufs[head->size+1] = (char*)&END_RESP;
+    output_bufs_len[head->size+1] = END_RESP_LEN;
+
+    // Generate the responses
+    int bytes;
+    char *resp;
+    bloom_filter_list *node = head->head;
+    for (int i=0; i < head->size; i++) {
+        bytes = asprintf(&resp, "%s\n", node->filter_name);
+        output_bufs[i+1] = resp;
+        output_bufs_len[i+1] = bytes;
+        node = node->next;
+    }
+
+    // Write the response
+    send_client_response(handle->conn, output_bufs, output_bufs_len, num_out);
+
+    // Cleanup
+    for (int i=1; i <= head->size; i++) free(output_bufs[i]);
+    free(output_bufs);
+    free(output_bufs_len);
+    filtmgr_cleanup_list(head);
+}
+
 
 /**
  * Helper to handle sending the response to the multi commands,
@@ -363,7 +415,7 @@ static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int nu
                 handle_client_resp(handle->conn, (char*)FILT_NOT_EXIST, FILT_NOT_EXIST_LEN);
                 break;
             default:
-                handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
+                INTERNAL_ERROR();
                 break;
         }
         return 1;
@@ -387,7 +439,7 @@ static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int nu
                 resp_buf_lens[i] = (last_key) ? YES_RESP_LEN: YES_SPACE_LEN;
                 break;
             default:
-                handle_client_resp(handle->conn, (char*)INTERNAL_ERR, INTERNAL_ERR_LEN);
+                INTERNAL_ERROR();
                 return 1;
         }
     }
