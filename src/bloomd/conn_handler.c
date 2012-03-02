@@ -30,6 +30,7 @@ static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_l
 static void handle_drop_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_close_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static void handle_info_cmd(bloom_conn_handler *handle, char *args, int args_len);
 
 static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int num_keys, char *res_buf, int end_of_input);
 static inline void handle_client_resp(bloom_conn_info *conn, char* resp_mesg, int resp_len);
@@ -96,6 +97,8 @@ int handle_client_connect(bloom_conn_handler *handle) {
                 handle_list_cmd(handle, arg_buf, arg_buf_len);
                 break;
             case INFO:
+                handle_info_cmd(handle, arg_buf, arg_buf_len);
+                break;
             case FLUSH:
             default:
                 handle_client_err(handle->conn, (char*)&CMD_NOT_SUP, CMD_NOT_SUP_LEN);
@@ -406,6 +409,84 @@ static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len
     free(output_bufs);
     free(output_bufs_len);
     filtmgr_cleanup_list(head);
+}
+
+
+// Callback invoked by list command to create an output
+// line for each filter. We hold a filter handle which we
+// can use to get some info about it
+static void info_filter_cb(void *data, char *filter_name, bloom_filter *filter) {
+    // Cast the intput
+    char **out = data;
+
+    // Get some metrics
+    filter_counters *counters = bloomf_counters(filter);
+    uint64_t capacity = bloomf_capacity(filter);
+    uint64_t storage = bloomf_byte_size(filter);
+    uint64_t size = bloomf_size(filter);
+    uint64_t checks = counters->check_hits + counters->check_misses;
+    uint64_t sets = counters->set_hits + counters->set_misses;
+
+    // Generate a formatted string output
+    asprintf(out, "capacity %llu\n\
+checks %llu\n\
+check_hits %llu\n\
+check_misses %llu\n\
+page_ins %llu\n\
+page_outs %llu\n\
+probability %f\n\
+sets %llu\n\
+set_hits %llu\n\
+set_misses %llu\n\
+size %llu\n\
+storage %llu\n",
+    capacity, checks, counters->check_hits, counters->check_misses,
+    counters->page_ins, counters->page_outs, filter->filter_config.default_probability,
+    sets, counters->set_hits, counters->set_misses, size, storage);
+}
+
+static void handle_info_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    // If we have no args, complain.
+    if (!args) {
+        handle_client_err(handle->conn, (char*)&FILT_NEEDED, FILT_NEEDED_LEN);
+        return;
+    }
+
+    // Scan past the filter name
+    char *key;
+    int key_len;
+    int after = buffer_after_terminator(args, args_len, ' ', &key, &key_len);
+    if (after == 0) {
+        handle_client_err(handle->conn, (char*)&UNEXPECTED_ARGS, UNEXPECTED_ARGS_LEN);
+        return;
+    }
+
+    // Create output buffers
+    char *output[] = {(char*)&START_RESP, NULL, (char*)&END_RESP};
+    int lens[] = {START_RESP_LEN, 0, END_RESP_LEN};
+
+    // Invoke the callback to get the filter stats
+    int res = filtmgr_filter_cb(handle->mgr, args, info_filter_cb, &output[1]);
+
+    // Check for no filter
+    if (res != 0) {
+        switch (res) {
+            case -1:
+                handle_client_resp(handle->conn, (char*)FILT_NOT_EXIST, FILT_NOT_EXIST_LEN);
+                break;
+            default:
+                INTERNAL_ERROR();
+                break;
+        }
+        return;
+    }
+
+    // Adjust the buffer size
+    lens[1] = strlen(output[1]);
+
+    // Write out the bufs
+    send_client_response(handle->conn, (char**)&output, (int*)&lens, 3);
+    free(output[1]);
 }
 
 
