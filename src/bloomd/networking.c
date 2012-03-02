@@ -16,6 +16,8 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <netinet/tcp.h>
+#include <fcntl.h>
 #include <sys/uio.h>
 #include <syslog.h>
 #include <unistd.h>
@@ -393,14 +395,31 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
         return;
     }
 
-    // Setup the socket
-    struct timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 50;
-    if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv))) {
-        syslog(LOG_ERR, "Failed to set SO_RCVTIMEO on connection! %s.", strerror(errno));
+    // Setup the socket to be non-blocking
+    int sock_flags = fcntl(client_fd, F_GETFL, 0);
+    if (sock_flags < 0) {
+        syslog(LOG_ERR, "Failed to get socket flags on connection! %s.", strerror(errno));
         close(client_fd);
         return;
+    }
+    if (fcntl(client_fd, F_SETFL, sock_flags | O_NONBLOCK)) {
+        syslog(LOG_ERR, "Failed to set O_NONBLOCK on connection! %s.", strerror(errno));
+        close(client_fd);
+        return;
+    }
+
+    /**
+     * Set TCP_NODELAY. This will allow us to send small response packets more
+     * quickly, since our responses are rarely large enough to consume a packet.
+     */
+    int flag = 1;
+    if (setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int))) {
+        syslog(LOG_WARNING, "Failed to set TCP_NODELAY on connection! %s.", strerror(errno));
+    }
+
+    // Set keep alive
+    if(setsockopt(client_fd, SOL_SOCKET, SO_KEEPALIVE, &flag, sizeof(int))) {
+        syslog(LOG_WARNING, "Failed to set SO_KEEPALIVE on connection! %s.", strerror(errno));
     }
 
     // Increase the buffer sizes
