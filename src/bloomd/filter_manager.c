@@ -373,7 +373,7 @@ int filtmgr_filter_cb(bloom_filtmgr *mgr, char *filter_name, filter_cb cb, void*
     if (!filt) return -1;
 
     // Callback
-    cb(data, filt->filter);
+    cb(data, filter_name, filt->filter);
 
     // Return the filter
     return_filter(mgr, filter_name);

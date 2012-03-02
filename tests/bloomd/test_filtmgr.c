@@ -589,7 +589,7 @@ START_TEST(test_mgr_restore)
 }
 END_TEST
 
-void test_mgr_cb(void *data, bloom_filter* filter) {
+void test_mgr_cb(void *data, char *filter_name, bloom_filter* filter) {
     int *out = data;
     *out = 1;
 }

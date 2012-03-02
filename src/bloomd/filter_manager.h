@@ -129,7 +129,7 @@ void filtmgr_cleanup_list(bloom_filter_list_head *head);
  * It should be used to read metrics, size information, etc.
  * @return 0 on success, -1 if the filter does not exist.
  */
-typedef void(*filter_cb)(void* in, bloom_filter *filter);
+typedef void(*filter_cb)(void* in, char *filter_name, bloom_filter *filter);
 int filtmgr_filter_cb(bloom_filtmgr *mgr, char *filter_name, filter_cb cb, void* data);
 
 
