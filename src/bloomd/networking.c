@@ -22,6 +22,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include "conn_handler.h"
+#include "spinlock.h"
 
 
 /**
@@ -127,7 +128,7 @@ struct bloom_networking {
 
     ev_async loop_async;      // Allows async interrupts
     async_event *events;      // List of pending events
-    pthread_mutex_t event_lock; // Protects the events
+    bloom_spinlock event_lock; // Protects the events
 
     volatile int num_threads; // Number of threads in the threads list
     pthread_t *threads;       // Array of thread references
@@ -244,7 +245,7 @@ int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking *
     // Initialize
     pthread_mutex_init(&netconf->leader_lock, NULL);
     pthread_mutex_init(&netconf->conns_lock, NULL);
-    pthread_mutex_init(&netconf->event_lock, NULL);
+    INIT_BLOOM_SPIN(&netconf->event_lock);
     netconf->events = NULL;
     netconf->config = config;
     netconf->mgr = mgr;
@@ -314,14 +315,14 @@ static void schedule_async(bloom_networking *netconf,
     event->watcher = watcher;
 
     // Always lock for safety!
-    pthread_mutex_lock(&netconf->event_lock);
+    LOCK_BLOOM_SPIN(&netconf->event_lock);
 
     // Set the next pointer, and add us to the head
     event->next = netconf->events;
     netconf->events = event;
 
     // Unlock
-    pthread_mutex_unlock(&netconf->event_lock);
+    UNLOCK_BLOOM_SPIN(&netconf->event_lock);
 
     // Send to our async watcher
     ev_async_send(&netconf->loop_async);
@@ -359,7 +360,7 @@ static void handle_async_event(ev_async *watcher, int revents) {
     worker_ev_userdata *data = ev_userdata();
 
     // Lock the events
-    pthread_mutex_lock(&data->netconf->event_lock);
+    LOCK_BLOOM_SPIN(&data->netconf->event_lock);
 
     async_event *event = data->netconf->events;
     async_event *next;
@@ -387,7 +388,7 @@ static void handle_async_event(ev_async *watcher, int revents) {
     data->netconf->events = NULL;
 
     // Release the lock
-    pthread_mutex_unlock(&data->netconf->event_lock);
+    UNLOCK_BLOOM_SPIN(&data->netconf->event_lock);
 }
 
 
