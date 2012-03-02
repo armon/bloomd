@@ -403,6 +403,15 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
         return;
     }
 
+    // Increase the buffer sizes
+    int buf_size = 1024*1024; // 1MB
+    if (setsockopt(client_fd, SOL_SOCKET, SO_RCVBUF, &buf_size, sizeof(buf_size))) {
+        syslog(LOG_WARNING, "Failed to set SO_RCVBUF on connection! %s.", strerror(errno));
+    }
+    if (setsockopt(client_fd, SOL_SOCKET, SO_SNDBUF, &buf_size, sizeof(buf_size))) {
+        syslog(LOG_WARNING, "Failed to set SO_SNDBUF on connection! %s.", strerror(errno));
+    }
+
     // Debug info
     syslog(LOG_DEBUG, "Accepted client connection: %s %d [%d]",
             inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
