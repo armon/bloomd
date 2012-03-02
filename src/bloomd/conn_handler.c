@@ -350,6 +350,18 @@ static void handle_close_cmd(bloom_conn_handler *handle, char *args, int args_le
     handle_filt_cmd(handle, args, args_len, filtmgr_unmap_filter);
 }
 
+// Callback invoked by list command to create an output
+// line for each filter. We hold a filter handle which we
+// can use to get some info about it
+static void list_filter_cb(void *data, char *filter_name, bloom_filter *filter) {
+    char **out = data;
+    asprintf(out, "%s %f %llu %llu %llu\n",
+            filter_name,
+            filter->filter_config.default_probability,
+            bloomf_byte_size(filter),
+            bloomf_capacity(filter),
+            bloomf_size(filter));
+}
 
 static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len) {
     // List all the filters
@@ -372,13 +384,17 @@ static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len
     output_bufs_len[head->size+1] = END_RESP_LEN;
 
     // Generate the responses
-    int bytes;
     char *resp;
     bloom_filter_list *node = head->head;
     for (int i=0; i < head->size; i++) {
-        bytes = asprintf(&resp, "%s\n", node->filter_name);
-        output_bufs[i+1] = resp;
-        output_bufs_len[i+1] = bytes;
+        res = filtmgr_filter_cb(handle->mgr, node->filter_name, list_filter_cb, &resp);
+        if (res == 0) {
+            output_bufs[i+1] = resp;
+            output_bufs_len[i+1] = strlen(resp);
+        } else { // Skip this output
+            output_bufs[i+1] = NULL;
+            output_bufs_len[i+1] = 0;
+        }
         node = node->next;
     }
 
@@ -386,7 +402,7 @@ static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len
     send_client_response(handle->conn, output_bufs, output_bufs_len, num_out);
 
     // Cleanup
-    for (int i=1; i <= head->size; i++) free(output_bufs[i]);
+    for (int i=1; i <= head->size; i++) if(output_bufs[i]) free(output_bufs[i]);
     free(output_bufs);
     free(output_bufs_len);
     filtmgr_cleanup_list(head);
