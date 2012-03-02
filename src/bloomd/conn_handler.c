@@ -31,6 +31,7 @@ static void handle_drop_cmd(bloom_conn_handler *handle, char *args, int args_len
 static void handle_close_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_info_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static void handle_flush_cmd(bloom_conn_handler *handle, char *args, int args_len);
 
 static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int num_keys, char *res_buf, int end_of_input);
 static inline void handle_client_resp(bloom_conn_info *conn, char* resp_mesg, int resp_len);
@@ -65,7 +66,6 @@ int handle_client_connect(bloom_conn_handler *handle) {
     while (1) {
         status = extract_to_terminator(handle->conn, '\n', &buf, &buf_len, &should_free);
         if (status == -1) return 0; // Return if no command is available
-        //printf("Buffer: %s\n", buf);
 
         // Determine the command type
         conn_cmd_type type = determine_client_command(buf, buf_len, &arg_buf, &arg_buf_len);
@@ -100,6 +100,8 @@ int handle_client_connect(bloom_conn_handler *handle) {
                 handle_info_cmd(handle, arg_buf, arg_buf_len);
                 break;
             case FLUSH:
+                handle_flush_cmd(handle, arg_buf, arg_buf_len);
+                break;
             default:
                 handle_client_err(handle->conn, (char*)&CMD_NOT_SUP, CMD_NOT_SUP_LEN);
                 break;
@@ -487,6 +489,37 @@ static void handle_info_cmd(bloom_conn_handler *handle, char *args, int args_len
     // Write out the bufs
     send_client_response(handle->conn, (char**)&output, (int*)&lens, 3);
     free(output[1]);
+}
+
+
+static void handle_flush_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    // If we have a specfic filter, use filt_cmd
+    if (args) {
+        handle_filt_cmd(handle, args, args_len, filtmgr_flush_filter);
+        return;
+    }
+
+    // List all the filters
+    bloom_filter_list_head *head;
+    int res = filtmgr_list_filters(handle->mgr, &head);
+    if (res != 0) {
+        INTERNAL_ERROR();
+        return;
+    }
+
+    // Flush all, ignore errors since
+    // filters might get deleted in the process
+    bloom_filter_list *node = head->head;
+    while (node) {
+        filtmgr_flush_filter(handle->mgr, node->filter_name);
+        node = node->next;
+    }
+
+    // Respond
+    handle_client_resp(handle->conn, (char*)DONE_RESP, DONE_RESP_LEN);
+
+    // Cleanup
+    filtmgr_cleanup_list(head);
 }
 
 
