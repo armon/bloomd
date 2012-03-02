@@ -51,13 +51,6 @@ void close_client_connection(bloom_conn_info *conn);
 int send_client_response(bloom_conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
 
 /**
- * Returns the number of bytes ready to be read.
- * @arg conn The client connection
- * @return The number of bytes available to read
- */
-int available_client_bytes(bloom_conn_info *conn);
-
-/**
  * This method is used to conveniently extract commands from the
  * command buffer. It scans up to a terminator, and then sets the
  * buf to the start of the buffer, and buf_len to the length

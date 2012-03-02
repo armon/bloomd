@@ -845,22 +845,6 @@ int send_client_response(conn_info *conn, char **response_buffers, int *buf_size
 
 
 /**
- * Returns the number of bytes ready to be read.
- * @arg conn The client connection
- * @return The number of bytes available to read
- */
-int available_client_bytes(conn_info *conn) {
-    int avail_bytes;
-    if (conn->write_cursor < conn->read_cursor) {
-        avail_bytes = conn->buf_size - conn->read_cursor + conn->write_cursor;
-    } else {
-        avail_bytes = conn->write_cursor - conn->read_cursor;
-    }
-    return avail_bytes;
-}
-
-
-/**
  * This method is used to conveniently extract commands from the
  * command buffer. It scans up to a terminator, and then sets the
  * buf to the start of the buffer, and buf_len to the length
