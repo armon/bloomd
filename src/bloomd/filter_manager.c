@@ -15,8 +15,9 @@
  * references, to allow a sane close to take place.
  */
 typedef struct {
-    volatile int is_active;          // Set to 0 when we are trying to delete it
+    volatile int is_active;         // Set to 0 when we are trying to delete it
     volatile int32_t ref_count;     // Used to manage outstanding handles
+    volatile int is_hot;            // Used to mark a filter as hot
 
     bloom_filter *filter;    // The actual filter object
     pthread_rwlock_t rwlock; // Protects the filter
@@ -29,9 +30,6 @@ struct bloom_filtmgr {
     bloom_hashmap *filter_map;  // Maps key names -> bloom_filter_wrapper
     bloom_spinlock filter_lock; // Protects the filter map
 
-    bloom_hashmap *hot_filters; // Maps key names of hot filters
-    bloom_spinlock hot_lock;    // Protects the hot filters
-
     pthread_mutex_t create_lock; // Serializes create operatiosn
 };
 
@@ -41,16 +39,13 @@ struct bloom_filtmgr {
 static const char FOLDER_PREFIX[] = "bloomd.";
 static const int FOLDER_PREFIX_LEN = sizeof(FOLDER_PREFIX) - 1;
 
-static void add_hot_filter(bloom_filtmgr *mgr, char *filter_name);
 static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name);
 static void return_filter(bloom_filtmgr *mgr, char *filter_name);
 static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt, int should_delete);
-static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config);
+static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config, int is_hot);
 static int filter_map_list_cb(void *data, const char *key, void *value);
 static int filter_map_list_cold_cb(void *data, const char *key, void *value);
 static int filter_map_delete_cb(void *data, const char *key, void *value);
-static int filter_map_set_cold_cb(void *data, const char *key, void *value);
-static int filter_map_set_hot_cb(void *data, const char *key, void *value);
 static int load_existing_filters(bloom_filtmgr *mgr);
 
 /**
@@ -68,20 +63,12 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
 
     // Initialize the locks
     INIT_BLOOM_SPIN(&m->filter_lock);
-    INIT_BLOOM_SPIN(&m->hot_lock);
     pthread_mutex_init(&m->create_lock, NULL);
 
     // Allocate the hash tables
     int res = hashmap_init(0, &m->filter_map);
     if (res) {
         syslog(LOG_ERR, "Failed to allocate filter hash map!");
-        free(m);
-        return -1;
-    }
-    res = hashmap_init(0, &m->hot_filters);
-    if (res) {
-        syslog(LOG_ERR, "Failed to allocate hot filter hash map!");
-        hashmap_destroy(m->filter_map);
         free(m);
         return -1;
     }
@@ -104,7 +91,6 @@ int destroy_filter_manager(bloom_filtmgr *mgr) {
 
     // Destroy the hashmaps
     hashmap_destroy(mgr->filter_map);
-    hashmap_destroy(mgr->hot_filters);
 
     // Free the manager
     free(mgr);
@@ -161,11 +147,11 @@ int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int n
         *(result+i) = res;
     }
 
+    // Mark as hot
+    filt->is_hot = 1;
+
     // Release the lock
     pthread_rwlock_unlock(&filt->rwlock);
-
-    // Mark as hot
-    add_hot_filter(mgr, filter_name);
 
     // Return the filter
     return_filter(mgr, filter_name);
@@ -198,11 +184,11 @@ int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num
         *(result+i) = res;
     }
 
+    // Mark as hot
+    filt->is_hot = 1;
+
     // Release the lock
     pthread_rwlock_unlock(&filt->rwlock);
-
-    // Mark as hot
-    add_hot_filter(mgr, filter_name);
 
     // Return the filter
     return_filter(mgr, filter_name);
@@ -239,7 +225,7 @@ int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *c
         bloom_config *config = (custom_config) ? custom_config : mgr->config;
 
         // Add the filter
-        res = add_filter(mgr, filter_name, config);
+        res = add_filter(mgr, filter_name, config, 1);
         if (res != 0) res = -2; // Internal error
     } else
         res = -1; // Already exists
@@ -321,6 +307,7 @@ int filtmgr_list_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head) {
     return 0;
 }
 
+
 /**
  * Allocates space for and returns a linked
  * list of all the cold filters. This has the side effect
@@ -330,30 +317,13 @@ int filtmgr_list_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head) {
  * @return 0 on success.
  */
 int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head) {
-    // Allocate a new hash map, 2x the size of the filters
-    // This is to avoid having to do a resize during the callback
-    int size = hashmap_size(mgr->filter_map);
-    bloom_hashmap *filters = NULL;
-    int res = hashmap_init(size*2, &filters);
-    if (res) return -1;
-
-    // Add all the filters to the map, value 0
-    LOCK_BLOOM_SPIN(&mgr->filter_lock);
-    hashmap_iter(mgr->filter_map, filter_map_set_cold_cb, filters);
-    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
-
-    // Mark the hot filters with a 1, clears the hot filters
-    LOCK_BLOOM_SPIN(&mgr->hot_lock);
-    hashmap_iter(mgr->hot_filters, filter_map_set_hot_cb, filters);
-    hashmap_clear(mgr->hot_filters);
-    UNLOCK_BLOOM_SPIN(&mgr->hot_lock);
-
-    // Iterate through and build a list now with only cold values
+    // Allocate the head of a new hashmap
     bloom_filter_list_head *h = *head = calloc(1, sizeof(bloom_filter_list_head));
-    hashmap_iter(filters, filter_map_list_cold_cb, h);
 
-    // Destroy the hash map
-    hashmap_destroy(filters);
+    // Scan for the cold filters
+    LOCK_BLOOM_SPIN(&mgr->filter_lock);
+    hashmap_iter(mgr->filter_map, filter_map_list_cold_cb, h);
+    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
 
     return 0;
 }
@@ -395,17 +365,6 @@ void filtmgr_cleanup_list(bloom_filter_list_head *head) {
     free(head);
 }
 
-
-/**
- * Marks a filter as hot. Does it in a thread safe way.
- * @arg mgr The manager
- * @arg filter_name The name of the hot filter
- */
-static void add_hot_filter(bloom_filtmgr *mgr, char *filter_name) {
-    LOCK_BLOOM_SPIN(&mgr->hot_lock);
-    hashmap_put(mgr->hot_filters, filter_name, NULL);
-    UNLOCK_BLOOM_SPIN(&mgr->hot_lock);
-}
 
 /**
  * Gets the bloom filter in a thread safe way.
@@ -485,13 +444,15 @@ static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt, int sh
  * @arg mgr The manager to add to
  * @arg filter_name The name of the filter
  * @arg config The configuration for the filter
+ * @arg is_hot Is the filter hot. False for existing.
  * @return 0 on success, -1 on error
  */
-static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config) {
+static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config, int is_hot) {
     // Create the filter
     bloom_filter_wrapper *filt = calloc(1, sizeof(bloom_filter_wrapper));
     filt->ref_count = 1;
     filt->is_active = 1;
+    filt->is_hot = is_hot;
     pthread_rwlock_init(&filt->rwlock, NULL);
 
     // Set the custom filter if its not the same
@@ -510,9 +471,6 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
     LOCK_BLOOM_SPIN(&mgr->filter_lock);
     hashmap_put(mgr->filter_map, filter_name, filt);
     UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
-
-    // Mark as hot
-    add_hot_filter(mgr, filter_name);
 
     return 0;
 }
@@ -545,15 +503,24 @@ static int filter_map_list_cb(void *data, const char *key, void *value) {
 
 /**
  * Called as part of the hashmap callback
- * to list all the filters. Only works if value is
+ * to list cold filters. Only works if value is
  * not NULL.
  */
 static int filter_map_list_cold_cb(void *data, const char *key, void *value) {
-    // Only continue if the value is 0
-    if (value != 0) return 0;
-
     // Cast the inputs
     bloom_filter_list_head *head = data;
+    bloom_filter_wrapper *filt = value;
+
+    // Check if hot, turn off and skip
+    if (filt->is_hot) {
+        filt->is_hot = 0;
+        return 0;
+    }
+
+    // Check if proxied
+    if (bloomf_is_proxied(filt->filter)) {
+        return 0;
+    }
 
     // Allocate a new entry
     bloom_filter_list *node = malloc(sizeof(bloom_filter_list));
@@ -579,26 +546,6 @@ static int filter_map_delete_cb(void *data, const char *key, void *value) {
 
     // Delete, but not the underlying files
     delete_filter(mgr, filt, 0);
-    return 0;
-}
-
-/**
- * Sets a filter in a hash map with a value of 0
- * to indicate that it is cold
- */
-static int filter_map_set_cold_cb(void *data, const char *key, void *value) {
-    bloom_hashmap *map = data;
-    hashmap_put(map, (char*)key, 0);
-    return 0;
-}
-
-/**
- * Sets a filter in a hash map with a value of 1
- * to indicate that it is hot
- */
-static int filter_map_set_hot_cb(void *data, const char *key, void *value) {
-    bloom_hashmap *map = data;
-    hashmap_put(map, (char*)key, (void*)1);
     return 0;
 }
 
@@ -643,7 +590,7 @@ static int load_existing_filters(bloom_filtmgr *mgr) {
     for (int i=0; i< num; i++) {
         char *folder_name = namelist[i]->d_name;
         char *filter_name = folder_name + FOLDER_PREFIX_LEN;
-        add_filter(mgr, filter_name, mgr->config);
+        add_filter(mgr, filter_name, mgr->config, 0);
     }
 
     for (int i=0; i < num; i++) free(namelist[i]);
