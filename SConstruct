@@ -21,7 +21,8 @@ objs =  envbloomd_with_err.Object('src/bloomd/config', 'src/bloomd/config.c') + 
         envbloomd_with_err.Object('src/bloomd/conn_handler', 'src/bloomd/conn_handler.c') + \
         envbloomd_with_err.Object('src/bloomd/hashmap', 'src/bloomd/hashmap.c') + \
         envbloomd_with_err.Object('src/bloomd/filter', 'src/bloomd/filter.c') + \
-        envbloomd_with_err.Object('src/bloomd/filter_manager', 'src/bloomd/filter_manager.c')
+        envbloomd_with_err.Object('src/bloomd/filter_manager', 'src/bloomd/filter_manager.c') + \
+        envbloomd_with_err.Object('src/bloomd/background', 'src/bloomd/background.c')
 
 envbloomd_with_err.Program('bloomd', spooky + murmur + bloom + inih + objs + ["src/bloomd/bloomd.c"])
 envbloomd_without_err.Program('test_bloomd_runner', spooky + murmur + bloom + inih + objs + Glob("tests/bloomd/runner.c"), LIBS=["libcheck"])

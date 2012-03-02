@@ -1,5 +1,6 @@
 #ifndef BLOOM_BACKGROUND_H
 #define BLOOM_BACKGROUND_H
+#include <pthread.h>
 #include "config.h"
 #include "filter_manager.h"
 
@@ -10,8 +11,10 @@
  * @arg mgr The filter manager to use
  * @arg should_run Pointer to an integer that is set to 0 to
  * indicate the thread should exit.
+ * @arg t The output thread
+ * @return 1 if the thread was started
  */
-void start_flush_thread(bloom_config *config, bloom_filtmgr *mgr, int *should_run);
+int start_flush_thread(bloom_config *config, bloom_filtmgr *mgr, int *should_run, pthread_t *t);
 
 /**
  * Starts a cold unmap thread which on every
@@ -20,7 +23,9 @@ void start_flush_thread(bloom_config *config, bloom_filtmgr *mgr, int *should_ru
  * @arg mgr The filter manager to use
  * @arg should_run Pointer to an integer that is set to 0 to
  * indicate the thread should exit.
+ * @arg t The output thread
+ * @return 1 if the thread was started
  */
-void start_cold_unmap_thread(bloom_config *config, bloom_filtmgr *mgr, int *should_run);
+int start_cold_unmap_thread(bloom_config *config, bloom_filtmgr *mgr, int *should_run, pthread_t *);
 
 #endif

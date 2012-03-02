@@ -16,6 +16,7 @@
 #include "config.h"
 #include "networking.h"
 #include "filter_manager.h"
+#include "background.h"
 
 /**
  * By default we should run. Our signal
@@ -149,7 +150,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // TODO: Start the background tasks
+    // Start the background tasks
+    int flush_on, unmap_on;
+    pthread_t flush_thread, unmap_thread;
+    flush_on = start_flush_thread(config, mgr, &SHOULD_RUN, &flush_thread);
+    unmap_on = start_cold_unmap_thread(config, mgr, &SHOULD_RUN, &unmap_thread);
 
     // Initialize the networking
     bloom_networking *netconf = NULL;
@@ -178,7 +183,9 @@ int main(int argc, char **argv) {
     // Begin the shutdown/cleanup
     shutdown_networking(netconf);
 
-    // TODO: shutdown the background tasks
+    // Shutdown the background tasks
+    if (flush_on) pthread_join(flush_thread, NULL);
+    if (unmap_on) pthread_join(unmap_thread, NULL);
 
     // Cleanup the filters
     destroy_filter_manager(mgr);
