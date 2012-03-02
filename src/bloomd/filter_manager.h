@@ -1,6 +1,7 @@
 #ifndef BLOOM_FILTER_MANAGER_H
 #define BLOOM_FILTER_MANAGER_H
 #include "config.h"
+#include "filter.h"
 
 /**
  * Opaque handle to the filter manager
@@ -119,5 +120,17 @@ int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head)
  * Convenience method to cleanup a filter list.
  */
 void filtmgr_cleanup_list(bloom_filter_list_head *head);
+
+/**
+ * This method allows a callback function to be invoked with bloom filter.
+ * The purpose of this is to ensure that a bloom filter is not deleted or
+ * otherwise destroyed while being referenced. The filter is not locked
+ * so clients should under no circumstance use this to read/write to the filter.
+ * It should be used to read metrics, size information, etc.
+ * @return 0 on success, -1 if the filter does not exist.
+ */
+typedef void(*filter_cb)(void* in, bloom_filter *filter);
+int filtmgr_filter_cb(bloom_filtmgr *mgr, char *filter_name, filter_cb cb, void* data);
+
 
 #endif

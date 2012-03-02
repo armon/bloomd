@@ -110,6 +110,8 @@ START_TEST(test_mgr_list)
     res = filtmgr_drop_filter(mgr, "bar2");
     fail_unless(res == 0);
 
+    filtmgr_cleanup_list(head);
+
     res = destroy_filter_manager(mgr);
     fail_unless(res == 0);
 }
@@ -129,6 +131,7 @@ START_TEST(test_mgr_list_no_filters)
     res = filtmgr_list_filters(mgr, &head);
     fail_unless(res == 0);
     fail_unless(head->size == 0);
+    filtmgr_cleanup_list(head);
 
     res = destroy_filter_manager(mgr);
     fail_unless(res == 0);
@@ -364,6 +367,7 @@ START_TEST(test_mgr_list_cold_no_filters)
     res = filtmgr_list_cold_filters(mgr, &head);
     fail_unless(res == 0);
     fail_unless(head->size == 0);
+    filtmgr_cleanup_list(head);
 
     res = destroy_filter_manager(mgr);
     fail_unless(res == 0);
@@ -422,6 +426,7 @@ START_TEST(test_mgr_list_cold)
     fail_unless(res == 0);
     res = filtmgr_drop_filter(mgr, "zab7");
     fail_unless(res == 0);
+    filtmgr_cleanup_list(head);
 
     res = destroy_filter_manager(mgr);
     fail_unless(res == 0);
@@ -577,6 +582,38 @@ START_TEST(test_mgr_restore)
     fail_unless(result[2]);
 
     res = filtmgr_drop_filter(mgr, "zab8");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+void test_mgr_cb(void *data, bloom_filter* filter) {
+    int *out = data;
+    *out = 1;
+}
+
+START_TEST(test_mgr_callback)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+    config.in_memory = 1;
+    config.initial_capacity = 10000;
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "cb1", NULL);
+    fail_unless(res == 0);
+
+    int val = 0;
+    res = filtmgr_filter_cb(mgr, "cb1", test_mgr_cb, &val);
+    fail_unless(val == 1);
+
+    res = filtmgr_drop_filter(mgr, "cb1");
     fail_unless(res == 0);
 
     res = destroy_filter_manager(mgr);

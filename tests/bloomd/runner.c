@@ -95,6 +95,7 @@ int main(void)
     tcase_add_test(tc4, test_mgr_create_custom_config);
     tcase_add_test(tc4, test_mgr_grow);
     tcase_add_test(tc4, test_mgr_restore);
+    tcase_add_test(tc4, test_mgr_callback);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);

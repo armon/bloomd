@@ -1,5 +1,6 @@
 #ifndef BLOOM_FILTER_H
 #define BLOOM_FILTER_H
+#include <pthread.h>
 #include "config.h"
 #include "spinlock.h"
 #include "sbf.h"
