@@ -66,6 +66,15 @@ typedef struct {
     int ready_events;
 } worker_ev_userdata;
 
+/**
+ * Represents a simple circular buffer
+ */
+typedef struct {
+    int write_cursor;
+    int read_cursor;
+    uint32_t buf_size;
+    char *buffer;
+} circular_buffer;
 
 /**
  * Stores the connection specific data.
@@ -74,10 +83,8 @@ typedef struct {
 struct conn_info {
     ev_io client;
     int should_schedule;
-    int write_cursor;
-    int read_cursor;
-    uint32_t buf_size;
-    char *buffer;
+    circular_buffer input;
+    circular_buffer output;
 };
 typedef struct conn_info conn_info;
 
@@ -140,6 +147,15 @@ static void handle_async_event(ev_async *watcher, int revents);
 static void handle_new_client(int listen_fd, worker_ev_userdata* data);
 static int handle_client_data(ev_io *watch, worker_ev_userdata* data);
 static void invoke_event_handler(worker_ev_userdata* data);
+
+// Utility methods
+static int set_client_sockopts(int client_fd);
+static conn_info* get_fd_conn(int client_fd, bloom_networking *netconf);
+
+// Circular buffer method
+static void init_circular_buffer(circular_buffer *buf);
+static void alloc_circular_buffer(circular_buffer *buf);
+
 
 
 /**
@@ -395,95 +411,21 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
         return;
     }
 
-    // Setup the socket to be non-blocking
-    int sock_flags = fcntl(client_fd, F_GETFL, 0);
-    if (sock_flags < 0) {
-        syslog(LOG_ERR, "Failed to get socket flags on connection! %s.", strerror(errno));
-        close(client_fd);
+    // Setup the socket
+    if (set_client_sockopts(client_fd)) {
         return;
-    }
-    if (fcntl(client_fd, F_SETFL, sock_flags | O_NONBLOCK)) {
-        syslog(LOG_ERR, "Failed to set O_NONBLOCK on connection! %s.", strerror(errno));
-        close(client_fd);
-        return;
-    }
-
-    /**
-     * Set TCP_NODELAY. This will allow us to send small response packets more
-     * quickly, since our responses are rarely large enough to consume a packet.
-     */
-    int flag = 1;
-    if (setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int))) {
-        syslog(LOG_WARNING, "Failed to set TCP_NODELAY on connection! %s.", strerror(errno));
-    }
-
-    // Set keep alive
-    if(setsockopt(client_fd, SOL_SOCKET, SO_KEEPALIVE, &flag, sizeof(int))) {
-        syslog(LOG_WARNING, "Failed to set SO_KEEPALIVE on connection! %s.", strerror(errno));
-    }
-
-    // Increase the buffer sizes
-    int buf_size = 1024*1024; // 1MB
-    if (setsockopt(client_fd, SOL_SOCKET, SO_RCVBUF, &buf_size, sizeof(buf_size))) {
-        syslog(LOG_WARNING, "Failed to set SO_RCVBUF on connection! %s.", strerror(errno));
-    }
-    if (setsockopt(client_fd, SOL_SOCKET, SO_SNDBUF, &buf_size, sizeof(buf_size))) {
-        syslog(LOG_WARNING, "Failed to set SO_SNDBUF on connection! %s.", strerror(errno));
     }
 
     // Debug info
     syslog(LOG_DEBUG, "Accepted client connection: %s %d [%d]",
             inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
 
-    /**
-     * Check if we have a cached conn_info object for this fd
-     * in the conns list already. If not, then we need to allocate
-     * a conn_info object and possibly resize the conns array.
-     */
-    conn_info *conn = NULL;
-    if (client_fd < data->netconf->conn_list_size) {
-        conn = data->netconf->conns[client_fd];
-    }
+    // Get the associated conn object
+    conn_info *conn = get_fd_conn(client_fd, data->netconf);
 
-    if (conn == NULL) {
-        // Create a new blank conn object
-        conn = calloc(1, sizeof(conn_info));
-
-        // Lock the conns list
-        pthread_mutex_lock(&data->netconf->conns_lock);
-
-        // Resize if necessary
-        if (client_fd >= data->netconf->conn_list_size) {
-            // Keep doubling until we have enough space
-            int new_size = 2*data->netconf->conn_list_size;
-            while (new_size <= client_fd) {
-                new_size *= 2;
-            }
-
-            // Allocate a new list and copy the old entries
-            conn_info **new_conns = calloc(new_size, sizeof(conn_info*));
-            memcpy(new_conns,
-                   data->netconf->conns,
-                   sizeof(conn_info*)*data->netconf->conn_list_size);
-
-            // Flip to the new list
-            free(data->netconf->conns);
-            data->netconf->conns = new_conns;
-            data->netconf->conn_list_size = new_size;
-        }
-
-        // Store a reference to this connection buffer
-        data->netconf->conns[client_fd] = conn;
-
-        // Release
-        pthread_mutex_unlock(&data->netconf->conns_lock);
-    }
-
-    // Allocate a buffer if the connection does not have one.
-    if (conn->buffer == NULL) {
-        conn->buf_size = INIT_CONN_BUF_SIZE * sizeof(char);
-        conn->buffer = malloc(conn->buf_size);
-    }
+    // Prepare the buffers
+    init_cicular_buffer(&conn->input);
+    init_cicular_buffer(&conn->output);
 
     // Initialize the libev stuff
     ev_io_init(&conn->client, prepare_event, client_fd, EV_READ);
@@ -937,5 +879,112 @@ int extract_to_terminator(bloom_conn_info *conn, char terminator, char **buf, in
 
     // Return success if we have a term address
     return ((term_addr) ? 0 : -1);
+}
+
+
+/**
+ * Sets the client socket options.
+ * @return 0 on success, 1 on error.
+ */
+static int set_client_sockopts(int client_fd) {
+    // Setup the socket to be non-blocking
+    int sock_flags = fcntl(client_fd, F_GETFL, 0);
+    if (sock_flags < 0) {
+        syslog(LOG_ERR, "Failed to get socket flags on connection! %s.", strerror(errno));
+        close(client_fd);
+        return 1;
+    }
+    if (fcntl(client_fd, F_SETFL, sock_flags | O_NONBLOCK)) {
+        syslog(LOG_ERR, "Failed to set O_NONBLOCK on connection! %s.", strerror(errno));
+        close(client_fd);
+        return 1;
+    }
+
+    /**
+     * Set TCP_NODELAY. This will allow us to send small response packets more
+     * quickly, since our responses are rarely large enough to consume a packet.
+     */
+    int flag = 1;
+    if (setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int))) {
+        syslog(LOG_WARNING, "Failed to set TCP_NODELAY on connection! %s.", strerror(errno));
+    }
+
+    // Set keep alive
+    if(setsockopt(client_fd, SOL_SOCKET, SO_KEEPALIVE, &flag, sizeof(int))) {
+        syslog(LOG_WARNING, "Failed to set SO_KEEPALIVE on connection! %s.", strerror(errno));
+    }
+
+    // Increase the buffer sizes
+    int buf_size = 1024*1024; // 1MB
+    if (setsockopt(client_fd, SOL_SOCKET, SO_RCVBUF, &buf_size, sizeof(buf_size))) {
+        syslog(LOG_WARNING, "Failed to set SO_RCVBUF on connection! %s.", strerror(errno));
+    }
+    if (setsockopt(client_fd, SOL_SOCKET, SO_SNDBUF, &buf_size, sizeof(buf_size))) {
+        syslog(LOG_WARNING, "Failed to set SO_SNDBUF on connection! %s.", strerror(errno));
+    }
+    return 0;
+}
+
+
+/**
+ * Returns the conn_info* object associated with the FD
+ * or allocates a new one as necessary.
+ */
+static conn_info* get_fd_conn(int client_fd, bloom_networking *netconf) {
+    // Check if we need to resize the conn_list
+    if (client_fd >= netconf->conn_list_size) {
+        // Lock the conns list
+        pthread_mutex_lock(&netconf->conns_lock);
+
+        // Keep doubling until we have enough space
+        int new_size = 2*netconf->conn_list_size;
+        while (new_size <= client_fd) {
+            new_size *= 2;
+        }
+
+        // Allocate a new list and copy the old entries
+        conn_info **new_conns = calloc(new_size, sizeof(conn_info*));
+        memcpy(new_conns,
+               netconf->conns,
+               sizeof(conn_info*)*netconf->conn_list_size);
+
+        // Flip to the new list
+        free(netconf->conns);
+        netconf->conns = new_conns;
+        netconf->conn_list_size = new_size;
+
+        // Release
+        pthread_mutex_unlock(&netconf->conns_lock);
+    }
+
+    // Try to get the connection object
+    conn_info *conn = netconf->conns[client_fd];
+
+    // If it is not yet initialized, make one
+    if (!conn) {
+        conn = calloc(1, sizeof(conn_info));
+        netconf->conns[client_fd] = conn;
+    }
+
+    return conn;
+}
+
+/*
+ * Methods for manipulating our circular buffers
+ */
+
+// Conditionally allocates if there is no buffer
+static void init_circular_buffer(circular_buffer *buf) {
+    buf->read_cursor = 0;
+    buf->write_cursor = 0;
+    if (!buf->buf) {
+        alloc_circular_buffer(buf);
+    }
+}
+
+// Allocates a buffer
+static void alloc_circular_buffer(circular_buffer *buf) {
+    buf->buf_size = INIT_CONN_BUF_SIZE * sizeof(char);
+    buf->buffer = malloc(buf->buf_size);
 }
 
