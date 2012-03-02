@@ -85,6 +85,27 @@ struct conn_info {
     ev_io client;
     int should_schedule;
     circular_buffer input;
+
+    /*
+     * Output is handled in a special way.
+     * If use_write_buf is off, then we make
+     * the writes directly, otherwise we need to
+     * acquire a the buffer lock and write to our
+     * circular buffer. Once the buffer is depleted,
+     * we switch use_write_buf back off, and go back
+     * to writing directly.
+     *
+     * The logic is that most clients have a quick
+     * check/set command pair which fits in the TCP
+     * buffers. Some bulk operations with tons of checks
+     * or sets may overwhelm our buffers however. This
+     * allows us to minimize copies and latency for most
+     * clients, while still supporting the massive bulk
+     * loads.
+     */
+    volatile int use_write_buf;
+    bloom_spinlock output_lock;
+    ev_io write_client;
     circular_buffer output;
 };
 typedef struct conn_info conn_info;
@@ -435,6 +456,7 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
 
     // Initialize the libev stuff
     ev_io_init(&conn->client, prepare_event, client_fd, EV_READ);
+    ev_io_init(&conn->write_client, prepare_event, client_fd, EV_WRITE);
 
     // Store a reference to the conn object
     conn->client.data = conn;
@@ -631,6 +653,7 @@ int shutdown_networking(bloom_networking *netconf) {
         // Stop listening in libev and close the socket
         if (conn->should_schedule) {
             ev_io_stop(&conn->client);
+            ev_io_stop(&conn->write_client);
             close(conn->client.fd);
         }
 
@@ -909,6 +932,7 @@ static conn_info* get_fd_conn(int client_fd, bloom_networking *netconf) {
     // If it is not yet initialized, make one
     if (!conn) {
         conn = calloc(1, sizeof(conn_info));
+        INIT_BLOOM_SPIN(&conn->output_lock);
         netconf->conns[client_fd] = conn;
     }
 
@@ -1026,6 +1050,7 @@ static void circbuf_setup_readv_iovec(circular_buffer *buf, struct iovec *vector
 static void circbuf_advance_write(circular_buffer *buf, uint64_t bytes) {
     buf->write_cursor = (buf->write_cursor + bytes) % buf->buf_size;
 }
+
 static void circbuf_advance_read(circular_buffer *buf, uint64_t bytes) {
     buf->read_cursor = (buf->read_cursor + bytes) % buf->buf_size;
 
