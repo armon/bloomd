@@ -358,6 +358,22 @@ int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head)
     return 0;
 }
 
+
+/**
+ * Convenience method to cleanup a filter list.
+ */
+void filtmgr_cleanup_list(bloom_filter_list_head *head) {
+    bloom_filter_list *next, *current = head->head;
+    while (current) {
+        next = current->next;
+        free(current->filter_name);
+        free(current);
+        current = next;
+    }
+    free(head);
+}
+
+
 /**
  * Marks a filter as hot. Does it in a thread safe way.
  * @arg mgr The manager

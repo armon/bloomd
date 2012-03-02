@@ -115,4 +115,9 @@ int filtmgr_list_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head);
  */
 int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head);
 
+/**
+ * Convenience method to cleanup a filter list.
+ */
+void filtmgr_cleanup_list(bloom_filter_list_head *head);
+
 #endif
