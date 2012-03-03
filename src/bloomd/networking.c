@@ -173,6 +173,8 @@ static void invoke_event_handler(worker_ev_userdata* data);
 // Utility methods
 static int set_client_sockopts(int client_fd);
 static conn_info* get_fd_conn(int client_fd, bloom_networking *netconf);
+static int send_client_response_buffered(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
+static int send_client_response_direct(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
 
 // Circular buffer method
 static void init_circular_buffer(circular_buffer *buf);
@@ -770,36 +772,42 @@ int send_client_response(conn_info *conn, char **response_buffers, int *buf_size
     // Bail if there are no buffers
     if (num_bufs <= 0) return 0;
 
-    // Optimize for the common case of a single buffer
-    if (num_bufs == 1) {
-        char *buf = response_buffers[0];
-        int buf_size = buf_sizes[0];
-        ssize_t sent = 0;
-        ssize_t s;
+    // Check if we are doing buffered writes
+    if (conn->use_write_buf) {
+        return send_client_response_buffered(conn, response_buffers, buf_sizes, num_bufs);
+    } else {
+        return send_client_response_direct(conn, response_buffers, buf_sizes, num_bufs);
+    }
+}
 
-        do {
-            s = write(conn->client.fd, buf, buf_size);
-            if (s > 0) sent += s;
-            else {
-                syslog(LOG_ERR, "Failed to send() to connection [%d]! %s.",
-                        conn->client.fd, strerror(errno));
-                close_client_connection(conn);
-                return 1;
-            }
-        } while (sent < buf_size);
-        return 0;
+
+static int send_client_response_buffered(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs) {
+    // Acquire the lock
+    LOCK_BLOOM_SPIN(&conn->output_lock);
+
+    // Might not be using buffered writes anymore
+    if (!conn->use_write_buf) {
+        UNLOCK_BLOOM_SPIN(&conn->output_lock);
+        return send_client_response_direct(conn, response_buffers, buf_sizes, num_bufs);
     }
 
-    /*
-     * For multiple buffers, we use writev() to minimize the syscalls.
-     */
+    // TODO: Copy the buffers to the output buffer
+    for (int i=0; i< num_bufs; i++) {
 
+    }
+
+    // Unlock
+    UNLOCK_BLOOM_SPIN(&conn->output_lock);
+}
+
+
+static int send_client_response_direct(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs) {
     // Stack allocate the iovectors
     struct iovec *vectors = alloca(num_bufs * sizeof(struct iovec));
 
     // Setup all the pointers
     ssize_t total_bytes = 0;
-    for (int i=0; i<num_bufs; i++) {
+    for (int i=0; i < num_bufs; i++) {
         vectors[i].iov_base = response_buffers[i];
         vectors[i].iov_len = buf_sizes[i];
         total_bytes += buf_sizes[i];
