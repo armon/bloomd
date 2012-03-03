@@ -182,6 +182,7 @@ static void circbuf_free(circular_buffer *buf);
 static uint64_t circbuf_avail_buf(circular_buffer *buf);
 static void circbuf_grow_buf(circular_buffer *buf);
 static void circbuf_setup_readv_iovec(circular_buffer *buf, struct iovec *vectors, int *num_vectors);
+static void circbuf_setup_writev_iovec(circular_buffer *buf, struct iovec *vectors, int *num_vectors);
 static void circbuf_advance_write(circular_buffer *buf, uint64_t bytes);
 static void circbuf_advance_read(circular_buffer *buf, uint64_t bytes);
 
@@ -460,6 +461,7 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
 
     // Store a reference to the conn object
     conn->client.data = conn;
+    conn->write_client.data = conn;
 
     // Schedule the new client
     conn->should_schedule = 1;
@@ -500,8 +502,7 @@ static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
     if (read_bytes == 0) {
         syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
         close_client_connection(conn);
-    }
-    if (read_bytes == -1) {
+    } else if (read_bytes == -1) {
         if (errno != EAGAIN && errno != EINTR) {
             syslog(LOG_ERR, "Failed to read() from connection [%d]! %s.",
                     conn->client.fd, strerror(errno));
@@ -512,6 +513,57 @@ static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
 
     // Update the write cursor
     circbuf_advance_write(&conn->input, read_bytes);
+    return 0;
+}
+
+
+/**
+ * Invoked when a client connection is ready to be written to.
+ */
+static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
+    // Get the associated connection struct
+    conn_info *conn = watch->data;
+
+    // Acquire the lock
+    LOCK_BLOOM_SPIN(&conn->output_lock);
+
+    // Build the IO vectors to perform the write
+    struct iovec vectors[2];
+    int num_vectors;
+    circbuf_setup_writev_iovec(&conn->output, (struct iovec*)&vectors, &num_vectors);
+
+    // Issue the write
+    ssize_t write_bytes = writev(watch->fd, (struct iovec*)&vectors, num_vectors);
+
+    // Make sure we actually wrote something
+    int reschedule = 1;
+    if (write_bytes == 0) {
+        syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
+        close_client_connection(conn);
+        reschedule = 0;
+
+    } else if (write_bytes == -1) {
+        if (errno != EAGAIN && errno != EINTR) {
+            syslog(LOG_ERR, "Failed to write() to connection [%d]! %s.",
+                    conn->client.fd, strerror(errno));
+            close_client_connection(conn);
+            reschedule = 0;
+        }
+    } else {
+        // Update the cursor
+        circbuf_advance_read(&conn->output, write_bytes);
+    }
+
+    // Check if we should reset the use_write_buf.
+    // This is done when the buffer size is 0.
+    if (conn->output.read_cursor == conn->output.write_cursor) {
+        conn->use_write_buf = 0;
+    } else if (reschedule) {
+        schedule_async(data->netconf, SCHEDULE_WATCHER, watch);
+    }
+
+    // Unlock
+    UNLOCK_BLOOM_SPIN(&conn->output_lock);
     return 0;
 }
 
@@ -542,6 +594,12 @@ static void invoke_event_handler(worker_ev_userdata* data) {
 
         // Reschedule the listener
         schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
+        return;
+    }
+
+    // If it is write ready, dispatch the write handler
+    if (data->ready_events & EV_WRITE) {
+        handle_client_writebuf(watcher, data);
         return;
     }
 
@@ -686,6 +744,10 @@ int shutdown_networking(bloom_networking *netconf) {
 void close_client_connection(conn_info *conn) {
     // Stop scheduling
     conn->should_schedule = 0;
+
+    // Stop the libev clients
+    ev_io_stop(&conn->client);
+    ev_io_stop(&conn->write_client);
 
     // Clear everything out
     circbuf_reset(&conn->input);
@@ -1043,6 +1105,22 @@ static void circbuf_setup_readv_iovec(circular_buffer *buf, struct iovec *vector
             vectors[1].iov_len = buf->read_cursor - 1;
             *num_vectors = 2;
         }
+    }
+}
+
+// Initializes a pair of iovectors to be used for writev
+static void circbuf_setup_writev_iovec(circular_buffer *buf, struct iovec *vectors, int *num_vectors) {
+    // Check if we've wrapped around
+    if (buf->write_cursor < buf->read_cursor) {
+        *num_vectors = 2;
+        vectors[0].iov_base = buf->buffer + buf->read_cursor;
+        vectors[0].iov_len = buf->buf_size - buf->read_cursor;
+        vectors[1].iov_base = buf->buffer;
+        vectors[1].iov_len = buf->write_cursor;
+    } else {
+        *num_vectors = 1;
+        vectors[0].iov_base = buf->buffer + buf->read_cursor;
+        vectors[0].iov_len = buf->write_cursor - buf->read_cursor;
     }
 }
 
