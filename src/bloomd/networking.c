@@ -994,14 +994,6 @@ static int set_client_sockopts(int client_fd) {
         syslog(LOG_WARNING, "Failed to set SO_KEEPALIVE on connection! %s.", strerror(errno));
     }
 
-    // Increase the buffer sizes
-    int buf_size = 1024*1024; // 1MB
-    if (setsockopt(client_fd, SOL_SOCKET, SO_RCVBUF, &buf_size, sizeof(buf_size))) {
-        syslog(LOG_WARNING, "Failed to set SO_RCVBUF on connection! %s.", strerror(errno));
-    }
-    if (setsockopt(client_fd, SOL_SOCKET, SO_SNDBUF, &buf_size, sizeof(buf_size))) {
-        syslog(LOG_WARNING, "Failed to set SO_SNDBUF on connection! %s.", strerror(errno));
-    }
     return 0;
 }
 
