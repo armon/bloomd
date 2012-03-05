@@ -82,6 +82,7 @@ typedef struct {
  * We initialize one of these per connection
  */
 struct conn_info {
+    bloom_networking *netconf;
     ev_io client;
     int should_schedule;
     circular_buffer input;
@@ -187,6 +188,7 @@ static void circbuf_setup_readv_iovec(circular_buffer *buf, struct iovec *vector
 static void circbuf_setup_writev_iovec(circular_buffer *buf, struct iovec *vectors, int *num_vectors);
 static void circbuf_advance_write(circular_buffer *buf, uint64_t bytes);
 static void circbuf_advance_read(circular_buffer *buf, uint64_t bytes);
+static int circbuf_write(circular_buffer *buf, char *in, uint64_t bytes);
 
 /**
  * Initializes the TCP listener
@@ -791,13 +793,16 @@ static int send_client_response_buffered(conn_info *conn, char **response_buffer
         return send_client_response_direct(conn, response_buffers, buf_sizes, num_bufs);
     }
 
-    // TODO: Copy the buffers to the output buffer
+    // Copy the buffers to the output buffer
+    int res = 0;
     for (int i=0; i< num_bufs; i++) {
-
+        res = circbuf_write(&conn->output, response_buffers[i], buf_sizes[i]);
+        if (res) break;
     }
 
     // Unlock
     UNLOCK_BLOOM_SPIN(&conn->output_lock);
+    return res;
 }
 
 
@@ -815,12 +820,48 @@ static int send_client_response_direct(conn_info *conn, char **response_buffers,
 
     // Perform the write
     ssize_t sent = writev(conn->client.fd, vectors, num_bufs);
-    if (sent < total_bytes) {
+    if (sent == total_bytes) return 0;
+
+    // Check for a fatal error
+    if (sent == -1 && (errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK)) {
         syslog(LOG_ERR, "Failed to send() to connection [%d]! %s.",
                 conn->client.fd, strerror(errno));
         close_client_connection(conn);
         return 1;
     }
+
+    // Figure out which buffer we left off on
+    int skip_bytes = 0;
+    int index = 0;
+    for (index; index < num_bufs; index++) {
+        skip_bytes += buf_sizes[index];
+        if (skip_bytes > sent) {
+            if (index == 0) {
+                skip_bytes = 0;
+            } else {
+                skip_bytes -= buf_sizes[index];
+                index--;
+            }
+            break;
+        }
+    }
+
+    // Copy the buffers
+    int res, offset;
+    for (int i=index; i < num_bufs; i++) {
+        offset = 0;
+        if (i == index && skip_bytes < sent) {
+            offset = sent - skip_bytes;
+        }
+        res = circbuf_write(&conn->output, response_buffers[i] + offset, buf_sizes[i] - offset);
+        if (res) return 1;
+    }
+
+    // Setup the async write
+    conn->use_write_buf = 1;
+    schedule_async(conn->netconf, SCHEDULE_WATCHER, &conn->write_client);
+
+    // Done
     return 0;
 }
 
@@ -1002,6 +1043,7 @@ static conn_info* get_fd_conn(int client_fd, bloom_networking *netconf) {
     // If it is not yet initialized, make one
     if (!conn) {
         conn = calloc(1, sizeof(conn_info));
+        conn->netconf = netconf;
         INIT_BLOOM_SPIN(&conn->output_lock);
         netconf->conns[client_fd] = conn;
     }
@@ -1145,5 +1187,41 @@ static void circbuf_advance_read(circular_buffer *buf, uint64_t bytes) {
         buf->read_cursor = 0;
         buf->write_cursor = 0;
     }
+}
+
+/**
+ * Writes the data from a given input buffer
+ * into the circular buffer.
+ * @return 0 on success.
+ */
+static int circbuf_write(circular_buffer *buf, char *in, uint64_t bytes) {
+    // Check for available space
+    uint64_t avail = circbuf_avail_buf(buf);
+    while (avail < bytes) {
+        circbuf_grow_buf(buf);
+        avail = circbuf_avail_buf(buf);
+    }
+
+    if (buf->write_cursor < buf->read_cursor) {
+        memcpy(buf->buffer+buf->write_cursor, in, bytes);
+        buf->write_cursor += bytes;
+
+    } else {
+        uint64_t end_size = buf->buf_size - buf->write_cursor;
+        if (end_size >= bytes) {
+            memcpy(buf->buffer+buf->write_cursor, in, bytes);
+            buf->write_cursor += bytes;
+
+        } else {
+            // Copy the first end_size bytes
+            memcpy(buf->buffer+buf->write_cursor, in, end_size);
+
+            // Copy the remaining data
+            memcpy(buf->buffer, in, (bytes - end_size));
+            buf->write_cursor = (bytes - end_size);
+        }
+    }
+
+    return 0;
 }
 
