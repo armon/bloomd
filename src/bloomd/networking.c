@@ -471,6 +471,7 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
 
     // Schedule the new client
     conn->should_schedule = 1;
+    conn->use_write_buf = 0;
     schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->client);
 }
 
