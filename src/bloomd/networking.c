@@ -149,7 +149,7 @@ struct bloom_networking {
     ev_io udp_client;
 
     ev_async loop_async;      // Allows async interrupts
-    async_event *events;      // List of pending events
+    volatile async_event *events;      // List of pending events
     bloom_spinlock event_lock; // Protects the events
 
     volatile int num_threads; // Number of threads in the threads list
@@ -339,7 +339,7 @@ static void schedule_async(bloom_networking *netconf,
                             ASYNC_EVENT_TYPE event_type,
                             ev_io *watcher) {
     // Make a new async event
-    async_event *event = calloc(1, sizeof(async_event));
+    async_event *event = malloc(sizeof(async_event));
 
     // Initialize
     event->event_type = event_type;
@@ -395,7 +395,7 @@ static void handle_async_event(ev_async *watcher, int revents) {
 
     async_event *event = data->netconf->events;
     async_event *next;
-    while (event != NULL) {
+    while (event) {
         // Handle based on the event
         switch (event->event_type) {
             case EXIT:
@@ -416,7 +416,7 @@ static void handle_async_event(ev_async *watcher, int revents) {
         free(event);
         event = next;
     }
-    data->netconf->events = NULL;
+    data->netconf->events = event;
 
     // Release the lock
     UNLOCK_BLOOM_SPIN(&data->netconf->event_lock);
@@ -563,7 +563,7 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
     if (conn->output.read_cursor == conn->output.write_cursor) {
         conn->use_write_buf = 0;
     } else if (reschedule) {
-        schedule_async(data->netconf, SCHEDULE_WATCHER, watch);
+        schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->write_client);
     }
 
     // Unlock
@@ -714,11 +714,7 @@ int shutdown_networking(bloom_networking *netconf) {
         if (conn == NULL) continue;
 
         // Stop listening in libev and close the socket
-        if (conn->should_schedule) {
-            ev_io_stop(&conn->client);
-            ev_io_stop(&conn->write_client);
-            close(conn->client.fd);
-        }
+        close_client_connection(conn);
 
         // Free all the buffers
         circbuf_free(&conn->input);
@@ -772,9 +768,6 @@ void close_client_connection(conn_info *conn) {
  * @return 0 on success.
  */
 int send_client_response(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs) {
-    // Bail if there are no buffers
-    if (num_bufs <= 0) return 0;
-
     // Check if we are doing buffered writes
     if (conn->use_write_buf) {
         return send_client_response_buffered(conn, response_buffers, buf_sizes, num_bufs);
@@ -824,11 +817,13 @@ static int send_client_response_direct(conn_info *conn, char **response_buffers,
     if (sent == total_bytes) return 0;
 
     // Check for a fatal error
-    if (sent == -1 && (errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK)) {
-        syslog(LOG_ERR, "Failed to send() to connection [%d]! %s.",
-                conn->client.fd, strerror(errno));
-        close_client_connection(conn);
-        return 1;
+    if (sent == -1) {
+        if (errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
+            syslog(LOG_ERR, "Failed to send() to connection [%d]! %s.",
+                    conn->client.fd, strerror(errno));
+            close_client_connection(conn);
+            return 1;
+        }
     }
 
     // Figure out which buffer we left off on
