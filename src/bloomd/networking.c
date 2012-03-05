@@ -595,9 +595,10 @@ static void invoke_event_handler(worker_ev_userdata* data) {
     } else if (watcher == &data->netconf->udp_client) {
         // TODO: Handle UDP clients
         //
+        syslog(LOG_WARNING, "UDP clients not currently supported!");
 
         // Reschedule the listener
-        schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
+        // schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
         return;
     }
 
