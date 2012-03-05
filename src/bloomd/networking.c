@@ -349,7 +349,7 @@ static void schedule_async(bloom_networking *netconf,
     LOCK_BLOOM_SPIN(&netconf->event_lock);
 
     // Set the next pointer, and add us to the head
-    event->next = netconf->events;
+    event->next = (async_event*)netconf->events;
     netconf->events = event;
 
     // Unlock
@@ -393,7 +393,7 @@ static void handle_async_event(ev_async *watcher, int revents) {
     // Lock the events
     LOCK_BLOOM_SPIN(&data->netconf->event_lock);
 
-    async_event *event = data->netconf->events;
+    async_event *event = (async_event*)data->netconf->events;
     async_event *next;
     while (event) {
         // Handle based on the event
