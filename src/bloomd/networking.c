@@ -370,12 +370,14 @@ static void prepare_event(ev_io *watcher, int revents) {
     // Get the user data
     worker_ev_userdata *data = ev_userdata();
 
-    // Set everything
-    data->watcher = watcher;
-    data->ready_events = revents;
+    // Set everything if we don't have a watcher
+    if (!data->watcher) {
+        data->watcher = watcher;
+        data->ready_events = revents;
 
-    // Stop listening for now
-    ev_io_stop(watcher);
+        // Stop listening for now
+        ev_io_stop(watcher);
+    }
 }
 
 
