@@ -720,8 +720,6 @@ int shutdown_networking(bloom_networking *netconf) {
         close_client_connection(conn);
 
         // Free all the buffers
-        circbuf_free(&conn->input);
-        circbuf_free(&conn->output);
         free(conn);
     }
 
@@ -754,8 +752,8 @@ void close_client_connection(conn_info *conn) {
     ev_io_stop(&conn->write_client);
 
     // Clear everything out
-    circbuf_reset(&conn->input);
-    circbuf_reset(&conn->output);
+    circbuf_free(&conn->input);
+    circbuf_free(&conn->output);
 
     // Close the fd
     close(conn->client.fd);
