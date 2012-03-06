@@ -163,17 +163,17 @@ then that filter will be flushed. This will either return "Done" or
 Clients
 ----------
 
-Here is a list of known client implementations::
+Here is a list of known client implementations:
 
- * Python : https://github.com/kiip/bloom-python-driver
+* Python : https://github.com/kiip/bloom-python-driver
 
 
-Here is a list of "best-practices" for client implementations::
+Here is a list of "best-practices" for client implementations:
 
- * Maintain a set of open connections to the server to minimize connection time
- * Make use of the bulk operations when possible, as they are more efficient.
- * For long keys, it is better to do a client-side hash (SHA1 at least), and send
-   the hash as the key to minimize network traffic.
+* Maintain a set of open connections to the server to minimize connection time
+* Make use of the bulk operations when possible, as they are more efficient.
+* For long keys, it is better to do a client-side hash (SHA1 at least), and send
+  the hash as the key to minimize network traffic.
 
 Performance
 -----------
