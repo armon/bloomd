@@ -1,0 +1,7 @@
+# TODO
+
+ * Implement UDP support
+ * Allow for a `no-reply` mode
+ * Support counting bloom filters
+ * With CBF, add an unset + multi unset command
+
