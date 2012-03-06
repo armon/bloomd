@@ -188,4 +188,12 @@ it is important to tune it for the given work load. The number
 of worker threads can be configured either in the configuration
 file, or by providing a `-w` flag.
 
+References
+-----------
+
+Here are some related works which we make use of:
+
+* Space/Time Trade-offs in Hash Coding with Allowable Errors (Bloom): http://www.lsi.upc.edu/~diaz/p422-bloom.pdf
+* Scalable Bloom Filters (Almeida et. al): http://gsd.di.uminho.pt/members/cbm/ps/dbloom.pdf
+* Less Hashing, Same Performance: Building a Better Bloom Filter (Kirsch and Mitzenmacher): http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf
 
