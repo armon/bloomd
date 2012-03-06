@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <signal.h>
 #include <pthread.h>
 #include "filter.h"
 
@@ -71,7 +72,7 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     // Try to create the folder path
     int res = mkdir(f->full_path, 0755);
     if (res && errno != EEXIST) {
-        syslog(LOG_ERR, "Failed to create filter director '%s'. Err: %d", f->full_path, res);
+        syslog(LOG_ERR, "Failed to create filter directory '%s'. Err: %d", f->full_path, res);
         return res;
     }
 
@@ -577,8 +578,11 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
     // Create the bitmap
     int res = bitmap_from_filename(full_path, bytes, 1, 1, out);
     if (res) {
-        syslog(LOG_ERR, "Failed to create new file: %s for filter %s. Err: %s",
+        syslog(LOG_CRIT, "Failed to create new file: %s for filter %s. Err: %s",
             full_path, filt->filter_name, strerror(errno));
+
+        // Send a TERM signal to ourself!
+        kill(getpid(), SIGTERM);
     }
     free(full_path);
     return res;

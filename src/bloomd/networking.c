@@ -769,6 +769,9 @@ void close_client_connection(conn_info *conn) {
  * @return 0 on success.
  */
 int send_client_response(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs) {
+    // Bail if we shouldn't schedule
+    if (!conn->should_schedule) return 0;
+
     // Check if we are doing buffered writes
     if (conn->use_write_buf) {
         return send_client_response_buffered(conn, response_buffers, buf_sizes, num_bufs);
@@ -1072,9 +1075,6 @@ static void circbuf_reset(circular_buffer *buf) {
 
 // Frees a buffer
 static void circbuf_free(circular_buffer *buf) {
-    buf->read_cursor = 0;
-    buf->write_cursor = 0;
-    buf->buf_size =0;
     if (buf->buffer) free(buf->buffer);
     buf->buffer = NULL;
 }
