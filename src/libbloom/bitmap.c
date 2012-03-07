@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -25,7 +27,6 @@ int bitmap_from_file(int fileno, uint64_t len, bloom_bitmap *map) {
         newfileno = -1;
         mode = ANONYMOUS;
     } else {
-        flags |= MAP_FILE;
         flags |= MAP_SHARED;
         newfileno = dup(fileno);
         mode = SHARED;

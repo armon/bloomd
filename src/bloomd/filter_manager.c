@@ -552,9 +552,13 @@ static int filter_map_delete_cb(void *data, const char *key, void *value) {
 /**
  * Works with scandir to filter out non-bloomd folders.
  */
+#ifndef __linux__
 static int filter_bloomd_folders(struct dirent *d) {
+#else
+static int filter_bloomd_folders(const struct dirent *d) {
+#endif
     // Get the file name
-    char *name = d->d_name;
+    char *name = (char*)d->d_name;
 
     // Look if it ends in ".data"
     int name_len = strlen(name);

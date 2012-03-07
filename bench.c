@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <strings.h>
 #include <pthread.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
@@ -134,7 +135,7 @@ void *thread_main(void *in) {
 }
 
 int main(int argc, char **argv) {
-    sranddev();
+    srand(0);
     pthread_t t[NUM_THREADS];
     for (int i=0; i< NUM_THREADS; i++) {
         pthread_create(&t[i], NULL, thread_main, NULL);

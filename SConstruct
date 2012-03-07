@@ -1,11 +1,11 @@
-envspooky = Environment(CPPPATH = ['deps/spookyhash/'], CPPFLAGS="-O2")
+envspooky = Environment(CPPPATH = ['deps/spookyhash/'], CPPFLAGS="-fno-exceptions -O2")
 spooky = envspooky.Library('spooky', Glob("deps/spookyhash/*.cpp"))
 
-envmurmur = Environment(CPPPATH = ['deps/murmurhash/'], CPPFLAGS="-O2")
+envmurmur = Environment(CPPPATH = ['deps/murmurhash/'], CPPFLAGS="-fno-exceptions -O2")
 murmur = envmurmur.Library('murmur', Glob("deps/murmurhash/*.cpp"))
 
-envbloom = Environment(CCFLAGS = '-std=c99 -Wall -Werror -O2')
-bloom = envbloom.Library('bloom', Glob("src/libbloom/*.c"))
+envbloom = Environment(CCFLAGS = '-std=c99 -Wall -Werror -O2 -D_BSD_SOURCE')
+bloom = envbloom.Library('bloom', Glob("src/libbloom/*.c"), LIBS=[murmur, spooky])
 
 envtest = Environment(CCFLAGS = '-std=c99 -Isrc/libbloom/')
 envtest.Program('test_libbloom_runner', spooky + murmur + bloom +  Glob("tests/libbloom/*.c"), LIBS=["libcheck"])
@@ -13,8 +13,8 @@ envtest.Program('test_libbloom_runner', spooky + murmur + bloom +  Glob("tests/l
 envinih = Environment(CPATH = ['deps/inih/'], CFLAGS="-O2")
 inih = envinih.Library('inih', Glob("deps/inih/*.c"))
 
-envbloomd_with_err = Environment(CCFLAGS = '-std=c99 -g -Wall -Werror -O2 -pthread -Ideps/inih/ -Ideps/libev/ -Isrc/libbloom/')
-envbloomd_without_err = Environment(CCFLAGS = '-std=c99 -g -O2 -pthread -Isrc/bloomd/ -Ideps/inih/ -Ideps/libev/ -Isrc/libbloom/')
+envbloomd_with_err = Environment(CCFLAGS = '-std=c99 -D_GNU_SOURCE -g -Wall -Werror -O2 -pthread -Ideps/inih/ -Ideps/libev/ -Isrc/libbloom/')
+envbloomd_without_err = Environment(CCFLAGS = '-std=c99 -D_GNU_SOURCE -g -O2 -pthread -Isrc/bloomd/ -Ideps/inih/ -Ideps/libev/ -Isrc/libbloom/')
 
 objs =  envbloomd_with_err.Object('src/bloomd/config', 'src/bloomd/config.c') + \
         envbloomd_without_err.Object('src/bloomd/networking', 'src/bloomd/networking.c') + \
@@ -24,8 +24,9 @@ objs =  envbloomd_with_err.Object('src/bloomd/config', 'src/bloomd/config.c') + 
         envbloomd_with_err.Object('src/bloomd/filter_manager', 'src/bloomd/filter_manager.c') + \
         envbloomd_with_err.Object('src/bloomd/background', 'src/bloomd/background.c')
 
-envbloomd_with_err.Program('bloomd', spooky + murmur + bloom + inih + objs + ["src/bloomd/bloomd.c"])
+envbloomd_with_err.Program('bloomd', spooky + murmur + bloom + inih + objs + ["src/bloomd/bloomd.c"], LIBS=["m", "pthread", murmur, bloom, inih, spooky])
 envbloomd_without_err.Program('test_bloomd_runner', spooky + murmur + bloom + inih + objs + Glob("tests/bloomd/runner.c"), LIBS=["libcheck"])
 
-Program('bench', "bench.c", CCFLAGS="-std=c99 -O2")
+bench_obj = Object("bench", "bench.c", CCFLAGS="-std=c99 -O2")
+Program('bench', bench_obj, LIBS=["pthread"])
 

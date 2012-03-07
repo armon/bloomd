@@ -13,6 +13,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <signal.h>
 #include "config.h"
 #include "networking.h"
 #include "filter_manager.h"

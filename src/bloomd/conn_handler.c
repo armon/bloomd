@@ -258,7 +258,7 @@ static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_l
 
             // Check for the custom params
             int match = 0;
-            match |= sscanf(param, "capacity=%llu", &config->initial_capacity);
+            match |= sscanf(param, "capacity=%llu", (unsigned long long*)&config->initial_capacity);
             match |= sscanf(param, "prob=%lf", &config->default_probability);
             match |= sscanf(param, "in_memory=%d", &config->in_memory);
 
@@ -360,12 +360,13 @@ static void handle_close_cmd(bloom_conn_handler *handle, char *args, int args_le
 // can use to get some info about it
 static void list_filter_cb(void *data, char *filter_name, bloom_filter *filter) {
     char **out = data;
-    asprintf(out, "%s %f %llu %llu %llu\n",
+    int res;
+    res = asprintf(out, "%s %f %llu %llu %llu\n",
             filter_name,
             filter->filter_config.default_probability,
-            bloomf_byte_size(filter),
-            bloomf_capacity(filter),
-            bloomf_size(filter));
+            (unsigned long long)bloomf_byte_size(filter),
+            (unsigned long long)bloomf_capacity(filter),
+            (unsigned long long)bloomf_size(filter));
 }
 
 static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len) {
@@ -430,7 +431,8 @@ static void info_filter_cb(void *data, char *filter_name, bloom_filter *filter) 
     uint64_t sets = counters->set_hits + counters->set_misses;
 
     // Generate a formatted string output
-    asprintf(out, "capacity %llu\n\
+    int res;
+    res = asprintf(out, "capacity %llu\n\
 checks %llu\n\
 check_hits %llu\n\
 check_misses %llu\n\
@@ -442,9 +444,12 @@ set_hits %llu\n\
 set_misses %llu\n\
 size %llu\n\
 storage %llu\n",
-    capacity, checks, counters->check_hits, counters->check_misses,
-    counters->page_ins, counters->page_outs, filter->filter_config.default_probability,
-    sets, counters->set_hits, counters->set_misses, size, storage);
+    (unsigned long long)capacity, (unsigned long long)checks,
+    (unsigned long long)counters->check_hits, (unsigned long long)counters->check_misses,
+    (unsigned long long)counters->page_ins, (unsigned long long)counters->page_outs,
+    filter->filter_config.default_probability,
+    (unsigned long long)sets, (unsigned long long)counters->set_hits,
+    (unsigned long long)counters->set_misses, (unsigned long long)size, (unsigned long long)storage);
 }
 
 static void handle_info_cmd(bloom_conn_handler *handle, char *args, int args_len) {

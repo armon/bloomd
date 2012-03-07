@@ -700,7 +700,7 @@ int shutdown_networking(bloom_networking *netconf) {
     pthread_t thread;
     for (int i=0; i < netconf->num_threads; i++) {
         thread = netconf->threads[i];
-        if (thread != NULL) pthread_join(thread, NULL);
+        if (thread) pthread_join(thread, NULL);
     }
 
     // Stop listening for new connections

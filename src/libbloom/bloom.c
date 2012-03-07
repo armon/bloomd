@@ -10,8 +10,8 @@
  */
 static const uint32_t MAGIC_HEADER = 0xCB1005DD;  // Vaguely like CBLOOMDD
 extern void MurmurHash3_x64_128(const void * key, const int len, const uint32_t seed, void *out);
-extern void SpookyHash128(const void *key, size_t len, unsigned long long seed1, unsigned long long seed2,
-        unsigned long long *hash1, unsigned long long *hash2);
+extern void SpookyHash128(const void *key, size_t len, uint64_t seed1, uint64_t seed2,
+        uint64_t *hash1, uint64_t *hash2);
 
 /**
  * Creates a new bloom filter using a given bitmap and k-value.
@@ -48,7 +48,7 @@ int bf_from_bitmap(bloom_bitmap *map, uint32_t k_num, int new_filter, bloom_bloo
 
     // Check for the header if not new
     } else if (filter->header->magic != MAGIC_HEADER) {
-        return -EFTYPE;
+        return -1;
     }
 
     // Setup the offset

@@ -181,10 +181,11 @@ char* join_path(char *path, char *part2) {
 
     // Use the proper format string
     char *buf;
+    int res;
     if (has_end_slash)
-        asprintf(&buf, "%s%s", path, part2);
+        res = asprintf(&buf, "%s%s", path, part2);
     else
-        asprintf(&buf, "%s/%s", path, part2);
+        res = asprintf(&buf, "%s/%s", path, part2);
 
     // Return the new buffer
     return buf;
@@ -470,14 +471,14 @@ probability_reduction = %f\n\
 in_memory = %d\n\
 size = %llu\n\
 capacity = %llu\n\
-bytes = %llu\n", config->initial_capacity,
+bytes = %llu\n", (unsigned long long)config->initial_capacity,
                  config->default_probability,
                  config->scale_size,
                  config->probability_reduction,
                  config->in_memory,
-                 config->size,
-                 config->capacity,
-                 config->bytes
+                 (unsigned long long)config->size,
+                 (unsigned long long)config->capacity,
+                 (unsigned long long)config->bytes
     );
 
     // Close

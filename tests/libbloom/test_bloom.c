@@ -43,7 +43,7 @@ START_TEST(make_bf_fresh_not_new)
     bloom_bloomfilter filter;
     bitmap_from_file(-1, 4096, &map);
     int res = bf_from_bitmap(&map, 10, 0, &filter);
-    fail_unless(res == -EFTYPE);
+    fail_unless(res == -1);
 }
 END_TEST
 
@@ -229,28 +229,28 @@ START_TEST(test_hashes_same_buffer)
     char buf[100];
 
     uint64_t hash0 = 0;
-    snprintf((char*)&buf, 100, "test0"); 
+    snprintf((char*)&buf, 100, "test0");
     bf_compute_hashes(k_num, (char*)&buf, (uint64_t*)&hashes);
     for (int i=0; i< 10; i++) {
         hash0 ^= hashes[i];
     }
 
     uint64_t hash1 = 0;
-    snprintf((char*)&buf, 100, "ABCDEFGHI"); 
+    snprintf((char*)&buf, 100, "ABCDEFGHI");
     bf_compute_hashes(k_num, (char*)&buf, (uint64_t*)&hashes);
     for (int i=0; i< 10; i++) {
         hash1 ^= hashes[i];
     }
 
     uint64_t hash2 = 0;
-    snprintf((char*)&buf, 100, "test0"); 
+    snprintf((char*)&buf, 100, "test0");
     bf_compute_hashes(k_num, (char*)&buf, (uint64_t*)&hashes);
     for (int i=0; i< 10; i++) {
         hash2 ^= hashes[i];
     }
 
     uint64_t hash3 = 0;
-    snprintf((char*)&buf, 100, "ABCDEFGHI"); 
+    snprintf((char*)&buf, 100, "ABCDEFGHI");
     bf_compute_hashes(k_num, (char*)&buf, (uint64_t*)&hashes);
     for (int i=0; i< 10; i++) {
         hash3 ^= hashes[i];
@@ -278,7 +278,7 @@ START_TEST(test_add_with_check)
 
     // Check all the keys get added
     for (int i=0;i<1000;i++) {
-        snprintf((char*)&buf, 100, "test%d", i); 
+        snprintf((char*)&buf, 100, "test%d", i);
         res = bf_add(&filter, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -288,14 +288,14 @@ START_TEST(test_add_with_check)
 
     // Test all the keys are contained
     for (int i=0;i<1000;i++) {
-        snprintf((char*)&buf, 100, "test%d", i); 
+        snprintf((char*)&buf, 100, "test%d", i);
         res = bf_contains(&filter, (char*)&buf);
         fail_unless(res == 1);
     }
 
     // Check all the keys are not re-added
     for (int i=0;i<1000;i++) {
-        snprintf((char*)&buf, 100, "test%d", i); 
+        snprintf((char*)&buf, 100, "test%d", i);
         res = bf_add(&filter, (char*)&buf);
         fail_unless(res == 0);
     }
@@ -318,7 +318,7 @@ START_TEST(test_length)
     char buf[100];
     int res;
     for (int i=0;i<1000;i++) {
-        snprintf((char*)&buf, 100, "test%d", i); 
+        snprintf((char*)&buf, 100, "test%d", i);
         res = bf_add(&filter, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -373,7 +373,7 @@ START_TEST(test_bf_flush)
     char buf[100];
     int res;
     for (int i=0;i<1000;i++) {
-        snprintf((char*)&buf, 100, "test%d", i); 
+        snprintf((char*)&buf, 100, "test%d", i);
         res = bf_add(&filter, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -386,7 +386,7 @@ START_TEST(test_bf_flush)
 
     // Test all the keys are contained
     for (int i=0;i<1000;i++) {
-        snprintf((char*)&buf, 100, "test%d", i); 
+        snprintf((char*)&buf, 100, "test%d", i);
         res = bf_contains(&filter2, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -409,7 +409,7 @@ START_TEST(test_bf_close_does_flush)
     char buf[100];
     int res;
     for (int i=0;i<1000;i++) {
-        snprintf((char*)&buf, 100, "test%d", i); 
+        snprintf((char*)&buf, 100, "test%d", i);
         res = bf_add(&filter, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -419,7 +419,7 @@ START_TEST(test_bf_close_does_flush)
     fail_unless(bitmap_from_filename("/tmp/test_close_does_flush.mmap", params.bytes, 1, 1, &map) == 0);
     fail_unless(bf_from_bitmap(&map, params.k_num, 1, &filter) == 0);
     for (int i=0;i<1000;i++) {
-        snprintf((char*)&buf, 100, "test%d", i); 
+        snprintf((char*)&buf, 100, "test%d", i);
         res = bf_contains(&filter, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -441,11 +441,11 @@ START_TEST(test_bf_fp_prob)
     int res;
     int num_wrong = 0;
     for (int i=0;i<1100;i++) {
-        snprintf((char*)&buf, 100, "test%d", i); 
+        snprintf((char*)&buf, 100, "test%d", i);
         res = bf_add(&filter, (char*)&buf);
         if (res == 0) num_wrong++;
     }
-  
+
     // We added 1100 items, with a capacity of 1K and error of 1/100.
     // Technically we should have 11 false positives
     fail_unless(num_wrong <= 10);
@@ -466,11 +466,11 @@ START_TEST(test_bf_fp_prob_extended)
     int res;
     int num_wrong = 0;
     for (int i=0;i<1e6;i++) {
-        snprintf((char*)&buf, 100, "test%d", i); 
+        snprintf((char*)&buf, 100, "test%d", i);
         res = bf_add(&filter, (char*)&buf);
         if (res == 0) num_wrong++;
     }
-  
+
     // We added 1M items, with a capacity of 1M and error of 1/1000.
     // Technically we should have 1K false positives
     fail_unless(num_wrong <= 1000);

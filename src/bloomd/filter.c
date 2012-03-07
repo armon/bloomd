@@ -30,7 +30,12 @@ static int thread_safe_fault(bloom_filter *f);
 static int discover_existing_filters(bloom_filter *f);
 static int create_sbf(bloom_filter *f, int num, bloom_bloomfilter **filters);
 static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out);
+
+#ifndef __linux__
 static int filter_out_special(struct dirent *d);
+#else
+static int filter_out_special(const struct dirent *d);
+#endif
 
 /**
  * Initializes a bloom filter wrapper.
@@ -59,7 +64,8 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
 
     // Get the folder name
     char *folder_name = NULL;
-    asprintf(&folder_name, FILTER_FOLDER_NAME, f->filter_name);
+    int num;
+    num = asprintf(&folder_name, FILTER_FOLDER_NAME, f->filter_name);
 
     // Compute the full path
     f->full_path = join_path(config->data_dir, folder_name);
@@ -362,9 +368,13 @@ static uint64_t get_size(char* filename) {
 /**
  * Works with scandir to filter out special files
  */
+#ifndef __linux__
 static int filter_out_special(struct dirent *d) {
+#else
+static int filter_out_special(const struct dirent *d) {
+#endif
     // Get the file name
-    char *name = d->d_name;
+    char *name = (char*)d->d_name;
 
     // Make sure its not speci
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
@@ -376,9 +386,13 @@ static int filter_out_special(struct dirent *d) {
 /**
  * Works with scandir to filter out non-data files.
  */
+#ifndef __linux__
 static int filter_data_files(struct dirent *d) {
+#else
+static int filter_data_files(const struct dirent *d) {
+#endif
     // Get the file name
-    char *name = d->d_name;
+    char *name = (char*)d->d_name;
 
     // Look if it ends in ".data"
     int name_len = strlen(name);
@@ -540,8 +554,8 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
 
     // Check if we are in-memory
     if (filt->filter_config.in_memory) {
-        syslog(LOG_INFO, "Creating new in-memory bitmap for filter %s. Size: %lld",
-            filt->filter_name, bytes);
+        syslog(LOG_INFO, "Creating new in-memory bitmap for filter %s. Size: %llu",
+            filt->filter_name, (unsigned long long)bytes);
         return bitmap_from_file(-1, bytes, out);
     }
 
@@ -567,13 +581,14 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
 
     // Generate the new file name
     char *filename = NULL;
-    asprintf(&filename, DATA_FILE_NAME, num_files);
+    int file_name_len;
+    file_name_len = asprintf(&filename, DATA_FILE_NAME, num_files);
 
     // Get the full path
     char *full_path = join_path(filt->full_path, filename);
     free(filename);
-    syslog(LOG_INFO, "Creating new file: %s for filter %s. Size: %lld",
-            full_path, filt->filter_name, bytes);
+    syslog(LOG_INFO, "Creating new file: %s for filter %s. Size: %llu",
+            full_path, filt->filter_name, (unsigned long long)bytes);
 
     // Create the bitmap
     int res = bitmap_from_filename(full_path, bytes, 1, 1, out);
