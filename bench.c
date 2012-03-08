@@ -1,13 +1,14 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <pthread.h>
-#include <arpa/inet.h>
+#include <sys/socket.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 static int NUM_THREADS = 1;
 static int NUM_KEYS = 1000000;
@@ -135,7 +136,13 @@ void *thread_main(void *in) {
 }
 
 int main(int argc, char **argv) {
-    srand(0);
+    // Read random seed
+    int randfh = open("/dev/random", O_RDONLY);
+    unsigned seed = 0;
+    read(randfh, &seed, sizeof(seed));
+    close(randfh);
+
+    srand(seed);
     pthread_t t[NUM_THREADS];
     for (int i=0; i< NUM_THREADS; i++) {
         pthread_create(&t[i], NULL, thread_main, NULL);
