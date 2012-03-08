@@ -522,9 +522,10 @@ START_TEST(test_mgr_grow)
     // Try to add keys now
     char *keys[10];
     char result[10];
+    int num;
     for (int iter=0;iter<10000;iter++) {
         // Generate the keys
-        for (int i=0;i<10;i++) asprintf(&keys[i], "test_key_%d", i*iter);
+        for (int i=0;i<10;i++) num = asprintf(&keys[i], "test_key_%d", i*iter);
         res = filtmgr_set_keys(mgr, "scale1", (char**)&keys, 10, (char*)&result);
         fail_unless(res == 0);
         for (int i=0;i<10;i++) free(keys[i]);

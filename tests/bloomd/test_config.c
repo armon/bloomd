@@ -50,7 +50,7 @@ END_TEST
 
 START_TEST(test_config_empty_file)
 {
-    int fh = open("/tmp/zero_file", O_CREAT|O_RDWR);
+    int fh = open("/tmp/zero_file", O_CREAT|O_RDWR, 0777);
     fchmod(fh, 777);
     close(fh);
 
@@ -77,7 +77,7 @@ END_TEST
 
 START_TEST(test_config_basic_config)
 {
-    int fh = open("/tmp/basic_config", O_CREAT|O_RDWR);
+    int fh = open("/tmp/basic_config", O_CREAT|O_RDWR, 0777);
     char *buf = "[bloomd]\n\
 port = 10000\n\
 udp_port = 10001\n\
@@ -283,7 +283,7 @@ END_TEST
 
 START_TEST(test_filter_config_empty_file)
 {
-    int fh = open("/tmp/zero_file", O_CREAT|O_RDWR);
+    int fh = open("/tmp/zero_file", O_CREAT|O_RDWR, 0777);
     fchmod(fh, 777);
     close(fh);
 
@@ -307,7 +307,7 @@ END_TEST
 
 START_TEST(test_filter_config_basic_config)
 {
-    int fh = open("/tmp/filter_basic_config", O_CREAT|O_RDWR);
+    int fh = open("/tmp/filter_basic_config", O_CREAT|O_RDWR, 0777);
     char *buf = "[bloomd]\n\
 size = 256\n\
 bytes = 999999\n\
