@@ -538,7 +538,7 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
     // This is done when the buffer size is 0.
     if (conn->output.read_cursor == conn->output.write_cursor) {
         conn->use_write_buf = 0;
-        conn->ref_count--;
+        close_client_connection(conn);  // Decrement our ref_count
     } else if (reschedule) {
         schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->write_client);
     }
