@@ -4,6 +4,7 @@
 #define EV_COMPAT3 0
 #define EV_MULTIPLICITY 0
 #ifdef __linux__
+#define EV_USE_CLOCK_SYSCALL 0
 #define EV_USE_EPOLL 1
 #endif
 #ifdef __MACH__
