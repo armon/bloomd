@@ -75,9 +75,11 @@ typedef struct {
  */
 struct conn_info {
     volatile int ref_count;
+    bloom_spinlock ref_lock;
+
     bloom_networking *netconf;
     ev_io client;
-    int should_schedule;
+    volatile int should_schedule;
     circular_buffer input;
 
     /*
@@ -162,9 +164,13 @@ static void invoke_event_handler(worker_ev_userdata* data);
 
 // Utility methods
 static int set_client_sockopts(int client_fd);
-static conn_info* get_fd_conn(bloom_networking *netconf);
+static conn_info* get_conn(bloom_networking *netconf);
 static int send_client_response_buffered(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
 static int send_client_response_direct(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
+
+static void incref_client_connection(conn_info *conn);
+static void decref_client_connection(conn_info *conn);
+static void private_close_connection(conn_info *conn);
 
 // Circular buffer method
 static void circbuf_init(circular_buffer *buf);
@@ -439,7 +445,7 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
             inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
 
     // Get the associated conn object
-    conn_info *conn = get_fd_conn(data->netconf);
+    conn_info *conn = get_conn(data->netconf);
 
     // Initialize the libev stuff
     ev_io_init(&conn->client, prepare_event, client_fd, EV_READ);
@@ -537,7 +543,7 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
         // This is done when the buffer size is 0.
         if (conn->output.read_cursor == conn->output.write_cursor) {
             conn->use_write_buf = 0;
-            close_client_connection(conn);  // Decrement our ref_count
+            decref_client_connection(conn);
         } else {
             schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->write_client);
         }
@@ -592,6 +598,7 @@ static void invoke_event_handler(worker_ev_userdata* data) {
      * connection handlers.
      */
     conn_info *conn = watcher->data;
+    incref_client_connection(conn);
     int res = handle_client_data(watcher, data);
 
     if (res == 0) {
@@ -606,6 +613,7 @@ static void invoke_event_handler(worker_ev_userdata* data) {
     if (conn->should_schedule) {
         schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
     }
+    decref_client_connection(conn);
 }
 
 
@@ -699,6 +707,25 @@ int shutdown_networking(bloom_networking *netconf) {
  */
 
 /**
+ * Increases the reference count of the
+ * connection info object.
+ */
+static void incref_client_connection(conn_info *conn) {
+    // Atomic decrement
+    LOCK_BLOOM_SPIN(&conn->ref_lock);
+    conn->ref_count++;
+    UNLOCK_BLOOM_SPIN(&conn->ref_lock);
+}
+
+static void decref_client_connection(conn_info *conn) {
+    // Atomic decrement
+    LOCK_BLOOM_SPIN(&conn->ref_lock);
+    int refs = --conn->ref_count;
+    UNLOCK_BLOOM_SPIN(&conn->ref_lock);
+    if (!refs) private_close_connection(conn);
+}
+
+/**
  * Called to close and cleanup a client connection.
  * Must be called when the connection is not already
  * scheduled. e.g. After ev_io_stop() has been called.
@@ -707,14 +734,24 @@ int shutdown_networking(bloom_networking *netconf) {
  * @arg conn The connection to close
  */
 void close_client_connection(conn_info *conn) {
-    // If our refcount is still non-zero, do nothing.
-    if (--conn->ref_count) {
-        return;
-    }
-
     // Stop scheduling
     conn->should_schedule = 0;
 
+    // Atomic decrement
+    LOCK_BLOOM_SPIN(&conn->ref_lock);
+    int refs = --conn->ref_count;
+    UNLOCK_BLOOM_SPIN(&conn->ref_lock);
+
+    // If our refcount is still non-zero, do nothing.
+    if (refs) {
+        return;
+    }
+
+    // Close the connection
+    private_close_connection(conn);
+}
+
+static void private_close_connection(conn_info *conn) {
     // Stop the libev clients
     ev_io_stop(&conn->client);
     ev_io_stop(&conn->write_client);
@@ -724,6 +761,7 @@ void close_client_connection(conn_info *conn) {
     circbuf_free(&conn->output);
 
     // Close the fd
+    syslog(LOG_DEBUG, "Closed connection. [%d]", conn->client.fd);
     close(conn->client.fd);
     free(conn);
 }
@@ -828,7 +866,7 @@ static int send_client_response_direct(conn_info *conn, char **response_buffers,
 
     // Setup the async write
     conn->use_write_buf = 1;
-    conn->ref_count++;
+    incref_client_connection(conn);
     schedule_async(conn->netconf, SCHEDULE_WATCHER, &conn->write_client);
 
     // Done
@@ -972,9 +1010,10 @@ static int set_client_sockopts(int client_fd) {
  * Returns the conn_info* object associated with the FD
  * or allocates a new one as necessary.
  */
-static conn_info* get_fd_conn(bloom_networking *netconf) {
+static conn_info* get_conn(bloom_networking *netconf) {
     // Allocate space
     conn_info *conn = malloc(sizeof(conn_info));
+    INIT_BLOOM_SPIN(&conn->ref_lock);
     INIT_BLOOM_SPIN(&conn->output_lock);
 
     // Setup variables
