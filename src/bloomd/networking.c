@@ -974,7 +974,7 @@ static int set_client_sockopts(int client_fd) {
  */
 static conn_info* get_fd_conn(bloom_networking *netconf) {
     // Allocate space
-    conn_info *conn = calloc(1, sizeof(conn_info));
+    conn_info *conn = malloc(sizeof(conn_info));
     INIT_BLOOM_SPIN(&conn->output_lock);
 
     // Setup variables
