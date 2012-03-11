@@ -166,8 +166,7 @@ static int send_client_response_buffered(conn_info *conn, char **response_buffer
 static int send_client_response_direct(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
 
 // Circular buffer method
-static void init_circular_buffer(circular_buffer *buf);
-static void circbuf_alloc(circular_buffer *buf);
+static void circbuf_init(circular_buffer *buf);
 static void circbuf_free(circular_buffer *buf);
 static uint64_t circbuf_avail_buf(circular_buffer *buf);
 static void circbuf_grow_buf(circular_buffer *buf);
@@ -992,8 +991,8 @@ static conn_info* get_fd_conn(bloom_networking *netconf) {
     conn->use_write_buf = 0;
 
     // Prepare the buffers
-    init_circular_buffer(&conn->input);
-    init_circular_buffer(&conn->output);
+    circbuf_init(&conn->input);
+    circbuf_init(&conn->output);
 
     // Store a reference to the conn object
     conn->client.data = conn;
@@ -1007,16 +1006,9 @@ static conn_info* get_fd_conn(bloom_networking *netconf) {
  */
 
 // Conditionally allocates if there is no buffer
-static void init_circular_buffer(circular_buffer *buf) {
+static void circbuf_init(circular_buffer *buf) {
     buf->read_cursor = 0;
     buf->write_cursor = 0;
-    if (!buf->buffer) {
-        circbuf_alloc(buf);
-    }
-}
-
-// Allocates a buffer
-static void circbuf_alloc(circular_buffer *buf) {
     buf->buf_size = INIT_CONN_BUF_SIZE * sizeof(char);
     buf->buffer = malloc(buf->buf_size);
 }
