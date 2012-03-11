@@ -684,15 +684,8 @@ int shutdown_networking(bloom_networking *netconf) {
     close(netconf->udp_client.fd);
 
     // TODO: Close all the client connections
-    conn_info *conn;
-    for (int i=0; i < 0; i++) {
-        // Check if the connection is non-null
-        conn = NULL;
-        if (conn == NULL) continue;
-
-        // Stop listening in libev and close the socket
-        close_client_connection(conn);
-    }
+    // ??? For now, we just leak the memory
+    // since we are shutdown down anyways...
 
     // Free the netconf
     free(netconf->threads);
