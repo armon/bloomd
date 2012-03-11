@@ -32,15 +32,6 @@
 #define BACKLOG_SIZE 64
 
 /**
- * How big should the initial conns
- * array be in terms of slots. For most
- * cases 1024 is more than we will need,
- * and will fit nicely in 1 page on 32bits,
- * and 2 pages on 64bits.
- */
-#define INIT_CONN_LIST_SIZE 1024
-
-/**
  * How big should the default connection
  * buffer size be. One page seems reasonable
  * since most requests will not be this large
@@ -82,6 +73,7 @@ typedef struct {
  * We initialize one of these per connection
  */
 struct conn_info {
+    volatile int ref_count;
     bloom_networking *netconf;
     ev_io client;
     int should_schedule;
@@ -154,10 +146,6 @@ struct bloom_networking {
 
     volatile int num_threads; // Number of threads in the threads list
     pthread_t *threads;       // Array of thread references
-
-    int conn_list_size;       // Maximum size of conns list
-    conn_info **conns;        // An array of pointers to conn_info objects
-    pthread_mutex_t conns_lock; // Protects conns and conn_list_size
 };
 
 
@@ -173,14 +161,13 @@ static void invoke_event_handler(worker_ev_userdata* data);
 
 // Utility methods
 static int set_client_sockopts(int client_fd);
-static conn_info* get_fd_conn(int client_fd, bloom_networking *netconf);
+static conn_info* get_fd_conn(bloom_networking *netconf);
 static int send_client_response_buffered(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
 static int send_client_response_direct(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
 
 // Circular buffer method
 static void init_circular_buffer(circular_buffer *buf);
 static void circbuf_alloc(circular_buffer *buf);
-static void circbuf_reset(circular_buffer *buf);
 static void circbuf_free(circular_buffer *buf);
 static uint64_t circbuf_avail_buf(circular_buffer *buf);
 static void circbuf_grow_buf(circular_buffer *buf);
@@ -275,7 +262,6 @@ int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking *
 
     // Initialize
     pthread_mutex_init(&netconf->leader_lock, NULL);
-    pthread_mutex_init(&netconf->conns_lock, NULL);
     INIT_BLOOM_SPIN(&netconf->event_lock);
     netconf->events = NULL;
     netconf->config = config;
@@ -283,8 +269,6 @@ int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking *
     netconf->should_run = 1;
     netconf->num_threads = 0;
     netconf->threads = calloc(config->worker_threads, sizeof(pthread_t));
-    netconf->conn_list_size = INIT_CONN_LIST_SIZE;
-    netconf->conns = calloc(INIT_CONN_LIST_SIZE, sizeof(conn_info*));
 
     /**
      * Check if we can use kqueue instead of select.
@@ -455,23 +439,13 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
             inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
 
     // Get the associated conn object
-    conn_info *conn = get_fd_conn(client_fd, data->netconf);
-
-    // Prepare the buffers
-    init_circular_buffer(&conn->input);
-    init_circular_buffer(&conn->output);
+    conn_info *conn = get_fd_conn(data->netconf);
 
     // Initialize the libev stuff
     ev_io_init(&conn->client, prepare_event, client_fd, EV_READ);
     ev_io_init(&conn->write_client, prepare_event, client_fd, EV_WRITE);
 
-    // Store a reference to the conn object
-    conn->client.data = conn;
-    conn->write_client.data = conn;
-
     // Schedule the new client
-    conn->should_schedule = 1;
-    conn->use_write_buf = 0;
     schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->client);
 }
 
@@ -565,6 +539,7 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
     // This is done when the buffer size is 0.
     if (conn->output.read_cursor == conn->output.write_cursor) {
         conn->use_write_buf = 0;
+        conn->ref_count--;
     } else if (reschedule) {
         schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->write_client);
     }
@@ -709,23 +684,19 @@ int shutdown_networking(bloom_networking *netconf) {
     ev_io_stop(&netconf->udp_client);
     close(netconf->udp_client.fd);
 
-    // Close all the client connections
+    // TODO: Close all the client connections
     conn_info *conn;
-    for (int i=0; i < netconf->conn_list_size; i++) {
+    for (int i=0; i < 0; i++) {
         // Check if the connection is non-null
-        conn = netconf->conns[i];
+        conn = NULL;
         if (conn == NULL) continue;
 
         // Stop listening in libev and close the socket
         close_client_connection(conn);
-
-        // Free all the buffers
-        free(conn);
     }
 
     // Free the netconf
     free(netconf->threads);
-    free(netconf->conns);
     free(netconf);
     return 0;
 }
@@ -744,6 +715,11 @@ int shutdown_networking(bloom_networking *netconf) {
  * @arg conn The connection to close
  */
 void close_client_connection(conn_info *conn) {
+    // If our refcount is still non-zero, do nothing.
+    if (--conn->ref_count) {
+        return;
+    }
+
     // Stop scheduling
     conn->should_schedule = 0;
 
@@ -757,6 +733,7 @@ void close_client_connection(conn_info *conn) {
 
     // Close the fd
     close(conn->client.fd);
+    free(conn);
 }
 
 
@@ -859,6 +836,7 @@ static int send_client_response_direct(conn_info *conn, char **response_buffers,
 
     // Setup the async write
     conn->use_write_buf = 1;
+    conn->ref_count++;
     schedule_async(conn->netconf, SCHEDULE_WATCHER, &conn->write_client);
 
     // Done
@@ -1002,43 +980,24 @@ static int set_client_sockopts(int client_fd) {
  * Returns the conn_info* object associated with the FD
  * or allocates a new one as necessary.
  */
-static conn_info* get_fd_conn(int client_fd, bloom_networking *netconf) {
-    // Check if we need to resize the conn_list
-    if (client_fd >= netconf->conn_list_size) {
-        // Lock the conns list
-        pthread_mutex_lock(&netconf->conns_lock);
+static conn_info* get_fd_conn(bloom_networking *netconf) {
+    // Allocate space
+    conn_info *conn = calloc(1, sizeof(conn_info));
+    INIT_BLOOM_SPIN(&conn->output_lock);
 
-        // Keep doubling until we have enough space
-        int new_size = 2*netconf->conn_list_size;
-        while (new_size <= client_fd) {
-            new_size *= 2;
-        }
+    // Setup variables
+    conn->netconf = netconf;
+    conn->ref_count = 1;
+    conn->should_schedule = 1;
+    conn->use_write_buf = 0;
 
-        // Allocate a new list and copy the old entries
-        conn_info **new_conns = calloc(new_size, sizeof(conn_info*));
-        memcpy(new_conns,
-               netconf->conns,
-               sizeof(conn_info*)*netconf->conn_list_size);
+    // Prepare the buffers
+    init_circular_buffer(&conn->input);
+    init_circular_buffer(&conn->output);
 
-        // Flip to the new list
-        free(netconf->conns);
-        netconf->conns = new_conns;
-        netconf->conn_list_size = new_size;
-
-        // Release
-        pthread_mutex_unlock(&netconf->conns_lock);
-    }
-
-    // Try to get the connection object
-    conn_info *conn = netconf->conns[client_fd];
-
-    // If it is not yet initialized, make one
-    if (!conn) {
-        conn = calloc(1, sizeof(conn_info));
-        conn->netconf = netconf;
-        INIT_BLOOM_SPIN(&conn->output_lock);
-        netconf->conns[client_fd] = conn;
-    }
+    // Store a reference to the conn object
+    conn->client.data = conn;
+    conn->write_client.data = conn;
 
     return conn;
 }
@@ -1060,17 +1019,6 @@ static void init_circular_buffer(circular_buffer *buf) {
 static void circbuf_alloc(circular_buffer *buf) {
     buf->buf_size = INIT_CONN_BUF_SIZE * sizeof(char);
     buf->buffer = malloc(buf->buf_size);
-}
-
-// Resets a circular buffer
-static void circbuf_reset(circular_buffer *buf) {
-    buf->read_cursor = 0;
-    buf->write_cursor = 0;
-    if (buf->buf_size > INIT_CONN_BUF_SIZE) {
-        buf->buf_size = 0;
-        free(buf->buffer);
-        buf->buffer = NULL;
-    }
 }
 
 // Frees a buffer
