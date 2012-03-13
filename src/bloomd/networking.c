@@ -522,20 +522,8 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
     // Issue the write
     ssize_t write_bytes = writev(watch->fd, (struct iovec*)&vectors, num_vectors);
 
-    // Make sure we actually wrote something
-    if (write_bytes == 0) {
-        syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
-        close_client_connection(conn);
-
-    } else if (write_bytes == -1) {
-        if (errno == EAGAIN || errno == EINTR) {
-            schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->write_client);
-        } else {
-            syslog(LOG_ERR, "Failed to write() to connection [%d]! %s.",
-                    conn->client.fd, strerror(errno));
-            close_client_connection(conn);
-        }
-    } else {
+    int reschedule = 0;
+    if (write_bytes > 0) {
         // Update the cursor
         circbuf_advance_read(&conn->output, write_bytes);
 
@@ -543,14 +531,35 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
         // This is done when the buffer size is 0.
         if (conn->output.read_cursor == conn->output.write_cursor) {
             conn->use_write_buf = 0;
-            decref_client_connection(conn);
+            reschedule = 0;
         } else {
-            schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->write_client);
+            reschedule = 1;
         }
     }
 
     // Unlock
     UNLOCK_BLOOM_SPIN(&conn->output_lock);
+
+    // Make sure we actually wrote something
+    if (write_bytes == 0) {
+        syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
+        close_client_connection(conn);
+        return 1;
+    }
+
+    if (write_bytes == -1 && (errno != EAGAIN && errno != EINTR)) {
+        syslog(LOG_ERR, "Failed to write() to connection [%d]! %s.",
+                conn->client.fd, strerror(errno));
+        close_client_connection(conn);
+        return 1;
+    }
+
+    // Check if we should reschedule or end
+    if (reschedule) {
+        schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->write_client);
+    } else {
+        decref_client_connection(conn);
+    }
     return 0;
 }
 
