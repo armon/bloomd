@@ -551,6 +551,7 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
         syslog(LOG_ERR, "Failed to write() to connection [%d]! %s.",
                 conn->client.fd, strerror(errno));
         close_client_connection(conn);
+        decref_client_connection(conn);
         return 1;
     }
 
@@ -562,7 +563,6 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
     }
     return 0;
 }
-
 
 /**
  * Reads the thread specific userdata to figure out what
@@ -731,7 +731,7 @@ static void decref_client_connection(conn_info *conn) {
     LOCK_BLOOM_SPIN(&conn->ref_lock);
     int refs = --conn->ref_count;
     UNLOCK_BLOOM_SPIN(&conn->ref_lock);
-    if (refs <= 0) private_close_connection(conn);
+    if (refs == 0) private_close_connection(conn);
 }
 
 /**
@@ -752,7 +752,7 @@ void close_client_connection(conn_info *conn) {
     UNLOCK_BLOOM_SPIN(&conn->ref_lock);
 
     // If our refcount is still non-zero, do nothing.
-    if (refs > 0) {
+    if (refs != 0) {
         return;
     }
 
