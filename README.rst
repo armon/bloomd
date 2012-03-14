@@ -11,8 +11,7 @@ Features
 
 * Scalable non-blocking core allows for many connected
   clients and concurrent operations
-* Implements Scalable Bloom Filters 
-    - Starts small, grows to fit data
+* Implements scalable bloom filters, allowing dynamic filter sizes
 * Supports asynchronous flushes to disk for persistence
 * Supports non-disk backed bloom filters for high I/O
 * Automatically faults cold filters out of memory to save resources
@@ -29,6 +28,19 @@ Download and build from source::
     $ pip install SCons  # Uses the Scons build system, may not be necessary
     $ scons
     $ ./bloomd
+
+This will generate some errors related to building the test code
+as it depends on libcheck. To build the test code successfully,
+do the following::
+
+    $ cd deps/check-0.9.8/
+    $ ./configure
+    $ make
+    # make install
+    # ldconfig (necessary on some Linux distros)
+
+Then re-build bloomd. At this point, the test code should build
+successfully.
 
 Usage
 -----
@@ -160,6 +172,51 @@ causes all filters to be flushed. If a filter name is provided
 then that filter will be flushed. This will either return "Done" or
 "Filter does not exist".
 
+Example
+----------
+
+Here is an example of a client flow, assuming bloomd is 
+running on the default port using just telnet::
+
+    $ telnet localhost 8673
+    > list
+    START
+    END
+
+    > create foobar
+    Done
+
+    > check foobar zipzab
+    No
+
+    > set foobar zipzab
+    Yes
+
+    > check foobar zipzab
+    Yes
+
+    > multi foobar zipzab blah boo
+    Yes No No
+
+    > bulk foobar zipzab blah boo
+    No Yes Yes
+
+    > multi foobar zipzab blah boo
+    Yes Yes Yes
+
+    > list     
+    START
+    foobar 0.000100 300046 100000 3
+    END
+
+    > drop foobar
+    Done
+
+    > list
+    START
+    END
+
+
 Clients
 ----------
 
@@ -181,12 +238,14 @@ Performance
 Although extensive performance evaluations have not been done,
 casual testing on a 2011 Macbook Air shows response times of about
 5 μs for set/check operations. Doing pure set/check operations also
-allows for a throughput of at least 300K ops/sec.
+allows for a throughput of at least 300K ops/sec. On Linux,
+response times can be as low as 2 μs.
 
 Bloomd also supports multi-core systems for scalability, so
 it is important to tune it for the given work load. The number
 of worker threads can be configured either in the configuration
-file, or by providing a `-w` flag.
+file, or by providing a `-w` flag. This should be set to at most
+2 * CPU count. By default, only a single worker is used.
 
 References
 -----------
