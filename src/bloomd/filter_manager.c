@@ -460,8 +460,8 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
         filt->custom = config;
     }
 
-    // Try to create the underlying filter
-    int res = init_bloom_filter(config, filter_name, 1, &filt->filter);
+    // Try to create the underlying filter. Only discover if it is hot.
+    int res = init_bloom_filter(config, filter_name, is_hot, &filt->filter);
     if (res != 0) {
         free(filt);
         return -1;
