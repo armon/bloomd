@@ -91,6 +91,7 @@ static void* flush_thread_main(void *in) {
             bloom_filter_list_head *head;
             int res = filtmgr_list_filters(mgr, &head);
             if (res != 0) {
+                syslog(LOG_WARNING, "Failed to list filters for flushing!");
                 continue;
             }
 
