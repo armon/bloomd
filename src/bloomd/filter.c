@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <pthread.h>
+#include <sys/time.h>
 #include "filter.h"
 
 /*
@@ -30,6 +31,7 @@ static int thread_safe_fault(bloom_filter *f);
 static int discover_existing_filters(bloom_filter *f);
 static int create_sbf(bloom_filter *f, int num, bloom_bloomfilter **filters);
 static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out);
+static int timediff_msec(struct timeval *t1, struct timeval *t2);
 
 #ifndef __linux__
 static int filter_out_special(struct dirent *d);
@@ -148,10 +150,20 @@ int bloomf_is_proxied(bloom_filter *filter) {
 int bloomf_flush(bloom_filter *filter) {
     // Only do things if we are non-proxied
     if (filter->sbf) {
+        // Time how long this takes
+        struct timeval start, end;
+        gettimeofday(&start, NULL);
+
+        // If our size has not changed, there is no need to flush
+        uint64_t new_size = bloomf_size(filter);
+        if (new_size == filter->filter_config.size && filter->filter_config.bytes != 0) {
+            return 0;
+        }
+
         // Store our properties for a future unmap
-        filter->filter_config.size = bloomf_size(filter);
+        filter->filter_config.size = new_size;
         filter->filter_config.capacity = bloomf_capacity(filter);
-        filter->filter_config.bytes= bloomf_byte_size(filter);
+        filter->filter_config.bytes = bloomf_byte_size(filter);
 
         // Write out filter_config
         char *config_name = join_path(filter->full_path, (char*)CONFIG_FILENAME);
@@ -163,9 +175,16 @@ int bloomf_flush(bloom_filter *filter) {
         }
 
         // Flush the filter
+        res = 0;
         if (!filter->filter_config.in_memory) {
-            return sbf_flush((bloom_sbf*)filter->sbf);
+            res = sbf_flush((bloom_sbf*)filter->sbf);
         }
+
+        // Compute the elapsed time
+        gettimeofday(&end, NULL);
+        syslog(LOG_INFO, "Flushed filter '%s'. Total time: %d msec.",
+                filter->filter_name, timediff_msec(&start, &end));
+        return res;
     }
     return 0;
 }
@@ -601,5 +620,15 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
     }
     free(full_path);
     return res;
+}
+
+/**
+ * Computes the difference in time in milliseconds
+ * between two timeval structures.
+ */
+static int timediff_msec(struct timeval *t1, struct timeval *t2) {
+    uint64_t micro1 = t1->tv_sec * 1000000 + t1->tv_usec;
+    uint64_t micro2= t2->tv_sec * 1000000 + t2->tv_usec;
+    return (micro2-micro1) / 1000;
 }
 
