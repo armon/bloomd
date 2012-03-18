@@ -476,7 +476,6 @@ static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
     int avail_buf = circbuf_avail_buf(&conn->input);
     if (avail_buf < conn->input.buf_size / 2) {
         circbuf_grow_buf(&conn->input);
-        avail_buf = circbuf_avail_buf(&conn->input);
     }
 
     // Build the IO vectors to perform the read
@@ -491,6 +490,7 @@ static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
     if (read_bytes == 0) {
         syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
         close_client_connection(conn);
+        return 1;
     } else if (read_bytes == -1) {
         if (errno != EAGAIN && errno != EINTR) {
             syslog(LOG_ERR, "Failed to read() from connection [%d]! %s.",
