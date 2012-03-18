@@ -385,7 +385,13 @@ static void handle_async_event(ev_async *watcher, int revents) {
     // Lock the events
     LOCK_BLOOM_SPIN(&data->netconf->event_lock);
 
+    // Get a reference to the head, set the head to NULL
     async_event *event = (async_event*)data->netconf->events;
+    data->netconf->events = NULL;
+
+    // Release the lock
+    UNLOCK_BLOOM_SPIN(&data->netconf->event_lock);
+
     async_event *next;
     while (event) {
         // Handle based on the event
@@ -408,10 +414,6 @@ static void handle_async_event(ev_async *watcher, int revents) {
         free(event);
         event = next;
     }
-    data->netconf->events = event;
-
-    // Release the lock
-    UNLOCK_BLOOM_SPIN(&data->netconf->event_lock);
 }
 
 
