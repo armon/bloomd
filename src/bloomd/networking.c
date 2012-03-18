@@ -533,7 +533,6 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
         // This is done when the buffer size is 0.
         if (conn->output.read_cursor == conn->output.write_cursor) {
             conn->use_write_buf = 0;
-            reschedule = 0;
         } else {
             reschedule = 1;
         }
@@ -542,14 +541,8 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
     // Unlock
     UNLOCK_BLOOM_SPIN(&conn->output_lock);
 
-    // Make sure we actually wrote something
-    if (write_bytes == 0) {
-        syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
-        close_client_connection(conn);
-        return 1;
-    }
-
-    if (write_bytes == -1 && (errno != EAGAIN && errno != EINTR)) {
+    // Handle any errors
+    if (write_bytes <= 0 && (errno != EAGAIN && errno != EINTR)) {
         syslog(LOG_ERR, "Failed to write() to connection [%d]! %s.",
                 conn->client.fd, strerror(errno));
         close_client_connection(conn);
