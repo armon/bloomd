@@ -66,7 +66,7 @@ int bf_from_bitmap(bloom_bitmap *map, uint32_t k_num, int new_filter, bloom_bloo
  * @arg hashes Contains at least K num hashes
  * @return 0 if not contained, 1 if contained.
  */
-static int bf_internal_contains(bloom_bloomfilter *filter, char *key, uint64_t *hashes) {
+static int bf_internal_contains(bloom_bloomfilter *filter, uint64_t *hashes) {
     uint64_t m = filter->offset;
     uint64_t offset;
     uint64_t h;
@@ -101,7 +101,7 @@ int bf_add(bloom_bloomfilter *filter, char* key) {
     bf_compute_hashes(filter->header->k_num, key, hashes);
 
     // Check if the item exists
-    int res = bf_internal_contains(filter, key, hashes);
+    int res = bf_internal_contains(filter, hashes);
     if (res == 1) {
         return 0;  // Key already present, do not add.
     }
@@ -137,7 +137,7 @@ int bf_contains(bloom_bloomfilter *filter, char* key) {
     bf_compute_hashes(filter->header->k_num, key, hashes);
 
     // Use the internal contains method
-    return bf_internal_contains(filter, key, hashes);
+    return bf_internal_contains(filter, hashes);
 }
 
 /**

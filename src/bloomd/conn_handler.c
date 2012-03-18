@@ -543,7 +543,6 @@ static int handle_multi_response(bloom_conn_handler *handle, int cmd_res, int nu
     // Do nothing if we get too many keys
     if (num_keys > MULTI_OP_SIZE || num_keys <= 0) return 1;
 
-    // Call into the filter manager
     if (cmd_res != 0) {
         switch (cmd_res) {
             case -1:
