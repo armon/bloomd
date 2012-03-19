@@ -1,3 +1,6 @@
+#include <unistd.h>
+#include <pthread.h>
+
 #ifndef BLOOM_SPINLOCK_H
 #define BLOOM_SPINLOCK_H
 
