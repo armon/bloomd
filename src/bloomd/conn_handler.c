@@ -133,7 +133,7 @@ static void handle_filt_key_cmd(bloom_conn_handler *handle, char *args, int args
     char *key;
     int key_len;
     int err = buffer_after_terminator(args, args_len, ' ', &key, &key_len);
-    if (err < 0 || key_len <= 1) CHECK_ARG_ERR();
+    if (err || key_len <= 1) CHECK_ARG_ERR();
 
     // Setup the buffers
     char *key_buf[] = {key};
@@ -175,7 +175,7 @@ static void handle_filt_multi_key_cmd(bloom_conn_handler *handle, char *args, in
     char *key;
     int key_len;
     int err = buffer_after_terminator(args, args_len, ' ', &key, &key_len);
-    if (err < 0 || key_len <= 1) CHECK_ARG_ERR();
+    if (err || key_len <= 1) CHECK_ARG_ERR();
 
     // Parse any options
     char *curr_key = key;
@@ -245,7 +245,7 @@ static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_l
     // Parse the options
     bloom_config *config = NULL;
     int err = 0;
-    if (res > 0) {
+    if (res == 0) {
         // Make a new config store, copy the current
         config = malloc(sizeof(bloom_config));
         memcpy(config, handle->config, sizeof(bloom_config));
@@ -327,7 +327,7 @@ static void handle_filt_cmd(bloom_conn_handler *handle, char *args, int args_len
     char *key;
     int key_len;
     int after = buffer_after_terminator(args, args_len, ' ', &key, &key_len);
-    if (after > 0) {
+    if (after == 0) {
         handle_client_err(handle->conn, (char*)&UNEXPECTED_ARGS, UNEXPECTED_ARGS_LEN);
         return;
     }
@@ -463,7 +463,7 @@ static void handle_info_cmd(bloom_conn_handler *handle, char *args, int args_len
     char *key;
     int key_len;
     int after = buffer_after_terminator(args, args_len, ' ', &key, &key_len);
-    if (after > 0) {
+    if (after == 0) {
         handle_client_err(handle->conn, (char*)&UNEXPECTED_ARGS, UNEXPECTED_ARGS_LEN);
         return;
     }
@@ -626,30 +626,30 @@ static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char *
     // Scan for a space. This will setup the arg_buf and arg_len
     // if we do find the terminator. It will also insert a null terminator
     // at the space, so we can compare the cmd_buf to the commands.
-    int bytes = buffer_after_terminator(cmd_buf, buf_len, ' ', arg_buf, arg_len);
+    buffer_after_terminator(cmd_buf, buf_len, ' ', arg_buf, arg_len);
 
     // Search for the command
     conn_cmd_type type = UNKNOWN;
-    #define CMD_MATCH(name, len) (bytes == len && memcmp(name, cmd_buf, len) == 0)
-    if (CMD_MATCH("c", 1) || CMD_MATCH("check", 5)) {
+    #define CMD_MATCH(name) (strcmp(name, cmd_buf) == 0)
+    if (CMD_MATCH("c") || CMD_MATCH("check")) {
         type = CHECK;
-    } else if (CMD_MATCH("m", 1) || CMD_MATCH("multi", 5)) {
+    } else if (CMD_MATCH("m") || CMD_MATCH("multi")) {
         type = CHECK_MULTI;
-    } else if (CMD_MATCH("s", 1) || CMD_MATCH("set", 3)) {
+    } else if (CMD_MATCH("s") || CMD_MATCH("set")) {
         type = SET;
-    } else if (CMD_MATCH("b", 1) || CMD_MATCH("bulk", 4)) {
+    } else if (CMD_MATCH("b") || CMD_MATCH("bulk")) {
         type = SET_MULTI;
-    } else if (CMD_MATCH("list", 4)) {
+    } else if (CMD_MATCH("list")) {
         type = LIST;
-    } else if (CMD_MATCH("info", 4)) {
+    } else if (CMD_MATCH("info")) {
         type = INFO;
-    } else if (CMD_MATCH("create", 6)) {
+    } else if (CMD_MATCH("create")) {
         type = CREATE;
-    } else if (CMD_MATCH("drop", 4)) {
+    } else if (CMD_MATCH("drop")) {
         type = DROP;
-    } else if (CMD_MATCH("close", 5)) {
+    } else if (CMD_MATCH("close")) {
         type = CLOSE;
-    } else if (CMD_MATCH("flush", 5)) {
+    } else if (CMD_MATCH("flush")) {
         type = FLUSH;
     }
 
@@ -666,7 +666,7 @@ static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char *
  * @arg terminator The terminator to scan to. Replaced with the null terminator.
  * @arg after_term Output. Set to the byte after the terminator.
  * @arg after_len Output. Set to the length of the output buffer.
- * @return The bytes before the terminator. -1 otherwise.
+ * @return 0 if terminator found. -1 otherwise.
  */
 static int buffer_after_terminator(char *buf, int buf_len, char terminator, char **after_term, int *after_len) {
     // Scan for a space
@@ -682,6 +682,6 @@ static int buffer_after_terminator(char *buf, int buf_len, char terminator, char
     // Provide the arg buffer, and arg_len
     *after_term = term_addr+1;
     *after_len = buf_len - (term_addr - buf + 1);
-    return (term_addr - buf);
+    return 0;
 }
 
