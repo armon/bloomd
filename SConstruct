@@ -28,11 +28,13 @@ objs =  envbloomd_with_err.Object('src/bloomd/config', 'src/bloomd/config.c') + 
 
 bloom_libs = ["m", "pthread", murmur, bloom, inih, spooky]
 if platform.system() == 'Linux':
-   bloom_libs.append("rt") 
+   bloom_libs.append("rt")
 
-envbloomd_with_err.Program('bloomd', objs + ["src/bloomd/bloomd.c"], LIBS=bloom_libs)
-envbloomd_without_err.Program('test_bloomd_runner', objs + Glob("tests/bloomd/runner.c"), LIBS=bloom_libs + ["check"])
+bloomd = envbloomd_with_err.Program('bloomd', objs + ["src/bloomd/bloomd.c"], LIBS=bloom_libs)
+bloomd_test = envbloomd_without_err.Program('test_bloomd_runner', objs + Glob("tests/bloomd/runner.c"), LIBS=bloom_libs + ["check"])
 
 bench_obj = Object("bench", "bench.c", CCFLAGS="-std=c99 -O2")
 Program('bench', bench_obj, LIBS=["pthread"])
 
+# By default, only compile bloomd
+Default(bloomd)
