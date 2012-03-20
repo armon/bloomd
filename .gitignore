@@ -4,8 +4,6 @@
 *.os
 .lvimrc
 .sconsign.dblite
-bench
-bloomd
 tests/build/
 deps/check-0.9.8
 test_libbloom_runner
