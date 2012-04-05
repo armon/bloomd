@@ -3,7 +3,7 @@
 #include "bloom.h"
 
 /**
- * Defines a callback function that 
+ * Defines a callback function that
  * takes an arbitrary pointer value, the number of bytes required,
  * and a reference to bloom_bitmap for output. Returns an int as
  * status, 0 is success.
@@ -32,7 +32,7 @@ typedef struct {
 
 /**
  * These are memory sensitive parameters for bloom_sbf_params.
- * This will grow more slowly than the DEFAULT_PARAMS, but 
+ * This will grow more slowly than the DEFAULT_PARAMS, but
  * increases the changes of false positives.
  * Creates an initial capacity for 1 million items, 1/1000
  * false positive rate, 2x scaling, and a 80% false positive
@@ -64,10 +64,11 @@ typedef struct {
  * @arg cb_in The opaque pointer to provide to the callback.
  * @arg num_filters The number of fileters in filters. 0 for none.
  * @arg filters Pointer to an array of the existing filters. Will be copied.
+ * This array should be ordered from the largest filter to the smallest.
  * @arg sbf The filter to setup
  * @return 0 for success. Negative for error.
  */
-int sbf_from_filters(bloom_sbf_params *params, 
+int sbf_from_filters(bloom_sbf_params *params,
                      bloom_sbf_callback cb,
                      void *cb_in,
                      uint32_t num_filters,
@@ -85,7 +86,7 @@ int sbf_add(bloom_sbf *sbf, char* key);
 /**
  * Checks the filter for a key
  * @arg sbf The filter to check
- * @arg key The key to check 
+ * @arg key The key to check
  * @returns 1 if present, 0 if not present, negative on error.
  */
 int sbf_contains(bloom_sbf *sbf, char* key);
