@@ -11,7 +11,7 @@ static int sbf_append_filter(bloom_sbf *sbf);
 static void sbf_init_capacities(bloom_sbf *sbf);
 static double sbf_inital_probability(double fp_prob, double r);
 
-int sbf_from_filters(bloom_sbf_params *params, 
+int sbf_from_filters(bloom_sbf_params *params,
                      bloom_sbf_callback cb,
                      void *cb_in,
                      uint32_t num_filters,
@@ -83,7 +83,7 @@ int sbf_add(bloom_sbf *sbf, char* key) {
 /**
  * Checks the filter for a key
  * @arg sbf The filter to check
- * @arg key The key to check 
+ * @arg key The key to check
  * @returns 1 if present, 0 if not present, negative on error.
  */
 int sbf_contains(bloom_sbf *sbf, char* key) {
@@ -92,7 +92,7 @@ int sbf_contains(bloom_sbf *sbf, char* key) {
     for (int i=0;i<sbf->num_filters;i++) {
         res = bf_contains(sbf->filters[i], key);
         if (res == 1) return 1;
-    } 
+    }
     return 0;
 }
 
@@ -103,7 +103,7 @@ uint64_t sbf_size(bloom_sbf *sbf) {
     uint64_t size = 0;
     for (int i=0;i<sbf->num_filters;i++) {
         size += bf_size(sbf->filters[i]);
-    } 
+    }
     return size;
 }
 
@@ -124,7 +124,7 @@ int sbf_flush(bloom_sbf *sbf) {
             if (res != 0) break;
             sbf->dirty_filters[i] = 0;
         }
-    } 
+    }
     return res;
 }
 
@@ -149,7 +149,7 @@ int sbf_close(bloom_sbf *sbf) {
         res |= bf_close(sbf->filters[i]);
         free(sbf->filters[i]);
         free(map);
-    } 
+    }
 
     // Clean up memory
     free(sbf->filters);
@@ -185,7 +185,7 @@ uint64_t sbf_total_byte_size(bloom_sbf *sbf) {
     uint64_t size = 0;
     bloom_bloomfilter *filter;
     for (int i=0;i<sbf->num_filters;i++) {
-        filter = sbf->filters[i]; 
+        filter = sbf->filters[i];
         size += filter->map->size;
     }
     return size;
@@ -225,7 +225,7 @@ static int sbf_append_filter(bloom_sbf *sbf) {
     }
 
     // Create a new bloom filter
-    bloom_bloomfilter *filter = calloc(1, sizeof(bloom_bloomfilter)); 
+    bloom_bloomfilter *filter = calloc(1, sizeof(bloom_bloomfilter));
     res = bf_from_bitmap(map, params.k_num, 1, filter);
     if (res != 0) {
         free(filter);
@@ -239,7 +239,7 @@ static int sbf_append_filter(bloom_sbf *sbf) {
     uint64_t *old_capacities = sbf->capacities;
 
     // Increase the filter count, re-allocate the arrays
-    sbf->num_filters++; 
+    sbf->num_filters++;
     sbf->filters = malloc(sbf->num_filters*sizeof(bloom_bloomfilter*));
     sbf->dirty_filters = calloc(sbf->num_filters, sizeof(unsigned char));
     sbf->capacities = calloc(sbf->num_filters, sizeof(uint64_t));
@@ -281,7 +281,7 @@ static void sbf_init_capacities(bloom_sbf *sbf) {
 
     for (int i=0;i<sbf->num_filters;i++) {
         // Compute the capacity of the ith filter
-        capacity = init_capacity * pow(sbf->params.scale_size, i);
+        capacity = init_capacity * pow(sbf->params.scale_size, (sbf->num_filters - i - 1));
         sbf->capacities[i] = capacity;
     }
 }
