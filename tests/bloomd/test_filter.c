@@ -404,6 +404,75 @@ START_TEST(test_filter_grow_restore)
 }
 END_TEST
 
+START_TEST(test_filter_restore_order)
+{
+    /*
+     * This case is from a real world bug we ran into.
+     * The problem was that filters should be restored in the wrong
+     * internal order.
+     *
+     * Internally, they are stored as index 0 is largest,
+     * index n is smallest. On restore, we'd load the smallest
+     * at index 0.
+     *
+     * This has no impact when there is only 1 filter, but when
+     * there are more than one filters, we would load the smallest,
+     * exhausted filter first. This means that the first add would
+     * force a new filter to be added.
+     *
+     * It may also have a minor performance impact, as the smaller
+     * filters are checked for keys first.
+     */
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+    config.initial_capacity = 10000;
+
+    bloom_filter *filter = NULL;
+    res = init_bloom_filter(&config, "test_filter12", 1, &filter);
+    fail_unless(res == 0);
+
+    // Add enough keys so that there are 2 filters.
+    char buf[100];
+    for (int i=0;i<20000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_add(filter, (char*)&buf);
+    }
+
+    uint64_t size = bloomf_size(filter);
+    uint64_t byte_size = bloomf_byte_size(filter);
+    uint64_t cap = bloomf_capacity(filter);
+
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+
+    // FUCKING annoying umask permissions bullshit
+    // Cused by the Check test framework
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter12/config.ini", 0777) == 0);
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter12/data.000.mmap", 0777) == 0);
+    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter12/data.001.mmap", 0777) == 0);
+
+    res = init_bloom_filter(&config, "test_filter12", 1, &filter);
+    fail_unless(res == 0);
+
+    fail_unless(bloomf_size(filter) == size);
+    fail_unless(bloomf_byte_size(filter) == byte_size);
+    fail_unless(bloomf_capacity(filter) == cap);
+
+    // Adding some more keys should NOT cause
+    // a new filter to be added
+    for (int i=20000;i<21000;i++) {
+        snprintf((char*)&buf, 100, "foobar%d", i);
+        res = bloomf_add(filter, (char*)&buf);
+    }
+
+    res = destroy_bloom_filter(filter);
+    fail_unless(res == 0);
+
+    fail_unless(delete_dir("/tmp/bloomd/bloomd.test_filter12") == 3);
+}
+END_TEST
+
 START_TEST(test_filter_page_out)
 {
     bloom_config config;

@@ -70,6 +70,7 @@ int main(void)
     tcase_add_test(tc3, test_filter_add_check_in_mem);
     tcase_add_test(tc3, test_filter_grow);
     tcase_add_test(tc3, test_filter_grow_restore);
+    tcase_add_test(tc3, test_filter_restore_order);
     tcase_add_test(tc3, test_filter_page_out);
     tcase_add_test(tc3, test_filter_bounded_fp);
 
