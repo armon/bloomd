@@ -477,7 +477,7 @@ static int discover_existing_filters(bloom_filter *f) {
         }
 
         // Create the bitmap
-        bloom_bitmap *bitmap = maps[i] = malloc(sizeof(bloom_bitmap));
+        bloom_bitmap *bitmap = maps[num - i - 1] = malloc(sizeof(bloom_bitmap));
         res = bitmap_from_filename(bitmap_path, size, 0, 0, bitmap);
         if (res != 0) {
             err = 1;
@@ -488,7 +488,7 @@ static int discover_existing_filters(bloom_filter *f) {
         }
 
         // Create the bloom filter
-        bloom_bloomfilter *filter = filters[i] = malloc(sizeof(bloom_bloomfilter));
+        bloom_bloomfilter *filter = filters[num - i - 1] = malloc(sizeof(bloom_bloomfilter));
         res = bf_from_bitmap(bitmap, 1, 0, filter);
         if (res != 0) {
             err = 1;
