@@ -466,6 +466,9 @@ START_TEST(test_filter_restore_order)
         res = bloomf_add(filter, (char*)&buf);
     }
 
+    fail_unless(bloomf_byte_size(filter) == byte_size);
+    fail_unless(bloomf_capacity(filter) == cap);
+
     res = destroy_bloom_filter(filter);
     fail_unless(res == 0);
 
