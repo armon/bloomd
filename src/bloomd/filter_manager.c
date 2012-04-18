@@ -107,14 +107,8 @@ int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name) {
     bloom_filter_wrapper *filt = take_filter(mgr, filter_name);
     if (!filt) return -1;
 
-    // Acquire the write lock
-    pthread_rwlock_rdlock(&filt->rwlock);
-
     // Flush
     bloomf_flush(filt->filter);
-
-    // Release the lock
-    pthread_rwlock_unlock(&filt->rwlock);
 
     // Return the filter
     return_filter(mgr, filter_name);
