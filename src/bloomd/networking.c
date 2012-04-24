@@ -847,12 +847,7 @@ static int send_client_response_direct(conn_info *conn, char **response_buffers,
     for (index; index < num_bufs; index++) {
         skip_bytes += buf_sizes[index];
         if (skip_bytes > sent) {
-            if (index == 0) {
-                skip_bytes = 0;
-            } else {
-                skip_bytes -= buf_sizes[index];
-                index--;
-            }
+            skip_bytes -= buf_sizes[index];
             break;
         }
     }
