@@ -1063,8 +1063,7 @@ static uint64_t circbuf_avail_buf(circular_buffer *buf) {
 
 // Grows the circular buffer to make room for more data
 static void circbuf_grow_buf(circular_buffer *buf) {
-    uint32_t new_size = buf->buf_size * CONN_BUF_MULTIPLIER * sizeof(char);
-    if (new_size == 0) new_size = INIT_CONN_BUF_SIZE;
+    int new_size = buf->buf_size * CONN_BUF_MULTIPLIER * sizeof(char);
     char *new_buf = malloc(new_size);
     int bytes_written = 0;
 
@@ -1159,9 +1158,6 @@ static int circbuf_write(circular_buffer *buf, char *in, uint64_t bytes) {
     // Check for available space
     uint64_t avail = circbuf_avail_buf(buf);
     while (avail < bytes) {
-        syslog(LOG_INFO, "Resizing buffer. Available %llu, needed %llu",
-                (long long unsigned int)avail,
-                (long long unsigned int)bytes);
         circbuf_grow_buf(buf);
         avail = circbuf_avail_buf(buf);
     }
