@@ -29,6 +29,7 @@ static void handle_set_multi_cmd(bloom_conn_handler *handle, char *args, int arg
 static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_drop_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_close_cmd(bloom_conn_handler *handle, char *args, int args_len);
+static void handle_clear_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_info_cmd(bloom_conn_handler *handle, char *args, int args_len);
 static void handle_flush_cmd(bloom_conn_handler *handle, char *args, int args_len);
@@ -92,6 +93,9 @@ int handle_client_connect(bloom_conn_handler *handle) {
                 break;
             case CLOSE:
                 handle_close_cmd(handle, arg_buf, arg_buf_len);
+                break;
+            case CLEAR:
+                handle_clear_cmd(handle, arg_buf, arg_buf_len);
                 break;
             case LIST:
                 handle_list_cmd(handle, arg_buf, arg_buf_len);
@@ -341,6 +345,9 @@ static void handle_filt_cmd(bloom_conn_handler *handle, char *args, int args_len
         case -1:
             handle_client_resp(handle->conn, (char*)FILT_NOT_EXIST, FILT_NOT_EXIST_LEN);
             break;
+        case -2:
+            handle_client_resp(handle->conn, (char*)FILT_NOT_PROXIED, FILT_NOT_PROXIED_LEN);
+            break;
         default:
             INTERNAL_ERROR();
             break;
@@ -353,6 +360,10 @@ static void handle_drop_cmd(bloom_conn_handler *handle, char *args, int args_len
 
 static void handle_close_cmd(bloom_conn_handler *handle, char *args, int args_len) {
     handle_filt_cmd(handle, args, args_len, filtmgr_unmap_filter);
+}
+
+static void handle_clear_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    handle_filt_cmd(handle, args, args_len, filtmgr_clear_filter);
 }
 
 // Callback invoked by list command to create an output
@@ -649,6 +660,8 @@ static conn_cmd_type determine_client_command(char *cmd_buf, int buf_len, char *
         type = DROP;
     } else if (CMD_MATCH("close")) {
         type = CLOSE;
+    } else if (CMD_MATCH("clear")) {
+        type = CLEAR;
     } else if (CMD_MATCH("flush")) {
         type = FLUSH;
     }
