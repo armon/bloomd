@@ -131,6 +131,42 @@ class TestInteg(object):
         assert "foobar" in fh.readline()
         assert fh.readline() == "END\n"
 
+    def test_clear(self, servers):
+        "Tests clearing a filter"
+        server, _ = servers
+        fh = server.makefile()
+        server.sendall("create cleartest\n")
+        assert fh.readline() == "Done\n"
+
+        server.sendall("list\n")
+        assert fh.readline() == "START\n"
+        assert "cleartest" in fh.readline()
+        assert fh.readline() == "END\n"
+
+        server.sendall("clear cleartest\n")
+        assert fh.readline() == "Filter is not proxied. Close it first.\n"
+
+        server.sendall("list\n")
+        assert fh.readline() == "START\n"
+        assert "cleartest" in fh.readline()
+        assert fh.readline() == "END\n"
+
+        server.sendall("close cleartest\n")
+        assert fh.readline() == "Done\n"
+
+        server.sendall("clear cleartest\n")
+        assert fh.readline() == "Done\n"
+
+        server.sendall("list\n")
+        assert fh.readline() == "START\n"
+        assert fh.readline() == "END\n"
+
+        # Load + Drop the filter
+        server.sendall("create cleartest\n")
+        assert fh.readline() == "Done\n"
+        server.sendall("drop cleartest\n")
+        assert fh.readline() == "Done\n"
+
     def test_set(self, servers):
         "Tests setting a value"
         server, _ = servers
