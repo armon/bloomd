@@ -352,6 +352,133 @@ START_TEST(test_mgr_unmap_add_keys)
 }
 END_TEST
 
+/* Clear command */
+START_TEST(test_mgr_clear_no_filter)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_clear_filter(mgr, "noop2");
+    fail_unless(res == -1);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+START_TEST(test_mgr_clear_not_proxied)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "dub1", NULL);
+    fail_unless(res == 0);
+
+    // Should be not proxied still
+    res = filtmgr_clear_filter(mgr, "dub1");
+    fail_unless(res == -2);
+
+    res = filtmgr_drop_filter(mgr, "dub1");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+START_TEST(test_mgr_clear)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "dub2", NULL);
+    fail_unless(res == 0);
+
+    res = filtmgr_unmap_filter(mgr, "dub2");
+    fail_unless(res == 0);
+
+    // Should be not proxied still
+    res = filtmgr_clear_filter(mgr, "dub2");
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "dub2", NULL);
+    fail_unless(res == 0);
+
+    res = filtmgr_drop_filter(mgr, "dub2");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
+START_TEST(test_mgr_clear_reload)
+{
+    bloom_config config;
+    int res = config_from_filename(NULL, &config);
+    fail_unless(res == 0);
+
+    bloom_filtmgr *mgr;
+    res = init_filter_manager(&config, &mgr);
+    fail_unless(res == 0);
+
+    res = filtmgr_create_filter(mgr, "zab9", NULL);
+    fail_unless(res == 0);
+
+    // Try to add keys now
+    char *keys[] = {"hey","there","person"};
+    char result[] = {0, 0, 0};
+    res = filtmgr_set_keys(mgr, "zab9", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(result[0]);
+    fail_unless(result[1]);
+    fail_unless(result[2]);
+
+    res = filtmgr_unmap_filter(mgr, "zab9");
+    fail_unless(res == 0);
+
+    // FUCKING annoying umask permissions bullshit
+    // Cused by the Check test framework
+    fail_unless(chmod("/tmp/bloomd/bloomd.zab9/config.ini", 0777) == 0);
+    fail_unless(chmod("/tmp/bloomd/bloomd.zab9/data.000.mmap", 0777) == 0);
+
+    res = filtmgr_clear_filter(mgr, "zab9");
+    fail_unless(res == 0);
+
+    // This should rediscover
+    res = filtmgr_create_filter(mgr, "zab9", NULL);
+    fail_unless(res == 0);
+
+    // Try to check keys now
+    res = filtmgr_check_keys(mgr, "zab9", (char**)&keys, 3, (char*)&result);
+    fail_unless(res == 0);
+    fail_unless(result[0]);
+    fail_unless(result[1]);
+    fail_unless(result[2]);
+
+    res = filtmgr_drop_filter(mgr, "zab9");
+    fail_unless(res == 0);
+
+    res = destroy_filter_manager(mgr);
+    fail_unless(res == 0);
+}
+END_TEST
+
 /* List Cold */
 START_TEST(test_mgr_list_cold_no_filters)
 {

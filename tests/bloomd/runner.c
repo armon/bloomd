@@ -90,6 +90,10 @@ int main(void)
     tcase_add_test(tc4, test_mgr_unmap_no_filter);
     tcase_add_test(tc4, test_mgr_unmap);
     tcase_add_test(tc4, test_mgr_unmap_add_keys);
+    tcase_add_test(tc4, test_mgr_clear_no_filter);
+    tcase_add_test(tc4, test_mgr_clear_not_proxied);
+    tcase_add_test(tc4, test_mgr_clear);
+    tcase_add_test(tc4, test_mgr_clear_reload);
     tcase_add_test(tc4, test_mgr_list_cold_no_filters);
     tcase_add_test(tc4, test_mgr_list_cold);
     tcase_add_test(tc4, test_mgr_unmap_in_mem);
