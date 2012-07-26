@@ -18,6 +18,7 @@ typedef struct {
     volatile int is_active;         // Set to 0 when we are trying to delete it
     volatile int32_t ref_count;     // Used to manage outstanding handles
     volatile int is_hot;            // Used to mark a filter as hot
+    volatile int should_delete;     // Used to control deletion
 
     bloom_filter *filter;    // The actual filter object
     pthread_rwlock_t rwlock; // Protects the filter
@@ -41,7 +42,7 @@ static const int FOLDER_PREFIX_LEN = sizeof(FOLDER_PREFIX) - 1;
 
 static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name);
 static void return_filter(bloom_filtmgr *mgr, char *filter_name);
-static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt, int should_delete);
+static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt);
 static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config, int is_hot);
 static int filter_map_list_cb(void *data, const char *key, void *value);
 static int filter_map_list_cold_cb(void *data, const char *key, void *value);
@@ -244,6 +245,7 @@ int filtmgr_drop_filter(bloom_filtmgr *mgr, char *filter_name) {
     LOCK_BLOOM_SPIN(&mgr->filter_lock);
     filt->ref_count--;
     filt->is_active = 0;
+    filt->should_delete = 1;
     UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
 
     // Return the filter
@@ -281,6 +283,41 @@ int filtmgr_unmap_filter(bloom_filtmgr *mgr, char *filter_name) {
     return_filter(mgr, filter_name);
     return 0;
 }
+
+
+/**
+ * Clears the filter from the internal data stores. This can only
+ * be performed if the filter is proxied.
+ * @arg filter_name The name of the filter to delete
+ * @return 0 on success, -1 if the filter does not exist, -2
+ * if the filter is not proxied.
+ */
+int filtmgr_clear_filter(bloom_filtmgr *mgr, char *filter_name) {
+    // Get the filter
+    bloom_filter_wrapper *filt = take_filter(mgr, filter_name);
+    if (!filt) return -1;
+
+    // Check if the filter is proxied
+    if (!bloomf_is_proxied(filt->filter)) {
+        return_filter(mgr, filter_name);
+        return -2;
+    }
+
+    // Decrement the ref count and set to non-active
+    LOCK_BLOOM_SPIN(&mgr->filter_lock);
+    filt->ref_count--;
+    filt->is_active = 0;
+
+    // This is critical, as it prevents it from
+    // being deleted. Instead, it is merely closed.
+    filt->should_delete = 0;
+    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
+
+    // Return the filter
+    return_filter(mgr, filter_name);
+    return 0;
+}
+
 
 /**
  * Allocates space for and returns a linked
@@ -404,18 +441,17 @@ static void return_filter(bloom_filtmgr *mgr, char *filter_name) {
 
     // Handle the deletion
     if (delete)  {
-        delete_filter(mgr, filt, 1);
+        delete_filter(mgr, filt);
     }
 }
 
 /**
  * Invoked to cleanup a filter once we
  * have hit 0 remaining references.
- * @arg should_delete Use bloomf_delete() to remove all the files
  */
-static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt, int should_delete) {
+static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt) {
     // Delete or Close the filter
-    if (should_delete)
+    if (filt->should_delete)
         bloomf_delete(filt->filter);
     else
         bloomf_close(filt->filter);
@@ -447,6 +483,7 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
     filt->ref_count = 1;
     filt->is_active = 1;
     filt->is_hot = is_hot;
+    filt->should_delete = 0;
     pthread_rwlock_init(&filt->rwlock, NULL);
 
     // Set the custom filter if its not the same
@@ -539,7 +576,8 @@ static int filter_map_delete_cb(void *data, const char *key, void *value) {
     bloom_filter_wrapper *filt = value;
 
     // Delete, but not the underlying files
-    delete_filter(mgr, filt, 0);
+    filt->should_delete = 0;
+    delete_filter(mgr, filt);
     return 0;
 }
 

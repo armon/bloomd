@@ -96,6 +96,15 @@ int filtmgr_drop_filter(bloom_filtmgr *mgr, char *filter_name);
 int filtmgr_unmap_filter(bloom_filtmgr *mgr, char *filter_name);
 
 /**
+ * Clears the filter from the internal data stores. This can only
+ * be performed if the filter is proxied.
+ * @arg filter_name The name of the filter to delete
+ * @return 0 on success, -1 if the filter does not exist, -2
+ * if the filter is not proxied.
+ */
+int filtmgr_clear_filter(bloom_filtmgr *mgr, char *filter_name);
+
+/**
  * Allocates space for and returns a linked
  * list of all the filters. The memory should be free'd by
  * the caller.
