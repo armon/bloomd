@@ -22,7 +22,7 @@ Install
 -------
 
 Download and build from source::
-   
+
     $ git clone https://armon@github.com/armon/bloomd.git
     $ cd bloomd
     $ pip install SCons  # Uses the Scons build system, may not be necessary
@@ -83,11 +83,12 @@ and ending the line in a newline (carriage return is optional).
 There are a total of 10 commands:
 
 * create - Create a new filter (a filter is a named bloom filter)
-* list - List all filters 
+* list - List all filters
 * drop - Drop a filters (Deletes from disk)
 * close - Closes a filter (Unmaps from memory, but still accessible)
-* check|c - Check if a key is in a filter 
-* multi|m - Checks if a list of keys are in a filter 
+* clear - Clears a filter from the lists (Removes memory, left on disk)
+* check|c - Check if a key is in a filter
+* multi|m - Checks if a list of keys are in a filter
 * set|s - Set an item in a filter
 * bulk|b - Set many items in a filter at once
 * info - Gets info about a filter
@@ -101,7 +102,7 @@ Where ``filter_name`` is the name of the filter,
 and can contain the characters a-z, A-Z, 0-9, ., _.
 If an initial capacity is provided the filter
 will be created to store at least that many items in the initial filter.
-Otherwise the configured default value will be used. 
+Otherwise the configured default value will be used.
 If a maximum false positive probability is provided,
 that will be used, otherwise the configured default is used.
 You can optionally specify in_memory to force the filter to not be
@@ -120,15 +121,17 @@ about all the filters. Here is an example response::
 
     START
     foobar 0.001 1797211 1000000 0
-    END 
+    END
 
 This indicates a single filter named foobar, with a probability
 of 0.001 of false positives, a 1.79MB size, a current capacity of
 1M items, and 0 current items. The size and capacity automatically
 scale as more items are added.
 
-The ``drop`` and ``close`` commands are like create, but only takes a filter name.
-It can either return "Done" or "Filter does not exist".
+The ``drop``, ``close`` and ``clear`` commands are like create, but only takes a filter name.
+It can either return "Done" or "Filter does not exist". ``clear`` can also return "Filter is not proxied. Close it first.".
+This means that the filter is still in-memory and not qualified for being cleared.
+This can be resolved by first closing the filter.
 
 Check and set look similar, they are either::
 
@@ -175,7 +178,7 @@ then that filter will be flushed. This will either return "Done" or
 Example
 ----------
 
-Here is an example of a client flow, assuming bloomd is 
+Here is an example of a client flow, assuming bloomd is
 running on the default port using just telnet::
 
     $ telnet localhost 8673
@@ -204,7 +207,7 @@ running on the default port using just telnet::
     > multi foobar zipzab blah boo
     Yes Yes Yes
 
-    > list     
+    > list
     START
     foobar 0.000100 300046 100000 3
     END
