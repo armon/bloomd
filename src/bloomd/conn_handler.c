@@ -378,6 +378,7 @@ static void list_filter_cb(void *data, char *filter_name, bloom_filter *filter) 
             (unsigned long long)bloomf_byte_size(filter),
             (unsigned long long)bloomf_capacity(filter),
             (unsigned long long)bloomf_size(filter));
+    assert(res != -1);
 }
 
 static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len) {
@@ -461,6 +462,7 @@ storage %llu\n",
     filter->filter_config.default_probability,
     (unsigned long long)sets, (unsigned long long)counters->set_hits,
     (unsigned long long)counters->set_misses, (unsigned long long)size, (unsigned long long)storage);
+    assert(res != -1);
 }
 
 static void handle_info_cmd(bloom_conn_handler *handle, char *args, int args_len) {
