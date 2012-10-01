@@ -10,7 +10,7 @@ envbloom = Environment(CCFLAGS = '-std=c99 -Wall -Werror -O2 -D_GNU_SOURCE')
 bloom = envbloom.Library('bloom', Glob("src/libbloom/*.c"), LIBS=[murmur, spooky])
 
 envtest = Environment(CCFLAGS = '-std=c99 -D_GNU_SOURCE -Isrc/libbloom/')
-envtest.Program('test_libbloom_runner', Glob("tests/libbloom/*.c"), LIBS=["check", "m", bloom, murmur, spooky])
+envtest.Program('test_libbloom_runner', Glob("tests/libbloom/*.c"), LIBS=["check", bloom, murmur, spooky, "m"])
 
 envinih = Environment(CPATH = ['deps/inih/'], CFLAGS="-O2")
 inih = envinih.Library('inih', Glob("deps/inih/*.c"))
@@ -26,7 +26,7 @@ objs =  envbloomd_with_err.Object('src/bloomd/config', 'src/bloomd/config.c') + 
         envbloomd_with_err.Object('src/bloomd/filter_manager', 'src/bloomd/filter_manager.c') + \
         envbloomd_with_err.Object('src/bloomd/background', 'src/bloomd/background.c')
 
-bloom_libs = ["m", "pthread", murmur, bloom, inih, spooky]
+bloom_libs = ["pthread", murmur, bloom, inih, spooky, "m"]
 if platform.system() == 'Linux':
    bloom_libs.append("rt")
 
