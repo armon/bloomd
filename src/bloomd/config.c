@@ -1,10 +1,11 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include <assert.h>
 #include <errno.h>
-#include <syslog.h>
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <syslog.h>
 #include <unistd.h>
 #include "config.h"
 #include "ini.h"
@@ -186,6 +187,7 @@ char* join_path(char *path, char *part2) {
         res = asprintf(&buf, "%s%s", path, part2);
     else
         res = asprintf(&buf, "%s/%s", path, part2);
+    assert(res != -1);
 
     // Return the new buffer
     return buf;
