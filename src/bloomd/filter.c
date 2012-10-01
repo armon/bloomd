@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <assert.h>
 #include "filter.h"
 
 /*
@@ -66,8 +67,9 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
 
     // Get the folder name
     char *folder_name = NULL;
-    int num;
-    num = asprintf(&folder_name, FILTER_FOLDER_NAME, f->filter_name);
+    int res;
+    res = asprintf(&folder_name, FILTER_FOLDER_NAME, f->filter_name);
+    assert(res != -1);
 
     // Compute the full path
     f->full_path = join_path(config->data_dir, folder_name);
@@ -78,7 +80,7 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     pthread_mutex_init(&f->sbf_lock, NULL);
 
     // Try to create the folder path
-    int res = mkdir(f->full_path, 0755);
+    res = mkdir(f->full_path, 0755);
     if (res && errno != EEXIST) {
         syslog(LOG_ERR, "Failed to create filter directory '%s'. Err: %d", f->full_path, res);
         return res;
@@ -602,6 +604,7 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
     char *filename = NULL;
     int file_name_len;
     file_name_len = asprintf(&filename, DATA_FILE_NAME, num_files);
+    assert(file_name_len != -1);
 
     // Get the full path
     char *full_path = join_path(filt->full_path, filename);
