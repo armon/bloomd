@@ -22,6 +22,8 @@
 #include <sys/uio.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <limits.h>
+#include <math.h>
 #include "conn_handler.h"
 #include "spinlock.h"
 
@@ -780,15 +782,22 @@ static void private_close_connection(conn_info *conn) {
  * @return 0 on success.
  */
 int send_client_response(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs) {
-    // Bail if we shouldn't schedule
-    if (!conn->should_schedule) return 0;
+    int send_bufs, res = 0;
+    for (int offset=0; offset < num_bufs && res == 0; offset += IOV_MAX) {
+        // Bail if we shouldn't schedule
+        if (!conn->should_schedule) return 0;
 
-    // Check if we are doing buffered writes
-    if (conn->use_write_buf) {
-        return send_client_response_buffered(conn, response_buffers, buf_sizes, num_bufs);
-    } else {
-        return send_client_response_direct(conn, response_buffers, buf_sizes, num_bufs);
+        // Determine how many buffers to send
+        send_bufs = ((num_bufs - offset) <= IOV_MAX) ? (num_bufs - offset) : IOV_MAX;
+
+        // Check if we are doing buffered writes
+        if (conn->use_write_buf) {
+            res = send_client_response_buffered(conn, response_buffers + offset, buf_sizes + offset, send_bufs);
+        } else {
+            res = send_client_response_direct(conn, response_buffers + offset, buf_sizes + offset, send_bufs);
+        }
     }
+    return res;
 }
 
 
