@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import time
+import random
 
 try:
     import pytest
@@ -19,13 +20,14 @@ def pytest_funcarg__servers(request):
     "Returns a new APIHandler with a filter manager"
     # Create tmpdir and delete after
     tmpdir = tempfile.mkdtemp()
+    port = random.randint(2000, 60000)
 
     # Write the configuration
     config_path = os.path.join(tmpdir, "config.cfg")
     conf = """[bloomd]
 data_dir = %(dir)s
-port = 8210
-""" % {"dir": tmpdir}
+port = %(port)d
+""" % {"dir": tmpdir, "port": port}
     open(config_path, "w").write(conf)
 
     # Start the process
@@ -36,7 +38,7 @@ port = 8210
     # Define a cleanup handler
     def cleanup():
         try:
-            proc.terminate()
+            proc.kill()
             proc.wait()
             shutil.rmtree(tmpdir)
         except:
@@ -49,7 +51,7 @@ port = 8210
         try:
             conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             conn.settimeout(1)
-            conn.connect(("localhost", 8210))
+            conn.connect(("localhost", port))
             connected = True
             break
         except Exception, e:
@@ -63,7 +65,7 @@ port = 8210
     # Make a second connection
     conn2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     conn2.settimeout(1)
-    conn2.connect(("localhost", 8210))
+    conn2.connect(("localhost", port))
 
     # Return the connection
     return conn, conn2
