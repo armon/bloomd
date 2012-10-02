@@ -1,3 +1,10 @@
+# 0.1.5
+
+  * Several GCC compatibility changes to avoid unused result warnings on 4.7
+  * Bug fix that affects newer glibc versions regarding usage of writev()
+  * Fixed compatibility with Ubuntu 12.04
+  * Git SHA: 76dbc38
+
 # 0.1.4
 
   * Added new `clear` command
