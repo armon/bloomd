@@ -51,6 +51,17 @@ struct bloom_filtmgr {
     pthread_mutex_t write_lock; // Serializes destructive operations
 };
 
+struct filtmgr_thread_args {
+    bloom_filtmgr *mgr;
+    int *should_run;
+};
+
+/**
+ * This is the time in seconds we wait
+ * for a version to 'cool' before cleaning it up.
+ */
+#define VERSION_COOLDOWN 15
+
 /*
  * Static declarations
  */
@@ -58,7 +69,7 @@ static const char FOLDER_PREFIX[] = "bloomd.";
 static const int FOLDER_PREFIX_LEN = sizeof(FOLDER_PREFIX) - 1;
 
 static bloom_filter_wrapper* take_filter(filtmgr_vsn *vsn, char *filter_name);
-static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt);
+static void delete_filter(bloom_filter_wrapper *filt);
 static int add_filter(bloom_filtmgr *mgr, filtmgr_vsn *vsn, char *filter_name, bloom_config *config, int is_hot);
 static int filter_map_list_cb(void *data, const char *key, void *value);
 static int filter_map_list_cold_cb(void *data, const char *key, void *value);
@@ -67,6 +78,7 @@ static int load_existing_filters(bloom_filtmgr *mgr);
 static filtmgr_vsn* create_new_version(bloom_filtmgr *mgr);
 static void destroy_version(filtmgr_vsn *vsn);
 static int copy_hash_entries(void *data, const char *key, void *value);
+static void* filtmgr_thread_main(void *in);
 
 /**
  * Initializer
@@ -115,7 +127,7 @@ int destroy_filter_manager(bloom_filtmgr *mgr) {
     filtmgr_vsn *next, *vsn = mgr->latest;
     while (vsn) {
         // Handle any lingering deletes
-        if (vsn->deleted) delete_filter(mgr, vsn->deleted);
+        if (vsn->deleted) delete_filter(vsn->deleted);
         next = vsn->prev;
         destroy_version(vsn);
         vsn = next;
@@ -124,6 +136,26 @@ int destroy_filter_manager(bloom_filtmgr *mgr) {
     // Free the manager
     free(mgr);
     return 0;
+}
+
+/**
+ * Starts the filter managers passive thread. This must
+ * be started after initializing the filter manager to cleanup
+ * internal state.
+ * @arg mgr The manager to monitor
+ * @arg should_run An integer set to 0 when we should terminate
+ * @return The pthread_t handle of the thread. Used for joining.
+ */
+pthread_t filtmgr_start_worker(bloom_filtmgr *mgr, int *should_run) {
+    struct filtmgr_thread_args* args = malloc(sizeof(struct filtmgr_thread_args));
+    args->mgr = mgr;
+    args->should_run = should_run;
+    pthread_t t;
+    if (pthread_create(&t, NULL, filtmgr_thread_main, args)) {
+        free(args);
+        return 0;
+    }
+    return t;
 }
 
 /**
@@ -279,7 +311,7 @@ int filtmgr_drop_filter(bloom_filtmgr *mgr, char *filter_name) {
     // Create a new version without this filter
     filtmgr_vsn *new_vsn = create_new_version(mgr);
     hashmap_delete(new_vsn->filter_map, filter_name);
-    new_vsn->deleted = filt;
+    current->deleted = filt;
 
     // Install the new version
     mgr->latest = new_vsn;
@@ -353,7 +385,7 @@ int filtmgr_clear_filter(bloom_filtmgr *mgr, char *filter_name) {
     // Create a new version without this filter
     filtmgr_vsn *new_vsn = create_new_version(mgr);
     hashmap_delete(new_vsn->filter_map, filter_name);
-    new_vsn->deleted = filt;
+    current->deleted = filt;
 
     // Install the new version
     mgr->latest = new_vsn;
@@ -454,7 +486,7 @@ static bloom_filter_wrapper* take_filter(filtmgr_vsn *vsn, char *filter_name) {
  * Invoked to cleanup a filter once we
  * have hit 0 remaining references.
  */
-static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt) {
+static void delete_filter(bloom_filter_wrapper *filt) {
     // Delete or Close the filter
     if (filt->should_delete)
         bloomf_delete(filt->filter);
@@ -578,12 +610,11 @@ static int filter_map_list_cold_cb(void *data, const char *key, void *value) {
  */
 static int filter_map_delete_cb(void *data, const char *key, void *value) {
     // Cast the inputs
-    bloom_filtmgr *mgr = data;
     bloom_filter_wrapper *filt = value;
 
     // Delete, but not the underlying files
     filt->should_delete = 0;
-    delete_filter(mgr, filt);
+    delete_filter(filt);
     return 0;
 }
 
@@ -655,7 +686,7 @@ static filtmgr_vsn* create_new_version(bloom_filtmgr *mgr) {
 
     // Increment the version number
     filtmgr_vsn *current = mgr->latest;
-    vsn->vsn = mgr->latest->vsn;
+    vsn->vsn = mgr->latest->vsn + 1;
 
     // Set the previous pointer
     vsn->prev = current;
@@ -679,6 +710,7 @@ static filtmgr_vsn* create_new_version(bloom_filtmgr *mgr) {
     }
 
     // Return the new version
+    syslog(LOG_DEBUG, "(FiltMgr) Created new version %llu", vsn->vsn);
     return vsn;
 }
 
@@ -692,5 +724,71 @@ static void destroy_version(filtmgr_vsn *vsn) {
 static int copy_hash_entries(void *data, const char *key, void *value) {
     bloom_hashmap *new = data;
     return (hashmap_put(new, (char*)key, value) ? 0 : 1);
+}
+
+
+// Recursively waits and cleans up old versions
+static int clean_old_versions(filtmgr_vsn *old) {
+    // Recurse if possible
+    if (old->prev) clean_old_versions(old->prev);
+    syslog(LOG_DEBUG, "(FiltMgr) Waiting to clean version %llu", old->vsn);
+
+    // Wait for this version to become 'cold'
+    do {
+        old->is_hot = 0;
+        sleep(VERSION_COOLDOWN);
+    } while (old->is_hot);
+
+    // Handle the cleanup
+    if (old->deleted) {
+        delete_filter(old->deleted);
+    }
+
+    // Destroy this version
+    syslog(LOG_DEBUG, "(FiltMgr) Destroying version %llu", old->vsn);
+    destroy_version(old);
+    return 0;
+}
+
+
+/**
+ * This thread is started after initialization to maintain
+ * the state of the filter manager. It's current use is to
+ * cleanup the garbage created by our MVCC model. It does this
+ * by setting the `is_hot` field to 0 and remembering the latest
+ * version. It then deletes any cold versions. This is definitely
+ * a somewhat heuristic approach, and is NOT 100% guarenteed. In
+ * particular, it IS possible that an operation exceeds 2 check cycles
+ * and gets deleted while in use. There is no good way for us to
+ * currently detect and avoid this. There is a certain burden to
+ * be thus conservative with our timing, and to always set is_hot.
+ */
+static void* filtmgr_thread_main(void *in) {
+    // Extract our arguments
+    struct filtmgr_thread_args* args = in;
+    bloom_filtmgr *mgr = args->mgr;
+    int *should_run = args->should_run;
+    free(args);
+
+    // Store the last version
+    unsigned long long last_vsn = 0;
+    filtmgr_vsn *current;
+    while (*should_run) {
+        sleep(1);
+
+        // Do nothing if the version has not changed
+        current = mgr->latest;
+        if (current->vsn == last_vsn)
+            continue;
+        else if (*should_run) {
+            last_vsn = current->vsn;
+
+            // Cleanup the old versions
+            clean_old_versions(current->prev);
+            current->prev = NULL;
+        }
+    }
+
+    return NULL;
 }
 

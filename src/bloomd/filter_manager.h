@@ -1,5 +1,6 @@
 #ifndef BLOOM_FILTER_MANAGER_H
 #define BLOOM_FILTER_MANAGER_H
+#include <pthread.h>
 #include "config.h"
 #include "filter.h"
 
@@ -35,6 +36,16 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr);
  * @return 0 on success.
  */
 int destroy_filter_manager(bloom_filtmgr *mgr);
+
+/**
+ * Starts the filter managers passive thread. This must
+ * be started after initializing the filter manager to cleanup
+ * internal state.
+ * @arg mgr The manager to monitor
+ * @arg should_run An integer set to 0 when we should terminate
+ * @return The pthread_t handle of the thread. Used for joining.
+ */
+pthread_t filtmgr_start_worker(bloom_filtmgr *mgr, int *should_run);
 
 /**
  * Flushes the filter with the given name
