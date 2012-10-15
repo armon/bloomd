@@ -70,7 +70,7 @@ filter_counters* bloomf_counters(bloom_filter *filter);
  * Checks if a filter is currectly mapped into
  * memory or if it is proxied.
  * @notes Thread safe.
- * @return 1 if in-memory, 0 if proxied.
+ * @return 0 if in-memory, 1 if proxied.
  */
 int bloomf_is_proxied(bloom_filter *filter);
 
