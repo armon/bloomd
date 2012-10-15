@@ -38,8 +38,10 @@ port = %(port)d
     # Define a cleanup handler
     def cleanup():
         try:
-            proc.kill()
+            subprocess.Popen("killall -15 bloomd", shell=True)
             proc.wait()
+            subprocess.Popen("killall -9 bloomd", shell=True)
+            time.sleep(1)
             shutil.rmtree(tmpdir)
         except:
             pass
@@ -56,7 +58,7 @@ port = %(port)d
             break
         except Exception, e:
             print e
-            time.sleep(0.3)
+            time.sleep(1)
 
     # Die now
     if not connected:
