@@ -448,6 +448,7 @@ static void info_filter_cb(void *data, char *filter_name, bloom_filter *filter) 
 checks %llu\n\
 check_hits %llu\n\
 check_misses %llu\n\
+in_memory %d\n\
 page_ins %llu\n\
 page_outs %llu\n\
 probability %f\n\
@@ -458,6 +459,7 @@ size %llu\n\
 storage %llu\n",
     (unsigned long long)capacity, (unsigned long long)checks,
     (unsigned long long)counters->check_hits, (unsigned long long)counters->check_misses,
+    ((bloomf_is_proxied(filter)) ? 0 : 1),
     (unsigned long long)counters->page_ins, (unsigned long long)counters->page_outs,
     filter->filter_config.default_probability,
     (unsigned long long)sets, (unsigned long long)counters->set_hits,
