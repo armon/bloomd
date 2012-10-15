@@ -31,7 +31,7 @@ extern void MurmurHash3_x64_128(const void * key, const int len, const uint32_t 
  */
 int hashmap_init(int initial_size, bloom_hashmap **map) {
     // Default to 64 if no size
-    if (initial_size <= 0) {
+    if (initial_size <= DEFAULT_CAPACITY) {
        initial_size = DEFAULT_CAPACITY;
 
     // Round up to power of 2
