@@ -16,7 +16,6 @@
  */
 typedef struct {
     volatile int is_active;         // Set to 0 when we are trying to delete it
-    volatile int32_t ref_count;     // Used to manage outstanding handles
     volatile int is_hot;            // Used to mark a filter as hot
     volatile int should_delete;     // Used to control deletion
 
@@ -25,13 +24,30 @@ typedef struct {
     bloom_config *custom;   // Custom config to cleanup
 } bloom_filter_wrapper;
 
+/**
+ * We use a linked list of filtmgr_vsn structs
+ * as a simple form of Multi-Version Concurrency Controll (MVCC).
+ * The latest version is always the head of the list, and older
+ * versions are maintained as a linked list. A separate vacuum thread
+ * is used to clean out the old version. This allows reads against the
+ * head to be non-blocking.
+ */
+typedef struct filtmgr_vsn {
+    unsigned long long vsn;
+
+    // Maps key names -> bloom_filter_wrapper
+    bloom_hashmap *filter_map;
+
+    // Holds a reference to the deleted filter, since
+    // it is no longer in the hash map
+    bloom_filter_wrapper *deleted;
+    struct filtmgr_vsn *prev;
+} filtmgr_vsn;
+
 struct bloom_filtmgr {
     bloom_config *config;
-
-    bloom_hashmap *filter_map;  // Maps key names -> bloom_filter_wrapper
-    bloom_spinlock filter_lock; // Protects the filter map
-
-    pthread_mutex_t create_lock; // Serializes create operatiosn
+    filtmgr_vsn *latest;
+    pthread_mutex_t write_lock; // Serializes destructive operations
 };
 
 /*
@@ -40,14 +56,16 @@ struct bloom_filtmgr {
 static const char FOLDER_PREFIX[] = "bloomd.";
 static const int FOLDER_PREFIX_LEN = sizeof(FOLDER_PREFIX) - 1;
 
-static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name);
-static void return_filter(bloom_filtmgr *mgr, char *filter_name);
+static bloom_filter_wrapper* take_filter(filtmgr_vsn *vsn, char *filter_name);
 static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt);
-static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config, int is_hot);
+static int add_filter(bloom_filtmgr *mgr, filtmgr_vsn *vsn, char *filter_name, bloom_config *config, int is_hot);
 static int filter_map_list_cb(void *data, const char *key, void *value);
 static int filter_map_list_cold_cb(void *data, const char *key, void *value);
 static int filter_map_delete_cb(void *data, const char *key, void *value);
 static int load_existing_filters(bloom_filtmgr *mgr);
+static filtmgr_vsn* create_new_version(bloom_filtmgr *mgr);
+static void destroy_version(filtmgr_vsn *vsn);
+static int copy_hash_entries(void *data, const char *key, void *value);
 
 /**
  * Initializer
@@ -62,12 +80,13 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
     // Copy the config
     m->config = config;
 
-    // Initialize the locks
-    INIT_BLOOM_SPIN(&m->filter_lock);
-    pthread_mutex_init(&m->create_lock, NULL);
+    // Initialize the write lock
+    pthread_mutex_init(&m->write_lock, NULL);
 
-    // Allocate the hash tables
-    int res = hashmap_init(0, &m->filter_map);
+    // Allocate the initial version and hash table
+    filtmgr_vsn *vsn = calloc(1, sizeof(filtmgr_vsn));
+    m->latest = vsn;
+    int res = hashmap_init(0, &vsn->filter_map);
     if (res) {
         syslog(LOG_ERR, "Failed to allocate filter hash map!");
         free(m);
@@ -87,11 +106,19 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
  * @return 0 on success.
  */
 int destroy_filter_manager(bloom_filtmgr *mgr) {
-    // Nuke all the keys
-    hashmap_iter(mgr->filter_map, filter_map_delete_cb, mgr);
+    // Nuke all the keys in the current version
+    filtmgr_vsn *current = mgr->latest;
+    hashmap_iter(current->filter_map, filter_map_delete_cb, mgr);
 
-    // Destroy the hashmaps
-    hashmap_destroy(mgr->filter_map);
+    // Destroy the versions
+    filtmgr_vsn *next, *vsn = mgr->latest;
+    while (vsn) {
+        // Handle any lingering deletes
+        if (vsn->deleted) delete_filter(mgr, vsn->deleted);
+        next = vsn->prev;
+        destroy_version(vsn);
+        vsn = next;
+    }
 
     // Free the manager
     free(mgr);
@@ -105,14 +132,12 @@ int destroy_filter_manager(bloom_filtmgr *mgr) {
  */
 int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name) {
     // Get the filter
-    bloom_filter_wrapper *filt = take_filter(mgr, filter_name);
+    filtmgr_vsn *current = mgr->latest;
+    bloom_filter_wrapper *filt = take_filter(current, filter_name);
     if (!filt) return -1;
 
     // Flush
     bloomf_flush(filt->filter);
-
-    // Return the filter
-    return_filter(mgr, filter_name);
     return 0;
 }
 
@@ -128,7 +153,8 @@ int filtmgr_flush_filter(bloom_filtmgr *mgr, char *filter_name) {
  */
 int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num_keys, char *result) {
     // Get the filter
-    bloom_filter_wrapper *filt = take_filter(mgr, filter_name);
+    filtmgr_vsn *current = mgr->latest;
+    bloom_filter_wrapper *filt = take_filter(current, filter_name);
     if (!filt) return -1;
 
     // Acquire the write lock
@@ -147,9 +173,6 @@ int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int n
 
     // Release the lock
     pthread_rwlock_unlock(&filt->rwlock);
-
-    // Return the filter
-    return_filter(mgr, filter_name);
     return (res == -1) ? -2 : 0;
 }
 
@@ -165,7 +188,8 @@ int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int n
  */
 int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num_keys, char *result) {
     // Get the filter
-    bloom_filter_wrapper *filt = take_filter(mgr, filter_name);
+    filtmgr_vsn *current = mgr->latest;
+    bloom_filter_wrapper *filt = take_filter(current, filter_name);
     if (!filt) return -1;
 
     // Acquire the write lock
@@ -184,9 +208,6 @@ int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num
 
     // Release the lock
     pthread_rwlock_unlock(&filt->rwlock);
-
-    // Return the filter
-    return_filter(mgr, filter_name);
     return (res == -1) ? -2 : 0;
 }
 
@@ -198,35 +219,36 @@ int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num
  * -2 for internal error.
  */
 int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *custom_config) {
-    // Store our result
-    int res = 0;
-
     // Lock the creation
-    pthread_mutex_lock(&mgr->create_lock);
+    pthread_mutex_lock(&mgr->write_lock);
 
-    /*
-     * Check if it already exists.
-     * Don't use take_filter, since we don't want to increment
-     * the ref count or check is_active
-     */
+    // Bail if the filter already exists
     bloom_filter_wrapper *filt = NULL;
-    LOCK_BLOOM_SPIN(&mgr->filter_lock);
-    hashmap_get(mgr->filter_map, filter_name, (void**)&filt);
-    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
+    filtmgr_vsn *latest = mgr->latest;
+    hashmap_get(latest->filter_map, filter_name, (void**)&filt);
+    if (filt) {
+        pthread_mutex_unlock(&mgr->write_lock);
+        return -1;
+    }
 
-    // Only continue if it does not exist
-    if (!filt) {
-        // Use a custom config if provided, else the default
-        bloom_config *config = (custom_config) ? custom_config : mgr->config;
+    // Create a new version
+    filtmgr_vsn *new_vsn = create_new_version(mgr);
 
-        // Add the filter
-        res = add_filter(mgr, filter_name, config, 1);
-        if (res != 0) res = -2; // Internal error
-    } else
-        res = -1; // Already exists
+    // Use a custom config if provided, else the default
+    bloom_config *config = (custom_config) ? custom_config : mgr->config;
+
+    // Add the filter to the new version
+    int res = add_filter(mgr, new_vsn, filter_name, config, 1);
+    if (res != 0) {
+        destroy_version(new_vsn);
+        res = -2; // Internal error
+    } else {
+        // Install the new version
+        mgr->latest = new_vsn;
+    }
 
     // Release the lock
-    pthread_mutex_unlock(&mgr->create_lock);
+    pthread_mutex_unlock(&mgr->write_lock);
     return res;
 }
 
@@ -237,19 +259,31 @@ int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *c
  * @return 0 on success, -1 if the filter does not exist.
  */
 int filtmgr_drop_filter(bloom_filtmgr *mgr, char *filter_name) {
-    // Get the filter
-    bloom_filter_wrapper *filt = take_filter(mgr, filter_name);
-    if (!filt) return -1;
+    // Lock the deletion
+    pthread_mutex_lock(&mgr->write_lock);
 
-    // Decrement the ref count and set to non-active
-    LOCK_BLOOM_SPIN(&mgr->filter_lock);
-    filt->ref_count--;
+    // Get the filter
+    filtmgr_vsn *current = mgr->latest;
+    bloom_filter_wrapper *filt = take_filter(current, filter_name);
+    if (!filt) {
+        pthread_mutex_unlock(&mgr->write_lock);
+        return -1;
+    }
+
+    // Set the filter to be non-active and mark for deletion
     filt->is_active = 0;
     filt->should_delete = 1;
-    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
 
-    // Return the filter
-    return_filter(mgr, filter_name);
+    // Create a new version without this filter
+    filtmgr_vsn *new_vsn = create_new_version(mgr);
+    hashmap_delete(new_vsn->filter_map, filter_name);
+    new_vsn->deleted = filt;
+
+    // Install the new version
+    mgr->latest = new_vsn;
+
+    // Unlock
+    pthread_mutex_unlock(&mgr->write_lock);
     return 0;
 }
 
@@ -264,7 +298,8 @@ int filtmgr_drop_filter(bloom_filtmgr *mgr, char *filter_name) {
  */
 int filtmgr_unmap_filter(bloom_filtmgr *mgr, char *filter_name) {
     // Get the filter
-    bloom_filter_wrapper *filt = take_filter(mgr, filter_name);
+    filtmgr_vsn *current = mgr->latest;
+    bloom_filter_wrapper *filt = take_filter(current, filter_name);
     if (!filt) return -1;
 
     // Only do it if we are not in memory
@@ -279,8 +314,6 @@ int filtmgr_unmap_filter(bloom_filtmgr *mgr, char *filter_name) {
         pthread_rwlock_unlock(&filt->rwlock);
     }
 
-    // Return the filter
-    return_filter(mgr, filter_name);
     return 0;
 }
 
@@ -293,28 +326,38 @@ int filtmgr_unmap_filter(bloom_filtmgr *mgr, char *filter_name) {
  * if the filter is not proxied.
  */
 int filtmgr_clear_filter(bloom_filtmgr *mgr, char *filter_name) {
+    // Lock the deletion
+    pthread_mutex_lock(&mgr->write_lock);
+
     // Get the filter
-    bloom_filter_wrapper *filt = take_filter(mgr, filter_name);
-    if (!filt) return -1;
+    filtmgr_vsn *current = mgr->latest;
+    bloom_filter_wrapper *filt = take_filter(current, filter_name);
+    if (!filt) {
+        pthread_mutex_unlock(&mgr->write_lock);
+        return -1;
+    }
 
     // Check if the filter is proxied
     if (!bloomf_is_proxied(filt->filter)) {
-        return_filter(mgr, filter_name);
+        pthread_mutex_unlock(&mgr->write_lock);
         return -2;
     }
 
-    // Decrement the ref count and set to non-active
-    LOCK_BLOOM_SPIN(&mgr->filter_lock);
-    filt->ref_count--;
-    filt->is_active = 0;
-
     // This is critical, as it prevents it from
     // being deleted. Instead, it is merely closed.
+    filt->is_active = 0;
     filt->should_delete = 0;
-    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
 
-    // Return the filter
-    return_filter(mgr, filter_name);
+    // Create a new version without this filter
+    filtmgr_vsn *new_vsn = create_new_version(mgr);
+    hashmap_delete(new_vsn->filter_map, filter_name);
+    new_vsn->deleted = filt;
+
+    // Install the new version
+    mgr->latest = new_vsn;
+
+    // Unlock
+    pthread_mutex_unlock(&mgr->write_lock);
     return 0;
 }
 
@@ -331,10 +374,8 @@ int filtmgr_list_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head) {
     bloom_filter_list_head *h = *head = calloc(1, sizeof(bloom_filter_list_head));
 
     // Iterate through a callback to append
-    LOCK_BLOOM_SPIN(&mgr->filter_lock);
-    hashmap_iter(mgr->filter_map, filter_map_list_cb, h);
-    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
-
+    filtmgr_vsn *current = mgr->latest;
+    hashmap_iter(current->filter_map, filter_map_list_cb, h);
     return 0;
 }
 
@@ -352,10 +393,8 @@ int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head)
     bloom_filter_list_head *h = *head = calloc(1, sizeof(bloom_filter_list_head));
 
     // Scan for the cold filters
-    LOCK_BLOOM_SPIN(&mgr->filter_lock);
-    hashmap_iter(mgr->filter_map, filter_map_list_cold_cb, h);
-    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
-
+    filtmgr_vsn *current = mgr->latest;
+    hashmap_iter(current->filter_map, filter_map_list_cold_cb, h);
     return 0;
 }
 
@@ -370,14 +409,12 @@ int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head)
  */
 int filtmgr_filter_cb(bloom_filtmgr *mgr, char *filter_name, filter_cb cb, void* data) {
     // Get the filter
-    bloom_filter_wrapper *filt = take_filter(mgr, filter_name);
+    filtmgr_vsn *current = mgr->latest;
+    bloom_filter_wrapper *filt = take_filter(current, filter_name);
     if (!filt) return -1;
 
     // Callback
     cb(data, filter_name, filt->filter);
-
-    // Return the filter
-    return_filter(mgr, filter_name);
     return 0;
 }
 
@@ -400,50 +437,12 @@ void filtmgr_cleanup_list(bloom_filter_list_head *head) {
 /**
  * Gets the bloom filter in a thread safe way.
  */
-static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name) {
+static bloom_filter_wrapper* take_filter(filtmgr_vsn *vsn, char *filter_name) {
     bloom_filter_wrapper *filt = NULL;
-    LOCK_BLOOM_SPIN(&mgr->filter_lock);
-    hashmap_get(mgr->filter_map, filter_name, (void**)&filt);
-    if (filt && filt->is_active) {
-        filt->ref_count++;
-    }
-    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
+    hashmap_get(vsn->filter_map, filter_name, (void**)&filt);
     return (filt && filt->is_active) ? filt : NULL;
 }
 
-/**
- * Returns the bloom filter in a thread safe way.
- */
-static void return_filter(bloom_filtmgr *mgr, char *filter_name) {
-    bloom_filter_wrapper *filt = NULL;
-    int delete = 0;
-
-    // Lock the filters
-    LOCK_BLOOM_SPIN(&mgr->filter_lock);
-
-    // Lookup the filter
-    hashmap_get(mgr->filter_map, filter_name, (void**)&filt);
-
-    // If it exists, decrement the ref count
-    if (filt) {
-        int ref_count = (--filt->ref_count);
-
-        // If we've hit 0 references, delete from the
-        // filter, and prepare to handle it
-        if (ref_count <= 0) {
-            hashmap_delete(mgr->filter_map, filter_name);
-            delete = 1;
-        }
-    }
-
-    // Unlock
-    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
-
-    // Handle the deletion
-    if (delete)  {
-        delete_filter(mgr, filt);
-    }
-}
 
 /**
  * Invoked to cleanup a filter once we
@@ -472,15 +471,15 @@ static void delete_filter(bloom_filtmgr *mgr, bloom_filter_wrapper *filt) {
 /**
  * Creates a new filter and adds it to the filter set.
  * @arg mgr The manager to add to
+ * @arg vsn The version to add to
  * @arg filter_name The name of the filter
  * @arg config The configuration for the filter
  * @arg is_hot Is the filter hot. False for existing.
  * @return 0 on success, -1 on error
  */
-static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config, int is_hot) {
+static int add_filter(bloom_filtmgr *mgr, filtmgr_vsn *vsn, char *filter_name, bloom_config *config, int is_hot) {
     // Create the filter
     bloom_filter_wrapper *filt = calloc(1, sizeof(bloom_filter_wrapper));
-    filt->ref_count = 1;
     filt->is_active = 1;
     filt->is_hot = is_hot;
     filt->should_delete = 0;
@@ -499,10 +498,11 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
     }
 
     // Add to the hash map
-    LOCK_BLOOM_SPIN(&mgr->filter_lock);
-    hashmap_put(mgr->filter_map, filter_name, filt);
-    UNLOCK_BLOOM_SPIN(&mgr->filter_lock);
-
+    if (!hashmap_put(vsn->filter_map, filter_name, filt)) {
+        destroy_bloom_filter(filt->filter);
+        free(filt);
+        return -1;
+    }
     return 0;
 }
 
@@ -626,11 +626,64 @@ static int load_existing_filters(bloom_filtmgr *mgr) {
     for (int i=0; i< num; i++) {
         char *folder_name = namelist[i]->d_name;
         char *filter_name = folder_name + FOLDER_PREFIX_LEN;
-        add_filter(mgr, filter_name, mgr->config, 0);
+        if (add_filter(mgr, mgr->latest, filter_name, mgr->config, 0)) {
+            syslog(LOG_ERR, "Failed to load filter '%s'!", filter_name);
+        }
     }
 
     for (int i=0; i < num; i++) free(namelist[i]);
     free(namelist);
     return 0;
+}
+
+
+/**
+ * Creates a new version struct from the current version.
+ * Does not install the new version in place. This should
+ * be guarded by the write lock to prevent conflicting versions.
+ */
+static filtmgr_vsn* create_new_version(bloom_filtmgr *mgr) {
+    // Create a new blank version
+    filtmgr_vsn *vsn = calloc(1, sizeof(filtmgr_vsn));
+
+    // Increment the version number
+    filtmgr_vsn *current = mgr->latest;
+    vsn->vsn = mgr->latest->vsn;
+
+    // Set the previous pointer
+    vsn->prev = current;
+
+    // Initialize the hashmap
+    int res = hashmap_init(hashmap_size(current->filter_map), &vsn->filter_map);
+    if (res) {
+        syslog(LOG_ERR, "Failed to allocate new filter hash map!");
+        free(vsn);
+        return NULL;
+    }
+
+    // Copy old keys, this is likely a bottle neck...
+    // We need to make this more efficient in the future.
+    res = hashmap_iter(current->filter_map, copy_hash_entries, vsn->filter_map);
+    if (res != 0) {
+        syslog(LOG_ERR, "Failed to copy filter hash map!");
+        hashmap_destroy(vsn->filter_map);
+        free(vsn);
+        return NULL;
+    }
+
+    // Return the new version
+    return vsn;
+}
+
+// Destroys a version. Does basic cleanup.
+static void destroy_version(filtmgr_vsn *vsn) {
+    hashmap_destroy(vsn->filter_map);
+    free(vsn);
+}
+
+// Copies entries from an existing map into a new one
+static int copy_hash_entries(void *data, const char *key, void *value) {
+    bloom_hashmap *new = data;
+    return (hashmap_put(new, (char*)key, value) ? 0 : 1);
 }
 
