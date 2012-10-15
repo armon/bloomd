@@ -1,3 +1,8 @@
+# 0.2.0
+
+  * Adding `in_memory` flag for the info command. This avoids needing to use
+  a heuristic based on page_in / page_outs to determine the status of a filter.
+
 # 0.1.5
 
   * Several GCC compatibility changes to avoid unused result warnings on 4.7
