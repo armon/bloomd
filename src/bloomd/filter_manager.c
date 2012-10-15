@@ -728,16 +728,18 @@ static int copy_hash_entries(void *data, const char *key, void *value) {
 
 
 // Recursively waits and cleans up old versions
-static int clean_old_versions(filtmgr_vsn *old) {
+static int clean_old_versions(filtmgr_vsn *old, int *should_run) {
     // Recurse if possible
-    if (old->prev) clean_old_versions(old->prev);
+    if (old->prev) clean_old_versions(old->prev, should_run);
+    if (!*should_run) return 0;
     syslog(LOG_DEBUG, "(FiltMgr) Waiting to clean version %llu", old->vsn);
 
     // Wait for this version to become 'cold'
     do {
         old->is_hot = 0;
         sleep(VERSION_COOLDOWN);
-    } while (old->is_hot);
+    } while (*should_run && old->is_hot);
+    if (!*should_run) return 0;
 
     // Handle the cleanup
     if (old->deleted) {
@@ -784,7 +786,7 @@ static void* filtmgr_thread_main(void *in) {
             last_vsn = current->vsn;
 
             // Cleanup the old versions
-            clean_old_versions(current->prev);
+            clean_old_versions(current->prev, should_run);
             current->prev = NULL;
         }
     }
