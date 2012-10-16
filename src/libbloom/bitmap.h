@@ -71,8 +71,10 @@ int bitmap_close(bloom_bitmap *map);
 
 /**
  * Sets the value of the bit at index idx for the
- * bloom_bitmap map
+ * bloom_bitmap map to a 1.
  */
+inline void bitmap_setbit(bloom_bitmap *map, uint64_t idx);
+
 #define BITMAP_SETBIT(map, idx, val) {                   \
             unsigned char byte = map->mmap[idx >> 3];    \
             unsigned char byte_off = 7 - idx % 8;        \
