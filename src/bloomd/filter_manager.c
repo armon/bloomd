@@ -66,11 +66,12 @@ struct filtmgr_thread_args {
     int *should_run;
 };
 
+
 /**
- * This is the time in seconds we wait
- * for a version to 'cool' before cleaning it up.
+ * We warn if there are this many outstanding versions
+ * that cannot be vacuumed
  */
-#define VERSION_COOLDOWN 15
+#define WARN_THRESHOLD 32
 
 /*
  * Static declarations
@@ -770,42 +771,35 @@ static int copy_hash_entries(void *data, const char *key, void *value) {
 
 
 // Recursively waits and cleans up old versions
-static int clean_old_versions(filtmgr_vsn *old, int *should_run) {
+static int clean_old_versions(filtmgr_vsn *v, unsigned long long min_vsn) {
     // Recurse if possible
-    if (old->prev) clean_old_versions(old->prev, should_run);
-    if (!*should_run) return 0;
-    syslog(LOG_DEBUG, "(FiltMgr) Waiting to clean version %llu", old->vsn);
+    if (v->prev && clean_old_versions(v->prev, min_vsn))
+        v->prev = NULL;
 
-    // Wait for this version to become 'cold'
-    // XXX: MEH make this work
-    do {
-        sleep(VERSION_COOLDOWN);
-    } while (*should_run);
-    if (!*should_run) return 0;
+    // Abort if this version cannot be cleaned
+    if (v->vsn >= min_vsn) return 0;
+
+    // Log about the cleanup
+    syslog(LOG_DEBUG, "(FiltMgr) Destroying version %llu", v->vsn);
 
     // Handle the cleanup
-    if (old->deleted) {
-        delete_filter(old->deleted);
+    if (v->deleted) {
+        delete_filter(v->deleted);
     }
 
     // Destroy this version
-    syslog(LOG_DEBUG, "(FiltMgr) Destroying version %llu", old->vsn);
-    destroy_version(old);
-    return 0;
+    destroy_version(v);
+    return 1;
 }
 
 
 /**
  * This thread is started after initialization to maintain
  * the state of the filter manager. It's current use is to
- * cleanup the garbage created by our MVCC model. It does this
- * by setting the `is_hot` field to 0 and remembering the latest
- * version. It then deletes any cold versions. This is definitely
- * a somewhat heuristic approach, and is NOT 100% guarenteed. In
- * particular, it IS possible that an operation exceeds 2 check cycles
- * and gets deleted while in use. There is no good way for us to
- * currently detect and avoid this. There is a certain burden to
- * be thus conservative with our timing, and to always set is_hot.
+ * cleanup the garbage created by our MVCC model. We do this
+ * by making use of periodic 'checkpoints'. Our worker threads
+ * report the version they are currently using, and we are always
+ * able to delete versions that are strictly less than the minimum.
  */
 static void* filtmgr_thread_main(void *in) {
     // Extract our arguments
@@ -814,25 +808,32 @@ static void* filtmgr_thread_main(void *in) {
     int *should_run = args->should_run;
     free(args);
 
-    // Store the last version
-    unsigned long long last_vsn = 0;
+    // Store the oldest version
     filtmgr_vsn *current;
     while (*should_run) {
         sleep(1);
+        if (!*should_run) break;
 
-        // Do nothing if the version has not changed
+        // Do nothing if there is no older versions
         current = mgr->latest;
-        if (current->vsn == last_vsn)
-            continue;
-        else if (*should_run) {
-            last_vsn = current->vsn;
+        if (!current->prev) continue;
 
-            // Cleanup the old versions
-            clean_old_versions(current->prev, should_run);
-            current->prev = NULL;
+        // Determine the minimum version
+        unsigned long long min_vsn = current->vsn;
+        for (int i=0; i < mgr->config->worker_threads; i++) {
+            if (mgr->vsn_checkpoint[i] < min_vsn) {
+                min_vsn = mgr->vsn_checkpoint[i];
+            }
         }
-    }
 
+        // Check if it is too old
+        if (current->vsn - min_vsn > WARN_THRESHOLD) {
+            syslog(LOG_WARNING, "Many concurrent versions detected! Either slow operations, or too many changes! Current: %llu, Minimum: %llu", current->vsn, min_vsn);
+        }
+
+        // Cleanup the old versions
+        clean_old_versions(current, min_vsn);
+    }
     return NULL;
 }
 
