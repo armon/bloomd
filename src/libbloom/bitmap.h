@@ -67,7 +67,9 @@ int bitmap_close(bloom_bitmap *map);
  * Returns the value of the bit at index idx for the
  * bloom_bitmap map
  */
-#define BITMAP_GETBIT(map, idx) ((map->mmap[idx >> 3] >> (7 - (idx % 8))) & 0x1)
+inline int bitmap_getbit(bloom_bitmap *map, uint64_t idx) {
+    return (map->mmap[idx >> 3] >> (7 - (idx % 8))) & 0x1;
+}
 
 /*
  * Used to set a bit in the bitmap, and as a side affect,
@@ -88,16 +90,5 @@ inline void bitmap_setbit(bloom_bitmap *map, uint64_t idx) {
         map->dirty_pages[page >> 3] = byte;
     }
 }
-
-#define BITMAP_SETBIT(map, idx, val) {                   \
-            unsigned char byte = map->mmap[idx >> 3];    \
-            unsigned char byte_off = 7 - idx % 8;        \
-            if (val == 1) {                              \
-                byte |= 1 << byte_off;                   \
-            } else {                                     \
-                byte &= ~(1 << byte_off);                \
-            }                                            \
-            map->mmap[idx >> 3] = byte;                  \
-        }                                                \
 
 #endif
