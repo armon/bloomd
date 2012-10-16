@@ -90,6 +90,8 @@ int main(void)
     tcase_add_test(tc2, test_bf_fp_prob);
     tcase_add_test(tc2, test_bf_fp_prob_extended);
 
+    tcase_add_test(tc2, test_bf_shared_compatible_persist);
+
     // Add the sbf tests
     suite_add_tcase(s1, tc3);
     tcase_add_test(tc3, sbf_initial_size);

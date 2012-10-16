@@ -477,3 +477,35 @@ START_TEST(test_bf_fp_prob_extended)
 }
 END_TEST
 
+START_TEST(test_bf_shared_compatible_persist)
+{
+    bloom_filter_params params = {0, 0, 1e6, 1e-4};
+    bf_params_for_capacity(&params);
+    bloom_bitmap map;
+    bloom_bloomfilter filter;
+    fail_unless(bitmap_from_filename("/tmp/shared_compat_persist.mmap", params.bytes, 1, 1, PERSISTENT, &map) == 0);
+    fail_unless(bf_from_bitmap(&map, params.k_num, 1, &filter) == 0);
+    fchmod(map.fileno, 0777);
+
+    // Check all the keys get added
+    char buf[100];
+    int res;
+    for (int i=0;i<1000;i++) {
+        snprintf((char*)&buf, 100, "test%d", i);
+        res = bf_add(&filter, (char*)&buf);
+        fail_unless(res == 1);
+    }
+    fail_unless(bf_close(&filter) == 0);
+
+    // Test all the keys are contained
+    fail_unless(bitmap_from_filename("/tmp/shared_compat_persist.mmap", params.bytes, 1, 1, SHARED, &map) == 0);
+    fail_unless(bf_from_bitmap(&map, params.k_num, 1, &filter) == 0);
+    for (int i=0;i<1000;i++) {
+        snprintf((char*)&buf, 100, "test%d", i);
+        res = bf_contains(&filter, (char*)&buf);
+        fail_unless(res == 1);
+    }
+    unlink("/tmp/shared_compat_persist.mmap");
+}
+END_TEST
+
