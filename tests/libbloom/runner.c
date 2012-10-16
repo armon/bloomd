@@ -1,5 +1,6 @@
 #include <check.h>
 #include <stdio.h>
+#include "bitmap.h"
 #include "test_bitmap.c"
 #include "test_bloom.c"
 #include "test_sbf.c"
@@ -18,32 +19,44 @@ int main(void)
     tcase_add_test(tc1, make_anonymous_bitmap);
     tcase_add_test(tc1, make_bitmap_zero_size);
     tcase_add_test(tc1, make_bitmap_bad_fileno);
+    tcase_add_test(tc1, make_bitmap_bad_fileno_persistent);
     tcase_add_test(tc1, make_bitmap_nofile);
+    tcase_add_test(tc1, make_bitmap_nofile_persistent);
     tcase_add_test(tc1, make_bitmap_nofile_create);
+    tcase_add_test(tc1, make_bitmap_nofile_create_persistent);
     tcase_add_test(tc1, make_bitmap_resize);
+    tcase_add_test(tc1, make_bitmap_resize_persistent);
 
     tcase_add_test(tc1, flush_bitmap_anonymous);
     tcase_add_test(tc1, flush_bitmap_file);
+    tcase_add_test(tc1, flush_bitmap_file_persistent);
     tcase_add_test(tc1, flush_bitmap_null);
 
     tcase_add_test(tc1, close_bitmap_anonymous);
     tcase_add_test(tc1, close_bitmap_file);
+    tcase_add_test(tc1, close_bitmap_file_persistent);
     tcase_add_test(tc1, double_close_bitmap_file);
+    tcase_add_test(tc1, double_close_bitmap_file_persist);
     tcase_add_test(tc1, close_bitmap_null);
 
     tcase_add_test(tc1, getbit_bitmap_anonymous_zero);
     tcase_add_test(tc1, getbit_bitmap_anonymous_one);
     tcase_add_test(tc1, getbit_bitmap_file_zero);
     tcase_add_test(tc1, getbit_bitmap_file_one);
+    tcase_add_test(tc1, getbit_bitmap_file_persist_zero);
+    tcase_add_test(tc1, getbit_bitmap_file_persist_one);
     tcase_add_test(tc1, getbit_bitmap_anonymous_one_onebyte);
 
     tcase_add_test(tc1, setbit_bitmap_anonymous_one_byte);
     tcase_add_test(tc1, setbit_bitmap_anonymous_one_byte_aligned);
     tcase_add_test(tc1, setbit_bitmap_anonymous_one);
     tcase_add_test(tc1, setbit_bitmap_file_one);
+    tcase_add_test(tc1, setbit_bitmap_file_persist_one);
 
     tcase_add_test(tc1, flush_does_write);
     tcase_add_test(tc1, close_does_flush);
+    tcase_add_test(tc1, flush_does_write_persist);
+    tcase_add_test(tc1, close_does_flush_persist);
 
     // Add the bloom tests
     suite_add_tcase(s1, tc2);
