@@ -176,6 +176,9 @@ int main(int argc, char **argv) {
         pthread_create(&threads[i], NULL, (void*(*)(void*))start_networking_worker, netconf);
     }
 
+    // Provide the threads to the filter manager
+    filtmgr_provide_workers(mgr, threads);
+
     /**
      * Loop forever, until we get a signal that
      * indicates we should shutdown.
