@@ -14,7 +14,8 @@
 static int fill_buffer(int fileno, unsigned char* buf, uint64_t len);
 static int flush_dirty_pages(bloom_bitmap *map);
 static int flush_page(bloom_bitmap *map, uint64_t page);
-
+extern inline int bitmap_getbit(bloom_bitmap *map, uint64_t idx);
+extern inline void bitmap_setbit(bloom_bitmap *map, uint64_t idx);
 
 /**
  * Returns a bloom_bitmap pointer from a file handle
@@ -54,13 +55,16 @@ int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *m
     }
 
     // Provide some advise on how the memory will be used
-    int res = madvise(addr, len, MADV_WILLNEED);
-    if (res != 0) {
-        perror("Failed to call madvise() [MADV_WILLNEED]");
-    }
-    res = madvise(addr, len, MADV_RANDOM);
-    if (res != 0) {
-        perror("Failed to call madvise() [MADV_RANDOM]");
+    int res;
+    if (mode == SHARED) {
+        res = madvise(addr, len, MADV_WILLNEED);
+        if (res != 0) {
+            perror("Failed to call madvise() [MADV_WILLNEED]");
+        }
+        res = madvise(addr, len, MADV_RANDOM);
+        if (res != 0) {
+            perror("Failed to call madvise() [MADV_RANDOM]");
+        }
     }
 
     // For the PERSISTENT case, we manually track
