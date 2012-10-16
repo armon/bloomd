@@ -28,7 +28,8 @@ static const bloom_config DEFAULT_CONFIG = {
     60,                 // Flush once a minute
     3600,               // Cold after an hour
     0,                  // Persist to disk by default
-    1                   // Only a single worker thread by default
+    1,                  // Only a single worker thread by default
+    0                   // Do NOT use mmap by default
 };
 
 /**
@@ -114,6 +115,8 @@ static int config_callback(void* user, const char* section, const char* name, co
          return value_to_int(value, &config->cold_interval);
     } else if (NAME_MATCH("in_memory")) {
          return value_to_int(value, &config->in_memory);
+    } else if (NAME_MATCH("use_mmap")) {
+         return value_to_int(value, &config->use_mmap);
     } else if (NAME_MATCH("workers")) {
          return value_to_int(value, &config->worker_threads);
 
@@ -347,6 +350,19 @@ int sane_in_memory(int in_mem) {
     return 0;
 }
 
+int sane_use_mmap(int use_mmap) {
+    if (use_mmap != 1) {
+        syslog(LOG_WARNING,
+               "Without use_mmap, a crash of bloomd can result in data loss.");
+    }
+    if (use_mmap != 0 && use_mmap != 1) {
+        syslog(LOG_ERR,
+               "Illegal value for use_mmap. Must be 0 or 1.");
+        return 1;
+    }
+    return 0;
+}
+
 int sane_worker_threads(int threads) {
     if (threads <= 0) {
         syslog(LOG_ERR,
@@ -374,6 +390,7 @@ int validate_config(bloom_config *config) {
     res |= sane_flush_interval(config->flush_interval);
     res |= sane_cold_interval(config->cold_interval);
     res |= sane_in_memory(config->in_memory);
+    res |= sane_use_mmap(config->use_mmap);
     res |= sane_worker_threads(config->worker_threads);
 
     return res;

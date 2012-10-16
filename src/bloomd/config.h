@@ -20,6 +20,7 @@ typedef struct {
     int cold_interval;
     int in_memory;
     int worker_threads;
+    int use_mmap;
 } bloom_config;
 
 /**
@@ -83,6 +84,7 @@ int sane_probability_reduction(double reduction);
 int sane_flush_interval(int intv);
 int sane_cold_interval(int intv);
 int sane_in_memory(int in_mem);
+int sane_use_mmap(int use_mmap);
 int sane_worker_threads(int threads);
 
 /**
