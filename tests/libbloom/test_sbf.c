@@ -38,7 +38,7 @@ START_TEST(sbf_add_filter)
     // Check all the keys get added
     char buf[100];
     for (int i=0;i<2000;i++) {
-        snprintf((char*)&buf, 100, "foobar%d", i); 
+        snprintf((char*)&buf, 100, "foobar%d", i);
         res = sbf_add(&sbf, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -49,7 +49,7 @@ START_TEST(sbf_add_filter)
 
     // Check all the keys exist
     for (int i=0;i<2000;i++) {
-        snprintf((char*)&buf, 100, "foobar%d", i); 
+        snprintf((char*)&buf, 100, "foobar%d", i);
         res = sbf_contains(&sbf, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -68,7 +68,7 @@ START_TEST(sbf_add_filter_2)
     // Check all the keys get added
     char buf[100];
     for (int i=0;i<10000;i++) {
-        snprintf((char*)&buf, 100, "foobar%d", i); 
+        snprintf((char*)&buf, 100, "foobar%d", i);
         res = sbf_add(&sbf, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -79,7 +79,7 @@ START_TEST(sbf_add_filter_2)
 
     // Check all the keys exist
     for (int i=0;i<10000;i++) {
-        snprintf((char*)&buf, 100, "foobar%d", i); 
+        snprintf((char*)&buf, 100, "foobar%d", i);
         res = sbf_contains(&sbf, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -97,7 +97,7 @@ END_TEST
 static int sbf_test_callback(void *in, uint64_t bytes, bloom_bitmap *map) {
     uint64_t *counter = (uint64_t*)in;
     *counter = *counter + 1;
-    return bitmap_from_file(-1, bytes, map);
+    return bitmap_from_file(-1, bytes, ANONYMOUS, map);
 }
 
 START_TEST(sbf_callback)
@@ -114,7 +114,7 @@ START_TEST(sbf_callback)
     // Check all the keys get added
     char buf[100];
     for (int i=0;i<2000;i++) {
-        snprintf((char*)&buf, 100, "foobar%d", i); 
+        snprintf((char*)&buf, 100, "foobar%d", i);
         res = sbf_add(&sbf, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -169,7 +169,7 @@ static int sbf_make_callback(void *in, uint64_t bytes, bloom_bitmap *map) {
     nextfile *n = in;
     snprintf(buf, 1000, n->format, n->num);
     n->num++;
-    int res = bitmap_from_filename((char*)&buf, bytes, 1, 1, map);
+    int res = bitmap_from_filename((char*)&buf, bytes, 1, 1, SHARED, map);
     fchmod(map->fileno, 0777);
     return res;
 }
@@ -196,15 +196,15 @@ START_TEST(test_sbf_flush)
 
     char buf[100];
     for (int i=0;i<2000;i++) {
-        snprintf((char*)&buf, 100, "foobar%d", i); 
+        snprintf((char*)&buf, 100, "foobar%d", i);
         sbf_add(&sbf, (char*)&buf);
     }
 
     fail_unless(sbf_flush(&sbf) == 0);
 
     bloom_bitmap maps[2];
-    bitmap_from_filename("/tmp/mmap_flush.0.data", get_size("/tmp/mmap_flush.0.data"), 1, 1, (bloom_bitmap*)&maps);
-    bitmap_from_filename("/tmp/mmap_flush.1.data", get_size("/tmp/mmap_flush.1.data"), 1, 1, ((bloom_bitmap*)&maps)+1);
+    bitmap_from_filename("/tmp/mmap_flush.0.data", get_size("/tmp/mmap_flush.0.data"), 1, 1, SHARED, (bloom_bitmap*)&maps);
+    bitmap_from_filename("/tmp/mmap_flush.1.data", get_size("/tmp/mmap_flush.1.data"), 1, 1, SHARED, ((bloom_bitmap*)&maps)+1);
 
     bloom_bloomfilter filters[2];
     bf_from_bitmap((bloom_bitmap*)&maps, 1, 0, (bloom_bloomfilter*)&filters);
@@ -217,13 +217,13 @@ START_TEST(test_sbf_flush)
     bloom_sbf sbf2;
     res = sbf_from_filters(&params, sbf_make_callback, &next, 2, filter_map, &sbf2);
     fail_unless(res == 0);
-   
+
     fail_unless(sbf_size(&sbf) == sbf_size(&sbf2));
     fail_unless(sbf_total_capacity(&sbf) == sbf_total_capacity(&sbf2));
     fail_unless(sbf_total_byte_size(&sbf) == sbf_total_byte_size(&sbf2));
 
     for (int i=0;i<2000;i++) {
-        snprintf((char*)&buf, 100, "foobar%d", i); 
+        snprintf((char*)&buf, 100, "foobar%d", i);
         res = sbf_contains(&sbf, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -249,14 +249,14 @@ START_TEST(test_sbf_close_does_flush)
 
     char buf[100];
     for (int i=0;i<2000;i++) {
-        snprintf((char*)&buf, 100, "foobar%d", i); 
+        snprintf((char*)&buf, 100, "foobar%d", i);
         sbf_add(&sbf, (char*)&buf);
     }
     fail_unless(sbf_close(&sbf) == 0);
 
     bloom_bitmap maps[2];
-    bitmap_from_filename("/tmp/mmap_close.0.data", get_size("/tmp/mmap_close.0.data"), 1, 1, (bloom_bitmap*)&maps);
-    bitmap_from_filename("/tmp/mmap_close.1.data", get_size("/tmp/mmap_close.1.data"), 1, 1, ((bloom_bitmap*)&maps)+1);
+    bitmap_from_filename("/tmp/mmap_close.0.data", get_size("/tmp/mmap_close.0.data"), 1, 1, SHARED, (bloom_bitmap*)&maps);
+    bitmap_from_filename("/tmp/mmap_close.1.data", get_size("/tmp/mmap_close.1.data"), 1, 1, SHARED, ((bloom_bitmap*)&maps)+1);
 
     bloom_bloomfilter filters[2];
     bf_from_bitmap((bloom_bitmap*)&maps, 1, 0, (bloom_bloomfilter*)&filters);
@@ -268,12 +268,12 @@ START_TEST(test_sbf_close_does_flush)
 
     res = sbf_from_filters(&params, sbf_make_callback, &next, 2, filter_map, &sbf);
     fail_unless(res == 0);
-   
+
     fail_unless(sbf_size(&sbf) == 2000);
     fail_unless(sbf_total_capacity(&sbf) == 5*1e3);
 
     for (int i=0;i<2000;i++) {
-        snprintf((char*)&buf, 100, "foobar%d", i); 
+        snprintf((char*)&buf, 100, "foobar%d", i);
         res = sbf_contains(&sbf, (char*)&buf);
         fail_unless(res == 1);
     }
@@ -297,7 +297,7 @@ START_TEST(sbf_fp_prob)
     int num_wrong = 0;
     int wrong_per[5] = {0, 0, 0, 0, 0};
     for (int i=0;i<1e6;i++) {
-        snprintf((char*)&buf, 100, "ZibZab__%d", i*i); 
+        snprintf((char*)&buf, 100, "ZibZab__%d", i*i);
         res = sbf_add(&sbf, (char*)&buf);
         if (res == 0) {
             num_wrong++;
