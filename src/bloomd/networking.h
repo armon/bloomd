@@ -27,8 +27,9 @@ void start_networking_worker(bloom_networking *netconf);
  * Shuts down all the connections
  * and listeners and prepares to exit.
  * @arg netconf The config for the networking stack.
+ * @arg threads A list of worker threads
  */
-int shutdown_networking(bloom_networking *netconf);
+int shutdown_networking(bloom_networking *netconf, pthread_t *threads);
 
 /*
  * Connection related methods. These are exposed so

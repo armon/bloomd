@@ -148,9 +148,6 @@ struct bloom_networking {
     ev_async loop_async;      // Allows async interrupts
     volatile async_event *events;      // List of pending events
     bloom_spinlock event_lock; // Protects the events
-
-    volatile int num_threads; // Number of threads in the threads list
-    pthread_t *threads;       // Array of thread references
 };
 
 
@@ -275,8 +272,6 @@ int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking *
     netconf->config = config;
     netconf->mgr = mgr;
     netconf->should_run = 1;
-    netconf->num_threads = 0;
-    netconf->threads = calloc(config->worker_threads, sizeof(pthread_t));
 
     /**
      * Check if we can use kqueue instead of select.
@@ -633,7 +628,6 @@ void start_networking_worker(bloom_networking *netconf) {
     // Allocate our user data
     worker_ev_userdata data;
     data.netconf = netconf;
-    int registered = 0;
 
     // Run forever until we are told to halt
     while (netconf->should_run) {
@@ -641,13 +635,6 @@ void start_networking_worker(bloom_networking *netconf) {
         pthread_mutex_lock(&netconf->leader_lock);
         data.watcher = NULL;
         data.ready_events = 0;
-
-        // Register if we need to
-        if (!registered) {
-            netconf->threads[netconf->num_threads] = pthread_self();
-            netconf->num_threads++;
-            registered = 1;
-        }
 
         // Check again if we should run
         if (!netconf->should_run) {
@@ -676,8 +663,9 @@ void start_networking_worker(bloom_networking *netconf) {
  * Shuts down all the connections
  * and listeners and prepares to exit.
  * @arg netconf The config for the networking stack.
+ * @arg threads A list of worker threads
  */
-int shutdown_networking(bloom_networking *netconf) {
+int shutdown_networking(bloom_networking *netconf, pthread_t *threads) {
     // Instruct the threads to shutdown
     netconf->should_run = 0;
 
@@ -686,8 +674,8 @@ int shutdown_networking(bloom_networking *netconf) {
 
     // Wait for the threads to return
     pthread_t thread;
-    for (int i=0; i < netconf->num_threads; i++) {
-        thread = netconf->threads[i];
+    for (int i=0; i < netconf->config->worker_threads; i++) {
+        thread = threads[i];
         if (thread) pthread_join(thread, NULL);
     }
 
@@ -702,7 +690,6 @@ int shutdown_networking(bloom_networking *netconf) {
     // since we are shutdown down anyways...
 
     // Free the netconf
-    free(netconf->threads);
     free(netconf);
     return 0;
 }

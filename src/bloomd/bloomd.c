@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
     }
 
     // Begin the shutdown/cleanup
-    shutdown_networking(netconf);
+    shutdown_networking(netconf, threads);
 
     // Shutdown the background tasks
     if (flush_on) pthread_join(flush_thread, NULL);
