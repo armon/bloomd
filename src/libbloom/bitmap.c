@@ -33,10 +33,12 @@ int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *m
     if (mode == SHARED) {
         flags = MAP_SHARED;
         newfileno = dup(fileno);
+        if (newfileno < 0) return -errno;
 
     } else if (mode == PERSISTENT) {
         flags = MAP_ANON | MAP_PRIVATE;
         newfileno = dup(fileno);
+        if (newfileno < 0) return -errno;
 
     } else {
         flags = MAP_ANON | MAP_PRIVATE;
@@ -44,10 +46,12 @@ int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *m
     }
 
     // Perform the map in
-    unsigned char* addr = mmap(NULL, len, PROT_READ|PROT_WRITE, flags, newfileno, 0);
+    unsigned char* addr = mmap(NULL, len, PROT_READ|PROT_WRITE,
+            flags, ((mode == PERSISTENT) ? -1 : newfileno), 0);
 
     // Check for an error, otherwise return
     if (addr == MAP_FAILED) {
+        perror("mmap failed!");
         if (newfileno >= 0) {
             close(newfileno);
         }
@@ -149,6 +153,7 @@ int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, b
     // Open the file
     int fileno = open(filename, flags, 0644);
     if (fileno == -1) {
+        perror("open failed on bitmap!");
         return -errno;
     }
 
