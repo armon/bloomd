@@ -33,7 +33,6 @@ typedef struct {
  * head to be non-blocking.
  */
 typedef struct filtmgr_vsn {
-    volatile int is_hot;  // Used to mark a version as hot
     unsigned long long vsn;
 
     // Maps key names -> bloom_filter_wrapper
@@ -258,7 +257,6 @@ int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *c
     // Bail if the filter already exists
     bloom_filter_wrapper *filt = NULL;
     filtmgr_vsn *latest = mgr->latest;
-    latest->is_hot = 1;
     hashmap_get(latest->filter_map, filter_name, (void**)&filt);
     if (filt) {
         pthread_mutex_unlock(&mgr->write_lock);
@@ -409,7 +407,6 @@ int filtmgr_list_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head) {
 
     // Iterate through a callback to append
     filtmgr_vsn *current = mgr->latest;
-    current->is_hot = 1;
     hashmap_iter(current->filter_map, filter_map_list_cb, h);
     return 0;
 }
@@ -429,7 +426,6 @@ int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head)
 
     // Scan for the cold filters
     filtmgr_vsn *current = mgr->latest;
-    current->is_hot = 1;
     hashmap_iter(current->filter_map, filter_map_list_cold_cb, h);
     return 0;
 }
@@ -446,7 +442,6 @@ int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head)
 int filtmgr_filter_cb(bloom_filtmgr *mgr, char *filter_name, filter_cb cb, void* data) {
     // Get the filter
     filtmgr_vsn *current = mgr->latest;
-    current->is_hot = 1;
     bloom_filter_wrapper *filt = take_filter(current, filter_name);
     if (!filt) return -1;
 
@@ -475,7 +470,6 @@ void filtmgr_cleanup_list(bloom_filter_list_head *head) {
  * Gets the bloom filter in a thread safe way.
  */
 static bloom_filter_wrapper* take_filter(filtmgr_vsn *vsn, char *filter_name) {
-    vsn->is_hot = 1;  // Mark as hot
     bloom_filter_wrapper *filt = NULL;
     hashmap_get(vsn->filter_map, filter_name, (void**)&filt);
     return (filt && filt->is_active) ? filt : NULL;
@@ -682,7 +676,6 @@ static int load_existing_filters(bloom_filtmgr *mgr) {
 static filtmgr_vsn* create_new_version(bloom_filtmgr *mgr) {
     // Create a new blank version
     filtmgr_vsn *vsn = calloc(1, sizeof(filtmgr_vsn));
-    vsn->is_hot = 1;
 
     // Increment the version number
     filtmgr_vsn *current = mgr->latest;
@@ -735,10 +728,10 @@ static int clean_old_versions(filtmgr_vsn *old, int *should_run) {
     syslog(LOG_DEBUG, "(FiltMgr) Waiting to clean version %llu", old->vsn);
 
     // Wait for this version to become 'cold'
+    // XXX: MEH make this work
     do {
-        old->is_hot = 0;
         sleep(VERSION_COOLDOWN);
-    } while (*should_run && old->is_hot);
+    } while (*should_run);
     if (!*should_run) return 0;
 
     // Handle the cleanup
