@@ -193,11 +193,6 @@ START_TEST(test_filter_restore)
     res = destroy_bloom_filter(filter);
     fail_unless(res == 0);
 
-    // FUCKING annoying umask permissions bullshit
-    // Cused by the Check test framework
-    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter5/config.ini", 0777) == 0);
-    fail_unless(chmod("/tmp/bloomd/bloomd.test_filter5/data.000.mmap", 0777) == 0);
-
     // Remake the filter
     res = init_bloom_filter(&config, "test_filter5", 1, &filter);
     fail_unless(res == 0);
