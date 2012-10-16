@@ -46,8 +46,19 @@ typedef struct filtmgr_vsn {
 
 struct bloom_filtmgr {
     bloom_config *config;
+
     filtmgr_vsn *latest;
     pthread_mutex_t write_lock; // Serializes destructive operations
+
+    /*
+     * To support vacuuming of old versions, we require that
+     * workers 'periodically' checkpoint. This just updates an
+     * index to match the current version. The vacuum thread
+     * can scan for the minimum seen version and clean all older
+     * versions.
+     */
+    pthread_t *threads;
+    unsigned long long *vsn_checkpoint;
 };
 
 struct filtmgr_thread_args {
@@ -105,6 +116,9 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
         return -1;
     }
 
+    // Make room for the checkpoints
+    m->vsn_checkpoint = calloc(config->worker_threads, sizeof(unsigned long long));
+
     // Discover existing filters
     load_existing_filters(m);
 
@@ -133,6 +147,7 @@ int destroy_filter_manager(bloom_filtmgr *mgr) {
     }
 
     // Free the manager
+    free(mgr->vsn_checkpoint);
     free(mgr);
     return 0;
 }
@@ -155,6 +170,38 @@ pthread_t filtmgr_start_worker(bloom_filtmgr *mgr, int *should_run) {
         return 0;
     }
     return t;
+}
+
+/**
+ * Provides a list of worker threads to the filter manager
+ * @arg mgr The manager
+ * @arg threads A list of thread IDs, should be `worker_threads` long
+ */
+void filtmgr_provide_workers(bloom_filtmgr *mgr, pthread_t *threads) {
+    // Maintain a reference to the threads, nothing crazy...
+    mgr->threads = threads;
+}
+
+/**
+ * Should be invoked periodically by worker threads to allow
+ * the vacuum thread to cleanup garbage state.
+ * @arg mgr The manager
+ */
+void filtmgr_worker_checkpoint(bloom_filtmgr *mgr) {
+    // Skip if we don't have the thread list yet
+    if (!mgr->threads) return;
+
+    // Get a reference to ourself
+    pthread_t id = pthread_self();
+
+    // Look for the matching index
+    for (int idx=0; idx < mgr->config->worker_threads; idx++) {
+        if (pthread_equal(id, mgr->threads[idx])) {
+            // Update the checkpoint version
+            mgr->vsn_checkpoint[idx] = mgr->latest->vsn;
+            break;
+        }
+    }
 }
 
 /**

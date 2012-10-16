@@ -48,6 +48,20 @@ int destroy_filter_manager(bloom_filtmgr *mgr);
 pthread_t filtmgr_start_worker(bloom_filtmgr *mgr, int *should_run);
 
 /**
+ * Provides a list of worker threads to the filter manager
+ * @arg mgr The manager
+ * @arg threads A list of thread IDs, should be `worker_threads` long
+ */
+void filtmgr_provide_workers(bloom_filtmgr *mgr, pthread_t *threads);
+
+/**
+ * Should be invoked periodically by worker threads to allow
+ * the vacuum thread to cleanup garbage state.
+ * @arg mgr The manager
+ */
+void filtmgr_worker_checkpoint(bloom_filtmgr *mgr);
+
+/**
  * Flushes the filter with the given name
  * @arg filter_name The name of the filter to flush
  * @return 0 on success. -1 if the filter does not exist.
