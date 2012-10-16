@@ -217,7 +217,7 @@ static int sbf_append_filter(bloom_sbf *sbf) {
     if (sbf->callback) {
         res = sbf->callback(sbf->callback_input, params.bytes, map);
     } else {
-        res = bitmap_from_file(-1, params.bytes, map);
+        res = bitmap_from_file(-1, params.bytes, ANONYMOUS, map);
     }
     if (res != 0) {
         free(map);

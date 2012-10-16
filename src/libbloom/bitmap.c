@@ -294,24 +294,3 @@ int bitmap_close(bloom_bitmap *map) {
     return 0;
 }
 
-
-/*
- * Used to set a bit in the bitmap, and as a side affect,
- * mark the page as dirty if we are in the PERSISTENT mode
- */
-inline void bitmap_setbit(bloom_bitmap *map, uint64_t idx) {
-    unsigned char byte = map->mmap[idx >> 3];
-    unsigned char byte_off = 7 - idx % 8;
-    byte |= 1 << byte_off;
-    map->mmap[idx >> 3] = byte;
-
-    // Check if we need to dirty the page
-    if (map->mode == PERSISTENT) {
-        uint64_t page = byte >> 12;
-        byte = map->dirty_pages[page >> 3];
-        byte_off = 7 - page % 8;
-        byte |= 1 << byte_off;
-        map->dirty_pages[page >> 3] = byte;
-    }
-}
-
