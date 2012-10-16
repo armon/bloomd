@@ -82,7 +82,7 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     // Try to create the folder path
     res = mkdir(f->full_path, 0755);
     if (res && errno != EEXIST) {
-        syslog(LOG_ERR, "Failed to create filter directory '%s'. Err: %d", f->full_path, res);
+        syslog(LOG_ERR, "Failed to create filter directory '%s'. Err: %d [%d]", f->full_path, res, errno);
         return res;
     }
 
@@ -91,7 +91,7 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
     res = filter_config_from_filename(config_name, &f->filter_config);
     free(config_name);
     if (res && res != -ENOENT) {
-        syslog(LOG_ERR, "Failed to read filter '%s' configuration. Err: %d", f->filter_name, res);
+        syslog(LOG_ERR, "Failed to read filter '%s' configuration. Err: %d [%d]", f->filter_name, res, errno);
         return res;
     }
 
@@ -464,6 +464,7 @@ static int discover_existing_filters(bloom_filter *f) {
     int res;
     int err = 0;
     uint64_t size;
+    bitmap_mode mode = (f->config->use_mmap) ? SHARED : PERSISTENT;
     for (int i=0; i < num && !err; i++) {
         // Get the full path to the bitmap
         char *bitmap_path = join_path(f->full_path, namelist[i]->d_name);
@@ -480,7 +481,7 @@ static int discover_existing_filters(bloom_filter *f) {
 
         // Create the bitmap
         bloom_bitmap *bitmap = maps[num - i - 1] = malloc(sizeof(bloom_bitmap));
-        res = bitmap_from_filename(bitmap_path, size, 0, 0, bitmap);
+        res = bitmap_from_filename(bitmap_path, size, 0, 0, mode, bitmap);
         if (res != 0) {
             err = 1;
             syslog(LOG_ERR, "Failed to load bitmap for: %s. %s", bitmap_path, strerror(errno));
@@ -494,7 +495,7 @@ static int discover_existing_filters(bloom_filter *f) {
         res = bf_from_bitmap(bitmap, 1, 0, filter);
         if (res != 0) {
             err = 1;
-            syslog(LOG_ERR, "Failed to load bloom filter for: %s.", bitmap_path);
+            syslog(LOG_ERR, "Failed to load bloom filter for: %s. [%d]", bitmap_path, res);
             free(filter);
             bitmap_close(bitmap);
             free(bitmap);
@@ -577,7 +578,7 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
     if (filt->filter_config.in_memory) {
         syslog(LOG_INFO, "Creating new in-memory bitmap for filter %s. Size: %llu",
             filt->filter_name, (unsigned long long)bytes);
-        return bitmap_from_file(-1, bytes, out);
+        return bitmap_from_file(-1, bytes, ANONYMOUS, out);
     }
 
     // Scan through the folder looking for data files
@@ -613,7 +614,8 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
             full_path, filt->filter_name, (unsigned long long)bytes);
 
     // Create the bitmap
-    int res = bitmap_from_filename(full_path, bytes, 1, 1, out);
+    bitmap_mode mode = (filt->config->use_mmap) ? SHARED : PERSISTENT;
+    int res = bitmap_from_filename(full_path, bytes, 1, 1, mode, out);
     if (res) {
         syslog(LOG_CRIT, "Failed to create new file: %s for filter %s. Err: %s",
             full_path, filt->filter_name, strerror(errno));
