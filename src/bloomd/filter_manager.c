@@ -195,6 +195,8 @@ void filtmgr_worker_checkpoint(bloom_filtmgr *mgr) {
     pthread_t id = pthread_self();
 
     // Look for the matching index
+    // This is O(n), but N is small, and this should be done
+    // relatively infrequently...
     for (int idx=0; idx < mgr->config->worker_threads; idx++) {
         if (pthread_equal(id, mgr->threads[idx])) {
             // Update the checkpoint version
