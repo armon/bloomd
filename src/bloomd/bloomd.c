@@ -171,9 +171,9 @@ int main(int argc, char **argv) {
     }
 
     // Start the network workers
-    pthread_t thread;
+    pthread_t *threads = calloc(config->worker_threads, sizeof(pthread_t));
     for (int i=0; i < config->worker_threads; i++) {
-        pthread_create(&thread, NULL, (void*(*)(void*))start_networking_worker, netconf);
+        pthread_create(&threads[i], NULL, (void*(*)(void*))start_networking_worker, netconf);
     }
 
     /**
@@ -200,6 +200,7 @@ int main(int argc, char **argv) {
     destroy_filter_manager(mgr);
 
     // Free our memory
+    free(threads);
     free(config);
 
     // Done
