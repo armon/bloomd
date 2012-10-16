@@ -24,6 +24,9 @@ START_TEST(test_config_get_default)
     fail_unless(config.probability_reduction == 0.9);
     fail_unless(config.flush_interval == 60);
     fail_unless(config.cold_interval == 3600);
+    fail_unless(config.in_memory == 0);
+    fail_unless(config.worker_threads == 1);
+    fail_unless(config.use_mmap == 0);
 }
 END_TEST
 
@@ -45,6 +48,9 @@ START_TEST(test_config_bad_file)
     fail_unless(config.probability_reduction == 0.9);
     fail_unless(config.flush_interval == 60);
     fail_unless(config.cold_interval == 3600);
+    fail_unless(config.in_memory == 0);
+    fail_unless(config.worker_threads == 1);
+    fail_unless(config.use_mmap == 0);
 }
 END_TEST
 
@@ -70,6 +76,9 @@ START_TEST(test_config_empty_file)
     fail_unless(config.probability_reduction == 0.9);
     fail_unless(config.flush_interval == 60);
     fail_unless(config.cold_interval == 3600);
+    fail_unless(config.in_memory == 0);
+    fail_unless(config.worker_threads == 1);
+    fail_unless(config.use_mmap == 0);
 
     unlink("/tmp/zero_file");
 }
@@ -89,6 +98,8 @@ initial_capacity = 2000000\n\
 default_probability = 0.005\n\
 probability_reduction = 0.8\n\
 data_dir = /tmp/test\n\
+workers = 2\n\
+use_mmap = 1\n\
 log_level = INFO\n";
     write(fh, buf, strlen(buf));
     fchmod(fh, 777);
@@ -110,6 +121,8 @@ log_level = INFO\n";
     fail_unless(config.flush_interval == 120);
     fail_unless(config.cold_interval == 12000);
     fail_unless(config.in_memory == 1);
+    fail_unless(config.worker_threads == 2);
+    fail_unless(config.use_mmap == 1);
 
     unlink("/tmp/basic_config");
 }
@@ -250,6 +263,15 @@ START_TEST(test_sane_in_memory)
     fail_unless(sane_in_memory(0) == 0);
     fail_unless(sane_in_memory(1) == 0);
     fail_unless(sane_in_memory(2) == 1);
+}
+END_TEST
+
+START_TEST(test_sane_use_mmap)
+{
+    fail_unless(sane_use_mmap(-1) == 1);
+    fail_unless(sane_use_mmap(0) == 0);
+    fail_unless(sane_use_mmap(1) == 0);
+    fail_unless(sane_use_mmap(2) == 1);
 }
 END_TEST
 
