@@ -66,7 +66,7 @@ int handle_client_connect(bloom_conn_handler *handle) {
     int status;
     while (1) {
         status = extract_to_terminator(handle->conn, '\n', &buf, &buf_len, &should_free);
-        if (status == -1) return 0; // Return if no command is available
+        if (status == -1) break; // Return if no command is available
 
         // Determine the command type
         conn_cmd_type type = determine_client_command(buf, buf_len, &arg_buf, &arg_buf_len);
@@ -114,6 +114,15 @@ int handle_client_connect(bloom_conn_handler *handle) {
         // Make sure to free the command buffer if we need to
         if (should_free) free(buf);
     }
+
+    /*
+     * XXX: Somewhat jank, we just checkpoint after _each_ invocation.
+     * This is probably a bit costly to do, with more threads and potentially
+     * has an issue of starvation if not all the threads get scheduled. When
+     * we remove the leader/follower model, we can add a timer to the event loop
+     * and handle this properly.
+     */
+    filtmgr_worker_checkpoint(handle->mgr);
 
     return 0;
 }
