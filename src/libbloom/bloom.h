@@ -21,7 +21,6 @@ typedef struct bloom_filter_header bloom_filter_header;
  * This is the struct we use to represent a bloom filter.
  */
 typedef struct {
-    unsigned char* mmap;            // Starting address of the bitmap region.
     bloom_filter_header *header;   // Pointer to the header in the bitmap region
     bloom_bitmap *map;             // Underlying bitmap
     uint64_t offset;                // The offset size between hash regions

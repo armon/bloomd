@@ -35,7 +35,6 @@ int bf_from_bitmap(bloom_bitmap *map, uint32_t k_num, int new_filter, bloom_bloo
     // Setup the pointers
     filter->map = map;
     filter->header = (bloom_filter_header*)map->mmap;
-    filter->mmap = map->mmap + sizeof(bloom_filter_header);
 
     // Get the bitmap size
     filter->bitmap_size = (map->size - sizeof(bloom_filter_header)) * 8;
@@ -75,10 +74,10 @@ static int bf_internal_contains(bloom_bloomfilter *filter, uint64_t *hashes) {
     int res;
 
     for (i=0; i< filter->header->k_num; i++) {
-        h = hashes[i];           // Get the hash value
-        offset = i * m;          // Get the partition offset
-        bit = offset + (h % m);  // Compute the bit offset
-        res = BITMAP_GETBIT(filter, bit);
+        h = hashes[i];                                  // Get the hash value
+        offset = 8*sizeof(bloom_filter_header) + i * m; // Get the partition offset
+        bit = offset + (h % m);                         // Compute the bit offset
+        res = bitmap_getbit(filter->map, bit);
         if (res == 0) {
             return 0;
         }
@@ -113,10 +112,10 @@ int bf_add(bloom_bloomfilter *filter, char* key) {
     uint64_t bit;
 
     for (i=0; i< filter->header->k_num; i++) {
-        h = hashes[i];           // Get the hash value
-        offset = i * m;          // Get the partition offset
-        bit = offset + (h % m);  // Compute the bit offset
-        BITMAP_SETBIT(filter, bit, 1);
+        h = hashes[i];                                  // Get the hash value
+        offset = 8*sizeof(bloom_filter_header) + i * m; // Get the partition offset
+        bit = offset + (h % m);                         // Compute the bit offset
+        bitmap_setbit(filter->map, bit);
     }
 
     filter->header->count += 1;
@@ -179,7 +178,6 @@ int bf_close(bloom_bloomfilter *filter) {
     filter->map = NULL;
 
     // Clear all the fields
-    filter->mmap = NULL;
     filter->header = NULL;
     filter->offset = 0;
     filter->bitmap_size = 0;
