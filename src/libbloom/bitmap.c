@@ -13,7 +13,7 @@
 /* Static declarations */
 static int fill_buffer(int fileno, unsigned char* buf, uint64_t len);
 static int flush_dirty_pages(bloom_bitmap *map);
-static int flush_page(bloom_bitmap *map, uint64_t page);
+static int flush_page(bloom_bitmap *map, uint64_t page, uint64_t size, uint64_t max_page);
 extern inline int bitmap_getbit(bloom_bitmap *map, uint64_t idx);
 extern inline void bitmap_setbit(bloom_bitmap *map, uint64_t idx);
 
@@ -225,7 +225,7 @@ int bitmap_flush(bloom_bitmap *map) {
  * and is not reliably marked as dirty.
  */
 static int flush_dirty_pages(bloom_bitmap *map) {
-    uint64_t pages = ceil(map->size / 4096.0);
+    uint64_t pages = map->size / 4096 + ((map->size % 4096) ? 1 : 0);
     unsigned char byte, *dirty_pages = map->dirty_pages;
     int dirty, res;
     for (uint64_t i=0; i < pages; i++) {
@@ -235,7 +235,7 @@ static int flush_dirty_pages(bloom_bitmap *map) {
 
         if (dirty || i == 0) {
             // Flush the page
-            res = flush_page(map, i);
+            res = flush_page(map, i, map->size, pages - 1);
             if (res) return res;
 
             // Zero out the bit
@@ -250,12 +250,19 @@ static int flush_dirty_pages(bloom_bitmap *map) {
 /**
  * Flushes out a single page that is dirty
  */
-static int flush_page(bloom_bitmap *map, uint64_t page) {
+static int flush_page(bloom_bitmap *map, uint64_t page, uint64_t size, uint64_t max_page) {
     int res, total = 0;
     uint64_t offset = page * 4096;
-    while (total < 4096) {
+
+    // The last page may need a write size < 4096
+    int should_write = 4096;
+    if (page == max_page && size % 4096) {
+        should_write = size % 4096;
+    }
+
+    while (total < should_write) {
         res = pwrite(map->fileno, map->mmap + offset + total,
-                4096 - total, offset + total);
+                should_write - total, offset + total);
         if (res == -1 && errno != EINTR)
             return -errno;
         else
