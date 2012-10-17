@@ -50,6 +50,9 @@ struct bloom_filtmgr {
     filtmgr_vsn *latest;
     pthread_mutex_t write_lock; // Serializes destructive operations
 
+    volatile int should_run;  // Used to stop the vacuum thread
+    pthread_t vacuum_thread;
+
     /*
      * To support vacuuming of old versions, we require that
      * workers 'periodically' checkpoint. This just updates an
@@ -60,12 +63,6 @@ struct bloom_filtmgr {
     pthread_t *threads;
     unsigned long long *vsn_checkpoint;
 };
-
-struct filtmgr_thread_args {
-    bloom_filtmgr *mgr;
-    int *should_run;
-};
-
 
 /**
  * We warn if there are this many outstanding versions
@@ -107,6 +104,13 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
     // Initialize the write lock
     pthread_mutex_init(&m->write_lock, NULL);
 
+    // Start the vacuum thread
+    m->should_run = 1;
+    if (pthread_create(&m->vacuum_thread, NULL, filtmgr_thread_main, mgr)) {
+        perror("Failed to start vacuum thread!");
+        return 1;
+    }
+
     // Allocate the initial version and hash table
     filtmgr_vsn *vsn = calloc(1, sizeof(filtmgr_vsn));
     m->latest = vsn;
@@ -133,6 +137,10 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
  * @return 0 on success.
  */
 int destroy_filter_manager(bloom_filtmgr *mgr) {
+    // Stop the vacuum thread
+    mgr->should_run = 0;
+    pthread_join(mgr->vacuum_thread, NULL);
+
     // Nuke all the keys in the current version
     filtmgr_vsn *current = mgr->latest;
     hashmap_iter(current->filter_map, filter_map_delete_cb, mgr);
@@ -151,26 +159,6 @@ int destroy_filter_manager(bloom_filtmgr *mgr) {
     free(mgr->vsn_checkpoint);
     free(mgr);
     return 0;
-}
-
-/**
- * Starts the filter managers passive thread. This must
- * be started after initializing the filter manager to cleanup
- * internal state.
- * @arg mgr The manager to monitor
- * @arg should_run An integer set to 0 when we should terminate
- * @return The pthread_t handle of the thread. Used for joining.
- */
-pthread_t filtmgr_start_worker(bloom_filtmgr *mgr, int *should_run) {
-    struct filtmgr_thread_args* args = malloc(sizeof(struct filtmgr_thread_args));
-    args->mgr = mgr;
-    args->should_run = should_run;
-    pthread_t t;
-    if (pthread_create(&t, NULL, filtmgr_thread_main, args)) {
-        free(args);
-        return 0;
-    }
-    return t;
 }
 
 /**
@@ -803,16 +791,13 @@ static int clean_old_versions(filtmgr_vsn *v, unsigned long long min_vsn) {
  */
 static void* filtmgr_thread_main(void *in) {
     // Extract our arguments
-    struct filtmgr_thread_args* args = in;
-    bloom_filtmgr *mgr = args->mgr;
-    int *should_run = args->should_run;
-    free(args);
+    bloom_filtmgr *mgr = in;
 
     // Store the oldest version
     filtmgr_vsn *current;
-    while (*should_run) {
+    while (mgr->should_run) {
         sleep(1);
-        if (!*should_run) break;
+        if (!mgr->should_run) break;
 
         // Do nothing if there is no older versions
         current = mgr->latest;

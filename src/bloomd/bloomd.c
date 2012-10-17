@@ -152,10 +152,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // Start the filter manager thread
-    pthread_t filtmgr = filtmgr_start_worker(mgr, &SHOULD_RUN);
-    assert(filtmgr);
-
     // Start the background tasks
     int flush_on, unmap_on;
     pthread_t flush_thread, unmap_thread;
@@ -197,7 +193,6 @@ int main(int argc, char **argv) {
     // Shutdown the background tasks
     if (flush_on) pthread_join(flush_thread, NULL);
     if (unmap_on) pthread_join(unmap_thread, NULL);
-    if (filtmgr) pthread_join(filtmgr, NULL);
 
     // Cleanup the filters
     destroy_filter_manager(mgr);

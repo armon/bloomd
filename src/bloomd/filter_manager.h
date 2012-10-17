@@ -38,16 +38,6 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr);
 int destroy_filter_manager(bloom_filtmgr *mgr);
 
 /**
- * Starts the filter managers passive thread. This must
- * be started after initializing the filter manager to cleanup
- * internal state.
- * @arg mgr The manager to monitor
- * @arg should_run An integer set to 0 when we should terminate
- * @return The pthread_t handle of the thread. Used for joining.
- */
-pthread_t filtmgr_start_worker(bloom_filtmgr *mgr, int *should_run);
-
-/**
  * Provides a list of worker threads to the filter manager
  * @arg mgr The manager
  * @arg threads A list of thread IDs, should be `worker_threads` long
