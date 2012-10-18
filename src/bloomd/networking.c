@@ -55,6 +55,15 @@
 
 
 /**
+ * This defines how often we invoke the
+ * 'periodic' callback of the connection handler.
+ * This allows certain cleanups and state updates
+ * to take place.
+ */
+#define PERIODIC_TIME_SEC 1.0
+
+
+/**
  * Stores the worker thread specific user data.
  */
 typedef struct {
@@ -62,6 +71,7 @@ typedef struct {
     ev_loop *loop;
     int pipefd[2];
     ev_io pipe_client;
+    ev_timer periodic;
 } worker_ev_userdata;
 
 /**
@@ -135,6 +145,7 @@ static void invoke_event_handler(ev_loop *lp, ev_io *watcher, int ready_events);
 static void handle_client_writebuf(ev_loop *lp, ev_io *watcher, int ready_events);
 static int read_client_data(conn_info *conn);
 static void handle_worker_notification(ev_loop *lp, ev_io *watcher, int ready_events);
+static void handle_periodic_timeout(ev_loop *lp, ev_timer *t, int ready_events);
 
 // Helpers for send_client_response
 static int send_client_response_buffered(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
@@ -507,6 +518,25 @@ static void handle_worker_notification(ev_loop *lp, ev_io *watcher, int ready_ev
 
 
 /**
+ * Invoked periodically to give the connection handlers
+ * time to cleanup and handle state updates
+ */
+static void handle_periodic_timeout(ev_loop *lp, ev_timer *t, int ready_events) {
+    // Get the user data
+    worker_ev_userdata *data = ev_userdata(lp);
+
+    // Prepare to invoke the handler
+    bloom_conn_handler handle;
+    handle.config = data->netconf->config;
+    handle.mgr = data->netconf->mgr;
+    handle.conn = NULL;
+
+    // Invoke the connection handler layer
+    periodic_update(&handle);
+}
+
+
+/**
  * Entry point for threads to join the networking
  * stack. This method blocks indefinitely until the
  * network stack is shutdown.
@@ -537,6 +567,11 @@ void start_networking_worker(bloom_networking *netconf) {
                 data.pipefd[0], EV_READ);
     ev_io_start(data.loop, &data.pipe_client);
 
+    // Setup the periodic timers,
+    ev_timer_init(&data.periodic, handle_periodic_timeout,
+                PERIODIC_TIME_SEC, 1);
+    ev_timer_start(data.loop, &data.periodic);
+
     // Syncronize until netconf->threads is available
     barrier_wait(&netconf->thread_barrier);
 
@@ -558,6 +593,7 @@ void start_networking_worker(bloom_networking *netconf) {
     ev_run(data.loop, 0);
 
     // Cleanup after exit
+    ev_timer_stop(data.loop, &data.periodic);
     ev_io_stop(data.loop, &data.pipe_client);
     close(data.pipefd[0]);
     close(data.pipefd[1]);
