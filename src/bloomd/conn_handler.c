@@ -115,16 +115,15 @@ int handle_client_connect(bloom_conn_handler *handle) {
         if (should_free) free(buf);
     }
 
-    /*
-     * XXX: Somewhat jank, we just checkpoint after _each_ invocation.
-     * This is probably a bit costly to do, with more threads and potentially
-     * has an issue of starvation if not all the threads get scheduled. When
-     * we remove the leader/follower model, we can add a timer to the event loop
-     * and handle this properly.
-     */
-    filtmgr_worker_checkpoint(handle->mgr);
-
     return 0;
+}
+
+/**
+ * Periodic update is used to update our checkpoint with
+ * the filter manager, so that vacuum progress can be made.
+ */
+void periodic_update(bloom_conn_handler *handle) {
+    filtmgr_worker_checkpoint(handle->mgr);
 }
 
 

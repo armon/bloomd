@@ -30,4 +30,13 @@ void init_conn_handler();
  */
 int handle_client_connect(bloom_conn_handler *handle);
 
+/**
+ * Invoked by the networking layer periodically to
+ * handle state updates. Does not provide
+ * a connection object as part of the handle.
+ * @arg handle The connection related information
+ * @return 0 on success.
+ */
+void periodic_update(bloom_conn_handler *handle);
+
 #endif
