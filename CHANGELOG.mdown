@@ -1,7 +1,29 @@
-# 0.2.0
+# 0.5.0
 
   * Adding `in_memory` flag for the info command. This avoids needing to use
   a heuristic based on page_in / page_outs to determine the status of a filter.
+
+  * Filter manager uses a simple form of Multi-Version Concurrency Control (MVCC)
+  to enable progress to be made on operations in the face of potentially slow management
+  operations. Increases read concurrency within the filter manager.
+
+  * Changed networking from a leader/follower model to fixing connections to threads. This
+  reduces locking contention in the networking layer and enables much higher concurrency
+  in the workers.
+
+  * Adding new memory buffer management that gives bloomd more control as opposed to
+  relying on the kernel to flush buffers. This can now be controlled using a new `use_mmap`
+  flag. If this flag is not provided, it defaults to 0, which instructs bloomd to use anonymous
+  buffers and to manually manage flushing to disk. Otherwise, if it is 1, then files are mapped
+  in using MAP_SHARED, and msync() is used for flushing. The advatage of having bloomd manage
+  buffers is that under high I/O and memory pressure, the kernel will begin to block writes to
+  mapped memory until they can be paged to disk which causes availability issues. With our own
+  buffers, the flush thread will instead become increasingly behind, but the server can continue
+  to serve requests. The down side is, if bloomd were to crash, we will take data loss as the
+  buffers have not yet been written out. With MAP_SHARED buffers, the kernel will take care
+  to persist the data.
+
+  * Git SHA: 6dfd4b5
 
 # 0.1.5
 
