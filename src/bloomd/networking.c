@@ -2,7 +2,8 @@
 #define EV_STANDALONE 1
 #define EV_API_STATIC 1
 #define EV_COMPAT3 0
-#define EV_MULTIPLICITY 0
+#define EV_MULTIPLICITY 1
+#define EV_USE_MONOTONIC 1
 #ifdef __linux__
 #define EV_USE_CLOCK_SYSCALL 0
 #define EV_USE_EPOLL 1
@@ -26,6 +27,7 @@
 #include <math.h>
 #include "conn_handler.h"
 #include "spinlock.h"
+#include "barrier.h"
 
 
 /**
@@ -53,12 +55,13 @@
 
 
 /**
- * Stores the thread specific user data.
+ * Stores the worker thread specific user data.
  */
 typedef struct {
     bloom_networking *netconf;
-    ev_io *watcher;
-    int ready_events;
+    ev_loop *loop;
+    int pipefd[2];
+    ev_io pipe_client;
 } worker_ev_userdata;
 
 /**
@@ -74,35 +77,30 @@ typedef struct {
 /**
  * Stores the connection specific data.
  * We initialize one of these per connection
+ * Output is handled in a special way.
+ * If use_write_buf is off, then we make
+ * the writes directly, otherwise we need to
+ * acquire a the buffer lock and write to our
+ * circular buffer. Once the buffer is depleted,
+ * we switch use_write_buf back off, and go back
+ * to writing directly.
+ *
+ * The logic is that most clients have a quick
+ * check/set command pair which fits in the TCP
+ * buffers. Some bulk operations with tons of checks
+ * or sets may overwhelm our buffers however. This
+ * allows us to minimize copies and latency for most
+ * clients, while still supporting the massive bulk
+ * loads.
  */
 struct conn_info {
-    volatile int ref_count;
-    bloom_spinlock ref_lock;
+    worker_ev_userdata *thread_ev;
+    int active;
 
-    bloom_networking *netconf;
     ev_io client;
-    volatile int should_schedule;
     circular_buffer input;
 
-    /*
-     * Output is handled in a special way.
-     * If use_write_buf is off, then we make
-     * the writes directly, otherwise we need to
-     * acquire a the buffer lock and write to our
-     * circular buffer. Once the buffer is depleted,
-     * we switch use_write_buf back off, and go back
-     * to writing directly.
-     *
-     * The logic is that most clients have a quick
-     * check/set command pair which fits in the TCP
-     * buffers. Some bulk operations with tons of checks
-     * or sets may overwhelm our buffers however. This
-     * allows us to minimize copies and latency for most
-     * clients, while still supporting the massive bulk
-     * loads.
-     */
-    volatile int use_write_buf;
-    bloom_spinlock output_lock;
+    int use_write_buf;
     ev_io write_client;
     circular_buffer output;
 };
@@ -110,66 +108,43 @@ typedef struct conn_info conn_info;
 
 
 /**
- * Represents the various types
- * of async events we could be
- * processing.
- */
-typedef enum {
-    EXIT,               // ev_break should be invoked
-    SCHEDULE_WATCHER,   // watcher should be started
-} ASYNC_EVENT_TYPE;
-
-/**
- * Structure used to store async events
- * that need to processed when we trigger
- * the loop_async watcher.
- */
-struct async_event {
-    ASYNC_EVENT_TYPE event_type;
-    ev_io *watcher;
-    struct async_event *next;
-};
-typedef struct async_event async_event;
-
-/**
  * Defines a structure that is
  * used to store the state of the networking
  * stack.
  */
 struct bloom_networking {
-    volatile int should_run;  // Should the workers continue to run
     bloom_config *config;
     bloom_filtmgr *mgr;
-    pthread_mutex_t leader_lock; // Serializes the leaders
 
+    int ev_mode;
+    ev_loop *default_loop;
     ev_io tcp_client;
     ev_io udp_client;
 
-    ev_async loop_async;      // Allows async interrupts
-    volatile async_event *events;      // List of pending events
-    bloom_spinlock event_lock; // Protects the events
+    barrier_t thread_barrier;
+    pthread_t *threads; // Reference to all the workers
+    worker_ev_userdata **workers;
+    unsigned last_assign;    // Last thread we assigned to
 };
 
 
 // Static typedefs
-static void schedule_async(bloom_networking *netconf,
-                            ASYNC_EVENT_TYPE event_type,
-                            ev_io *watcher);
-static void prepare_event(ev_io *watcher, int revents);
-static void handle_async_event(ev_async *watcher, int revents);
-static void handle_new_client(int listen_fd, worker_ev_userdata* data);
-static int handle_client_data(ev_io *watch, worker_ev_userdata* data);
-static void invoke_event_handler(worker_ev_userdata* data);
+static void handle_new_client(ev_loop *lp, ev_io *watcher, int ready_events);
+static void handle_new_udp_mesg(ev_loop *lp, ev_io *watcher, int ready_events);
+static void invoke_event_handler(ev_loop *lp, ev_io *watcher, int ready_events);
+static void handle_client_writebuf(ev_loop *lp, ev_io *watcher, int ready_events);
+static int read_client_data(conn_info *conn);
+static void handle_worker_notification(ev_loop *lp, ev_io *watcher, int ready_events);
 
-// Utility methods
-static int set_client_sockopts(int client_fd);
-static conn_info* get_conn(bloom_networking *netconf);
+// Helpers for send_client_response
 static int send_client_response_buffered(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
 static int send_client_response_direct(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
 
-static void incref_client_connection(conn_info *conn);
-static void decref_client_connection(conn_info *conn);
-static void private_close_connection(conn_info *conn);
+
+// Utility methods
+static int set_client_sockopts(int client_fd);
+static conn_info* get_conn();
+
 
 // Circular buffer method
 static void circbuf_init(circular_buffer *buf);
@@ -215,9 +190,9 @@ static int setup_tcp_listener(bloom_networking *netconf) {
     }
 
     // Create the libev objects
-    ev_io_init(&netconf->tcp_client, prepare_event,
+    ev_io_init(&netconf->tcp_client, handle_new_client,
                 tcp_listener_fd, EV_READ);
-    ev_io_start(&netconf->tcp_client);
+    ev_io_start(netconf->default_loop, &netconf->tcp_client);
     return 0;
 }
 
@@ -249,9 +224,9 @@ static int setup_udp_listener(bloom_networking *netconf) {
     }
 
     // Create the libev objects
-    ev_io_init(&netconf->udp_client, prepare_event,
+    ev_io_init(&netconf->udp_client, handle_new_udp_mesg,
                 udp_listener_fd, EV_READ);
-    ev_io_start(&netconf->udp_client);
+    ev_io_start(netconf->default_loop, &netconf->udp_client);
     return 0;
 }
 
@@ -266,24 +241,35 @@ int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking *
     bloom_networking *netconf = calloc(1, sizeof(struct bloom_networking));
 
     // Initialize
-    pthread_mutex_init(&netconf->leader_lock, NULL);
-    INIT_BLOOM_SPIN(&netconf->event_lock);
-    netconf->events = NULL;
     netconf->config = config;
     netconf->mgr = mgr;
-    netconf->should_run = 1;
+    netconf->workers = calloc(config->worker_threads, sizeof(worker_ev_userdata*));
+    if (!netconf->workers) {
+        free(netconf);
+        perror("Failed to calloc() for worker threads");
+        return 1;
+    }
+
+    // Setup the barrier
+    if (barrier_init(&netconf->thread_barrier, config->worker_threads + 1)) {
+        free(netconf->workers);
+        free(netconf);
+        return 1;
+    }
 
     /**
      * Check if we can use kqueue instead of select.
-     * By default, libev will not use kqueue since it only
-     * works for sockets, which is all we need.
+     * By default, libev will not use kqueue since it has
+     * certain limitations that select doesn't, but which
+     * we don't need.
      */
     int ev_mode = EVFLAG_AUTO;
     if (ev_supported_backends () & ~ev_recommended_backends () & EVBACKEND_KQUEUE) {
         ev_mode = EVBACKEND_KQUEUE;
     }
+    netconf->ev_mode = ev_mode;
 
-    if (!ev_default_loop (ev_mode)) {
+    if (!(netconf->default_loop = ev_loop_new (ev_mode))) {
         syslog(LOG_CRIT, "Failed to initialize libev!");
         free(netconf);
         return 1;
@@ -299,15 +285,11 @@ int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking *
     // Setup the UDP listener
     res = setup_udp_listener(netconf);
     if (res != 0) {
-        ev_io_stop(&netconf->tcp_client);
+        ev_io_stop(netconf->default_loop, &netconf->tcp_client);
         close(netconf->tcp_client.fd);
         free(netconf);
         return 1;
     }
-
-    // Setup the async handler
-    ev_async_init(&netconf->loop_async, handle_async_event);
-    ev_async_start(&netconf->loop_async);
 
     // Prepare the conn handlers
     init_conn_handler();
@@ -319,112 +301,19 @@ int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking *
 
 
 /**
- * Called to schedule an async event. Mostly a convenience
- * method to wrap some of the logic.
- */
-static void schedule_async(bloom_networking *netconf,
-                            ASYNC_EVENT_TYPE event_type,
-                            ev_io *watcher) {
-    // Make a new async event
-    async_event *event = malloc(sizeof(async_event));
-
-    // Initialize
-    event->event_type = event_type;
-    event->watcher = watcher;
-
-    // Always lock for safety!
-    LOCK_BLOOM_SPIN(&netconf->event_lock);
-
-    // Set the next pointer, and add us to the head
-    event->next = (async_event*)netconf->events;
-    netconf->events = event;
-
-    // Unlock
-    UNLOCK_BLOOM_SPIN(&netconf->event_lock);
-
-    // Send to our async watcher
-    ev_async_send(&netconf->loop_async);
-}
-
-/**
- * Called when an event is ready to be processed by libev.
- * We need to do _very_ little work here. Basically just
- * setup the userdata to process the event and return.
- * This is so we can release the leader lock and let another
- * thread take over.
- */
-static void prepare_event(ev_io *watcher, int revents) {
-    // Get the user data
-    worker_ev_userdata *data = ev_userdata();
-
-    // Set everything if we don't have a watcher
-    if (!data->watcher) {
-        data->watcher = watcher;
-        data->ready_events = revents;
-
-        // Stop listening for now
-        ev_io_stop(watcher);
-    }
-}
-
-
-/**
- * Called when a message is sent to netconf->loop_async.
- * This is usually to signal that some internal control
- * flow related to the event loop needs to take place.
- * For example, we might need to re-enable some ev_io* watchers,
- * or exit the loop.
- */
-static void handle_async_event(ev_async *watcher, int revents) {
-    // Get the user data
-    worker_ev_userdata *data = ev_userdata();
-
-    // Lock the events
-    LOCK_BLOOM_SPIN(&data->netconf->event_lock);
-
-    // Get a reference to the head, set the head to NULL
-    async_event *event = (async_event*)data->netconf->events;
-    data->netconf->events = NULL;
-
-    // Release the lock
-    UNLOCK_BLOOM_SPIN(&data->netconf->event_lock);
-
-    async_event *next;
-    while (event) {
-        // Handle based on the event
-        switch (event->event_type) {
-            case EXIT:
-                ev_break(EVBREAK_ALL);
-                break;
-
-            case SCHEDULE_WATCHER:
-                ev_io_start(event->watcher);
-                break;
-
-            default:
-                syslog(LOG_ERR, "Unknown async event type!");
-                break;
-        }
-
-        // Grab the next event, free this one, and repeat
-        next = event->next;
-        free(event);
-        event = next;
-    }
-}
-
-
-/**
  * Invoked when a TCP listening socket fd is ready
  * to accept a new client. Accepts the client, initializes
  * the connection buffers, and prepares to start listening
  * for client data
  */
-static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
+static void handle_new_client(ev_loop *lp, ev_io *watcher, int ready_events) {
+    // Get the network configuration
+    bloom_networking *netconf = ev_userdata(lp);
+
     // Accept the client connection
     struct sockaddr_in client_addr;
     int client_addr_len = sizeof(client_addr);
-    int client_fd = accept(listen_fd,
+    int client_fd = accept(watcher->fd,
                         (struct sockaddr*)&client_addr,
                         &client_addr_len);
 
@@ -444,14 +333,28 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
             inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
 
     // Get the associated conn object
-    conn_info *conn = get_conn(data->netconf);
+    conn_info *conn = get_conn();
 
     // Initialize the libev stuff
-    ev_io_init(&conn->client, prepare_event, client_fd, EV_READ);
-    ev_io_init(&conn->write_client, prepare_event, client_fd, EV_WRITE);
+    ev_io_init(&conn->client, invoke_event_handler, client_fd, EV_READ);
+    ev_io_init(&conn->write_client, handle_client_writebuf, client_fd, EV_WRITE);
 
-    // Schedule the new client
-    schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->client);
+    // Dispatch this client to a worker thread
+    int next_thread = netconf->last_assign++ % netconf->config->worker_threads;
+    worker_ev_userdata *data = netconf->workers[next_thread];
+
+    // Sent accept along with the connection
+    write(data->pipefd[1], "a", 1);
+    write(data->pipefd[1], &conn, sizeof(conn_info*));
+}
+
+
+/**
+ * Invoked to handle new UDP messages being available.
+ */
+static void handle_new_udp_mesg(ev_loop *lp, ev_io *watcher, int ready_events) {
+    // TODO: Handle UDP clients
+    syslog(LOG_WARNING, "UDP clients not currently supported!");
 }
 
 
@@ -461,10 +364,7 @@ static void handle_new_client(int listen_fd, worker_ev_userdata* data) {
  * invoke the connection handlers who have the business logic
  * of what to do.
  */
-static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
-    // Get the associated connection struct
-    conn_info *conn = watch->data;
-
+static int read_client_data(conn_info *conn) {
     /**
      * Figure out how much space we have to write.
      * If we have < 50% free, we resize the buffer using
@@ -481,18 +381,16 @@ static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
     circbuf_setup_readv_iovec(&conn->input, (struct iovec*)&vectors, &num_vectors);
 
     // Issue the read
-    ssize_t read_bytes = readv(watch->fd, (struct iovec*)&vectors, num_vectors);
+    ssize_t read_bytes = readv(conn->client.fd, (struct iovec*)&vectors, num_vectors);
 
     // Make sure we actually read something
     if (read_bytes == 0) {
         syslog(LOG_DEBUG, "Closed client connection. [%d]\n", conn->client.fd);
-        close_client_connection(conn);
         return 1;
     } else if (read_bytes == -1) {
         if (errno != EAGAIN && errno != EINTR) {
             syslog(LOG_ERR, "Failed to read() from connection [%d]! %s.",
                     conn->client.fd, strerror(errno));
-            close_client_connection(conn);
         }
         return 1;
     }
@@ -506,12 +404,9 @@ static int handle_client_data(ev_io *watch, worker_ev_userdata* data) {
 /**
  * Invoked when a client connection is ready to be written to.
  */
-static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
+static void handle_client_writebuf(ev_loop *lp, ev_io *watcher, int ready_events) {
     // Get the associated connection struct
-    conn_info *conn = watch->data;
-
-    // Acquire the lock
-    LOCK_BLOOM_SPIN(&conn->output_lock);
+    conn_info *conn = watcher->data;
 
     // Build the IO vectors to perform the write
     struct iovec vectors[2];
@@ -519,9 +414,8 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
     circbuf_setup_writev_iovec(&conn->output, (struct iovec*)&vectors, &num_vectors);
 
     // Issue the write
-    ssize_t write_bytes = writev(watch->fd, (struct iovec*)&vectors, num_vectors);
+    ssize_t write_bytes = writev(watcher->fd, (struct iovec*)&vectors, num_vectors);
 
-    int reschedule = 0;
     if (write_bytes > 0) {
         // Update the cursor
         circbuf_advance_read(&conn->output, write_bytes);
@@ -530,91 +424,85 @@ static int handle_client_writebuf(ev_io *watch, worker_ev_userdata* data) {
         // This is done when the buffer size is 0.
         if (conn->output.read_cursor == conn->output.write_cursor) {
             conn->use_write_buf = 0;
-        } else {
-            reschedule = 1;
+            ev_io_stop(lp, &conn->write_client);
         }
     }
-
-    // Unlock
-    UNLOCK_BLOOM_SPIN(&conn->output_lock);
 
     // Handle any errors
     if (write_bytes <= 0 && (errno != EAGAIN && errno != EINTR)) {
         syslog(LOG_ERR, "Failed to write() to connection [%d]! %s.",
                 conn->client.fd, strerror(errno));
         close_client_connection(conn);
-        decref_client_connection(conn);
-        return 1;
+        return;
     }
-
-    // Check if we should reschedule or end
-    if (reschedule) {
-        schedule_async(data->netconf, SCHEDULE_WATCHER, &conn->write_client);
-    } else {
-        decref_client_connection(conn);
-    }
-    return 0;
 }
 
-/**
- * Reads the thread specific userdata to figure out what
- * we need to handle. Things that purely effect the network
- * stack should be handled here, but otherwise we should defer
- * to the connection handlers.
+
+/*
+ * Invoked when client read data is ready.
+ * We just read all the available data,
+ * append it to the buffers, and then invoke the
+ * connection handlers.
  */
-static void invoke_event_handler(worker_ev_userdata* data) {
-    // Get the offending handle
-    ev_io *watcher = data->watcher;
-    int fd = watcher->fd;
+static void invoke_event_handler(ev_loop *lp, ev_io *watcher, int ready_events) {
+    // Get the user data
+    worker_ev_userdata *data = ev_userdata(lp);
 
-    // Check if this is either of the listeners
-    if (watcher == &data->netconf->tcp_client) {
-        // Accept the new client
-        handle_new_client(fd, data);
-
-        // Reschedule the listener
-        schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
-        return;
-
-    } else if (watcher == &data->netconf->udp_client) {
-        // TODO: Handle UDP clients
-        //
-        syslog(LOG_WARNING, "UDP clients not currently supported!");
-
-        // Reschedule the listener
-        // schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
-        return;
-    }
-
-    // If it is write ready, dispatch the write handler
-    if (data->ready_events & EV_WRITE) {
-        handle_client_writebuf(watcher, data);
-        return;
-    }
-
-    /*
-     * If it is not a listener, it must be a connected
-     * client. We should just read all the available data,
-     * append it to the buffers, and then invoke the
-     * connection handlers.
-     */
+    // Read in the data, and close on issues
     conn_info *conn = watcher->data;
-    incref_client_connection(conn);
-    int res = handle_client_data(watcher, data);
-
-    if (res == 0) {
-        bloom_conn_handler handle;
-        handle.config = data->netconf->config;
-        handle.mgr = data->netconf->mgr;
-        handle.conn = conn;
-        res = handle_client_connect(&handle);
+    if (read_client_data(conn)) {
+        close_client_connection(conn);
+        return;
     }
 
-    // Reschedule the watcher, unless told otherwise.
-    if (conn->should_schedule) {
-        schedule_async(data->netconf, SCHEDULE_WATCHER, watcher);
+    // Prepare to invoke the handler
+    bloom_conn_handler handle;
+    handle.config = data->netconf->config;
+    handle.mgr = data->netconf->mgr;
+    handle.conn = conn;
+
+    // Reschedule the watcher, unless it's non-active now
+    if (handle_client_connect(&handle) || !conn->active)
+        close_client_connection(conn);
+}
+
+
+/**
+ * Invoked to handle async notifications via the thread pipes
+ */
+static void handle_worker_notification(ev_loop *lp, ev_io *watcher, int ready_events) {
+    // Get the user data
+    worker_ev_userdata *data = ev_userdata(lp);
+
+    // Attempt to read a single character from the pipe
+    char cmd;
+    if (read(data->pipefd[0], &cmd, 1) != 1)
+        return;
+
+    // Handle the command
+    conn_info *conn;
+    switch (cmd) {
+        // Accept new connection
+        case 'a':
+            // Read the address of conn from the pipe
+            if (read(data->pipefd[0], &conn, sizeof(conn_info*)) < 0) {
+                perror("Failed to read from async pipe");
+                return;
+            }
+
+            // Schedule this connection on this thread
+            conn->thread_ev = data;
+            ev_io_start(data->loop, &conn->client);
+            break;
+
+        // Quit
+        case 'q':
+            ev_break(lp, EVBREAK_ALL);
+            break;
+
+        default:
+            syslog(LOG_WARNING, "Received unknown comand: %c", cmd);
     }
-    decref_client_connection(conn);
 }
 
 
@@ -629,35 +517,79 @@ void start_networking_worker(bloom_networking *netconf) {
     worker_ev_userdata data;
     data.netconf = netconf;
 
-    // Run forever until we are told to halt
-    while (netconf->should_run) {
-        // Become the leader
-        pthread_mutex_lock(&netconf->leader_lock);
-        data.watcher = NULL;
-        data.ready_events = 0;
+    // Allocate our pipe
+    if (pipe(data.pipefd)) {
+        perror("failed to allocate worker pipes!");
+        return;
+    }
 
-        // Check again if we should run
-        if (!netconf->should_run) {
-            pthread_mutex_unlock(&netconf->leader_lock);
+    // Create the event loop
+    if (!(data.loop = ev_loop_new(netconf->ev_mode))) {
+        syslog(LOG_ERR, "Failed to create event loop for worker!");
+        return;
+    }
+
+    // Set the user data to be for this thread
+    ev_set_userdata(data.loop, &data);
+
+    // Setup the pipe listener
+    ev_io_init(&data.pipe_client, handle_worker_notification,
+                data.pipefd[0], EV_READ);
+    ev_io_start(data.loop, &data.pipe_client);
+
+    // Syncronize until netconf->threads is available
+    barrier_wait(&netconf->thread_barrier);
+
+    // Register this thread so we can accept connections
+    assert(netconf->threads);
+    pthread_t id = pthread_self();
+    for (int i=0; i < netconf->config->worker_threads; i++) {
+        if (pthread_equal(id, netconf->threads[i])) {
+            // Provide a pointer to our data
+            netconf->workers[i] = &data;
             break;
         }
-
-        // Set the user data to be for this thread
-        ev_set_userdata(&data);
-
-        // Run one iteration of the event loop
-        ev_run(EVRUN_ONCE);
-
-        // Release the leader lock
-        pthread_mutex_unlock(&netconf->leader_lock);
-
-        // Process the event
-        if (data.watcher) {
-            invoke_event_handler(&data);
-        }
     }
-    return;
+
+    // Wait for everybody to be registered
+    barrier_wait(&netconf->thread_barrier);
+
+    // Run the event loop
+    ev_run(data.loop, 0);
+
+    // Cleanup after exit
+    ev_io_stop(data.loop, &data.pipe_client);
+    close(data.pipefd[0]);
+    close(data.pipefd[1]);
+    ev_loop_destroy(data.loop);
 }
+
+
+/**
+ * Entry point for the main thread to start accepting
+ * @arg netconf The configuration for the networking stack.
+ * @arg should_run A flag checked to see if we should run
+ * @arg threads The list of worker threads
+ */
+void enter_main_loop(bloom_networking *netconf, int *should_run, pthread_t *threads) {
+    // Store a reference to the threads
+    netconf->threads = threads;
+
+    // Set the user data of the main loop to netconf
+    ev_set_userdata(netconf->default_loop, netconf);
+
+    // Syncronize now that netconf->threads are ready
+    barrier_wait(&netconf->thread_barrier);
+
+    // Syncronize until threads are registered
+    barrier_wait(&netconf->thread_barrier);
+
+    // Run forever
+    while (*should_run) {
+        ev_run(netconf->default_loop, EVRUN_ONCE);
+    }
+}
+
 
 /**
  * Shuts down all the connections
@@ -666,11 +598,16 @@ void start_networking_worker(bloom_networking *netconf) {
  * @arg threads A list of worker threads
  */
 int shutdown_networking(bloom_networking *netconf, pthread_t *threads) {
-    // Instruct the threads to shutdown
-    netconf->should_run = 0;
+    // Stop listening for new connections
+    ev_io_stop(netconf->default_loop, &netconf->tcp_client);
+    ev_io_stop(netconf->default_loop, &netconf->udp_client);
+    close(netconf->tcp_client.fd);
+    close(netconf->udp_client.fd);
 
-    // Break the EV loop
-    schedule_async(netconf, EXIT, NULL);
+    // Tell the threads to quit, async signal
+    for (int i=0; i < netconf->config->worker_threads; i++) {
+        write(netconf->workers[i]->pipefd[1], "q", 1);
+    }
 
     // Wait for the threads to return
     pthread_t thread;
@@ -679,17 +616,15 @@ int shutdown_networking(bloom_networking *netconf, pthread_t *threads) {
         if (thread) pthread_join(thread, NULL);
     }
 
-    // Stop listening for new connections
-    ev_io_stop(&netconf->tcp_client);
-    close(netconf->tcp_client.fd);
-    ev_io_stop(&netconf->udp_client);
-    close(netconf->udp_client.fd);
-
     // TODO: Close all the client connections
     // ??? For now, we just leak the memory
     // since we are shutdown down anyways...
 
+    // Shutdown the event loo
+    ev_loop_destroy(netconf->default_loop);
+
     // Free the netconf
+    free(netconf->workers);
     free(netconf);
     return 0;
 }
@@ -700,25 +635,6 @@ int shutdown_networking(bloom_networking *netconf, pthread_t *threads) {
  */
 
 /**
- * Increases the reference count of the
- * connection info object.
- */
-static void incref_client_connection(conn_info *conn) {
-    // Atomic decrement
-    LOCK_BLOOM_SPIN(&conn->ref_lock);
-    conn->ref_count++;
-    UNLOCK_BLOOM_SPIN(&conn->ref_lock);
-}
-
-static void decref_client_connection(conn_info *conn) {
-    // Atomic decrement
-    LOCK_BLOOM_SPIN(&conn->ref_lock);
-    int refs = --conn->ref_count;
-    UNLOCK_BLOOM_SPIN(&conn->ref_lock);
-    if (refs == 0) private_close_connection(conn);
-}
-
-/**
  * Called to close and cleanup a client connection.
  * Must be called when the connection is not already
  * scheduled. e.g. After ev_io_stop() has been called.
@@ -727,27 +643,9 @@ static void decref_client_connection(conn_info *conn) {
  * @arg conn The connection to close
  */
 void close_client_connection(conn_info *conn) {
-    // Stop scheduling
-    conn->should_schedule = 0;
-
-    // Atomic decrement
-    LOCK_BLOOM_SPIN(&conn->ref_lock);
-    int refs = --conn->ref_count;
-    UNLOCK_BLOOM_SPIN(&conn->ref_lock);
-
-    // If our refcount is still non-zero, do nothing.
-    if (refs != 0) {
-        return;
-    }
-
-    // Close the connection
-    private_close_connection(conn);
-}
-
-static void private_close_connection(conn_info *conn) {
     // Stop the libev clients
-    ev_io_stop(&conn->client);
-    ev_io_stop(&conn->write_client);
+    ev_io_stop(conn->thread_ev->loop, &conn->client);
+    ev_io_stop(conn->thread_ev->loop, &conn->write_client);
 
     // Clear everything out
     circbuf_free(&conn->input);
@@ -769,11 +667,11 @@ static void private_close_connection(conn_info *conn) {
  * @return 0 on success.
  */
 int send_client_response(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs) {
+    // Silently bail of the connection is not active
+    if (!conn->active) return 0;
+
     int send_bufs, res = 0;
     for (int offset=0; offset < num_bufs && res == 0; offset += IOV_MAX) {
-        // Bail if we shouldn't schedule
-        if (!conn->should_schedule) return 0;
-
         // Determine how many buffers to send
         send_bufs = ((num_bufs - offset) <= IOV_MAX) ? (num_bufs - offset) : IOV_MAX;
 
@@ -784,29 +682,20 @@ int send_client_response(conn_info *conn, char **response_buffers, int *buf_size
             res = send_client_response_direct(conn, response_buffers + offset, buf_sizes + offset, send_bufs);
         }
     }
+
+    // Disable the connection on error
+    if (res) conn->active = 0;
     return res;
 }
 
 
 static int send_client_response_buffered(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs) {
-    // Acquire the lock
-    LOCK_BLOOM_SPIN(&conn->output_lock);
-
-    // Might not be using buffered writes anymore
-    if (!conn->use_write_buf) {
-        UNLOCK_BLOOM_SPIN(&conn->output_lock);
-        return send_client_response_direct(conn, response_buffers, buf_sizes, num_bufs);
-    }
-
     // Copy the buffers to the output buffer
     int res = 0;
     for (int i=0; i< num_bufs; i++) {
         res = circbuf_write(&conn->output, response_buffers[i], buf_sizes[i]);
         if (res) break;
     }
-
-    // Unlock
-    UNLOCK_BLOOM_SPIN(&conn->output_lock);
     return res;
 }
 
@@ -861,8 +750,7 @@ static int send_client_response_direct(conn_info *conn, char **response_buffers,
 
     // Setup the async write
     conn->use_write_buf = 1;
-    incref_client_connection(conn);
-    schedule_async(conn->netconf, SCHEDULE_WATCHER, &conn->write_client);
+    ev_io_start(conn->thread_ev->loop, &conn->write_client);
 
     // Done
     return 0;
@@ -1002,19 +890,14 @@ static int set_client_sockopts(int client_fd) {
 
 
 /**
- * Returns the conn_info* object associated with the FD
- * or allocates a new one as necessary.
+ * Returns a new conn_info struct
  */
-static conn_info* get_conn(bloom_networking *netconf) {
+static conn_info* get_conn() {
     // Allocate space
     conn_info *conn = malloc(sizeof(conn_info));
-    INIT_BLOOM_SPIN(&conn->ref_lock);
-    INIT_BLOOM_SPIN(&conn->output_lock);
 
     // Setup variables
-    conn->netconf = netconf;
-    conn->ref_count = 1;
-    conn->should_schedule = 1;
+    conn->active = 1;
     conn->use_write_buf = 0;
 
     // Prepare the buffers

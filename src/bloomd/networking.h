@@ -16,6 +16,14 @@ typedef struct conn_info bloom_conn_info;
 int init_networking(bloom_config *config, bloom_filtmgr *mgr, bloom_networking **netconf_out);
 
 /**
+ * Entry point for the main thread to start accepting
+ * @arg netconf The configuration for the networking stack.
+ * @arg should_run A flag checked to see if we should run
+ * @arg threads The list of worker threads
+ */
+void enter_main_loop(bloom_networking *netconf, int *should_run, pthread_t *threads);
+
+/**
  * Entry point for threads to join the networking
  * stack. This method blocks indefinitely until the
  * network stack is shutdown.
