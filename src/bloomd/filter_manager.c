@@ -104,13 +104,6 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
     // Initialize the write lock
     pthread_mutex_init(&m->write_lock, NULL);
 
-    // Start the vacuum thread
-    m->should_run = 1;
-    if (pthread_create(&m->vacuum_thread, NULL, filtmgr_thread_main, mgr)) {
-        perror("Failed to start vacuum thread!");
-        return 1;
-    }
-
     // Allocate the initial version and hash table
     filtmgr_vsn *vsn = calloc(1, sizeof(filtmgr_vsn));
     m->latest = vsn;
@@ -127,6 +120,14 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
     // Discover existing filters
     load_existing_filters(m);
 
+    // Start the vacuum thread
+    m->should_run = 1;
+    if (pthread_create(&m->vacuum_thread, NULL, filtmgr_thread_main, m)) {
+        perror("Failed to start vacuum thread!");
+        destroy_filter_manager(m);
+        return 1;
+    }
+
     // Done
     return 0;
 }
@@ -139,7 +140,7 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
 int destroy_filter_manager(bloom_filtmgr *mgr) {
     // Stop the vacuum thread
     mgr->should_run = 0;
-    pthread_join(mgr->vacuum_thread, NULL);
+    if (mgr->vacuum_thread) pthread_join(mgr->vacuum_thread, NULL);
 
     // Nuke all the keys in the current version
     filtmgr_vsn *current = mgr->latest;
