@@ -175,17 +175,14 @@ int main(int argc, char **argv) {
     // Provide the threads to the filter manager
     filtmgr_provide_workers(mgr, threads);
 
-    /**
-     * Loop forever, until we get a signal that
-     * indicates we should shutdown.
-     */
+    // Prepare our signal handlers to loop until we are signaled to quit
     signal(SIGPIPE, SIG_IGN);       // Ignore SIG_IGN
     signal(SIGHUP, SIG_IGN);        // Ignore SIG_IGN
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
-    while (SHOULD_RUN) {
-        sleep(1);
-    }
+
+    // Loop forever
+    enter_main_loop(netconf, &SHOULD_RUN, threads);
 
     // Begin the shutdown/cleanup
     shutdown_networking(netconf, threads);
