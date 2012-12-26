@@ -226,6 +226,7 @@ Clients
 Here is a list of known client implementations:
 
 * Python : https://github.com/kiip/bloom-python-driver
+* Ruby : https://github.com/SponsorPay/bloomrb
 
 
 Here is a list of "best-practices" for client implementations:
