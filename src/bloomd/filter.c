@@ -10,6 +10,18 @@
 #include <assert.h>
 #include "filter.h"
 
+#ifdef DARWIN
+#include <Availability.h>
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_8
+#define CONST_DIRENT_T struct dirent
+#else
+#define CONST_DIRENT_T const struct dirent
+#endif
+#else
+#define CONST_DIRENT_T const struct dirent
+#endif
+
+
 /*
  * Generates the folder name, given a filter name.
  */
@@ -34,11 +46,7 @@ static int create_sbf(bloom_filter *f, int num, bloom_bloomfilter **filters);
 static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out);
 static int timediff_msec(struct timeval *t1, struct timeval *t2);
 
-#ifndef __linux__
-static int filter_out_special(struct dirent *d);
-#else
-static int filter_out_special(const struct dirent *d);
-#endif
+static int filter_out_special(CONST_DIRENT_T *d);
 
 /**
  * Initializes a bloom filter wrapper.
@@ -390,11 +398,7 @@ static uint64_t get_size(char* filename) {
 /**
  * Works with scandir to filter out special files
  */
-#ifndef __linux__
-static int filter_out_special(struct dirent *d) {
-#else
-static int filter_out_special(const struct dirent *d) {
-#endif
+static int filter_out_special(CONST_DIRENT_T *d) {
     // Get the file name
     char *name = (char*)d->d_name;
 
@@ -408,11 +412,7 @@ static int filter_out_special(const struct dirent *d) {
 /**
  * Works with scandir to filter out non-data files.
  */
-#ifndef __linux__
-static int filter_data_files(struct dirent *d) {
-#else
-static int filter_data_files(const struct dirent *d) {
-#endif
+static int filter_data_files(CONST_DIRENT_T *d) {
     // Get the file name
     char *name = (char*)d->d_name;
 

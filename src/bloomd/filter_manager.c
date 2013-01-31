@@ -9,6 +9,17 @@
 #include "hashmap.h"
 #include "filter.h"
 
+#ifdef DARWIN
+#include <Availability.h>
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_8
+#define CONST_DIRENT_T struct dirent
+#else
+#define CONST_DIRENT_T const struct dirent
+#endif
+#else
+#define CONST_DIRENT_T const struct dirent
+#endif
+
 /**
  * Wraps a bloom_filter to ensure only a single
  * writer access it at a time. Tracks the outstanding
@@ -654,11 +665,7 @@ static int filter_map_delete_cb(void *data, const char *key, void *value) {
 /**
  * Works with scandir to filter out non-bloomd folders.
  */
-#ifndef __linux__
-static int filter_bloomd_folders(struct dirent *d) {
-#else
-static int filter_bloomd_folders(const struct dirent *d) {
-#endif
+static int filter_bloomd_folders(CONST_DIRENT_T *d) {
     // Get the file name
     char *name = (char*)d->d_name;
 
