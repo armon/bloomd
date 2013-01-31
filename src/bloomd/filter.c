@@ -229,7 +229,7 @@ int bloomf_delete(bloom_filter *filter) {
     bloomf_close(filter);
 
     // Delete the files
-    struct dirent **namelist;
+    struct dirent **namelist = NULL;
     int num;
 
     // Filter only data dirs, in sorted order
@@ -250,7 +250,8 @@ int bloomf_delete(bloom_filter *filter) {
     for (int i=0; i < num; i++) {
         free(namelist[i]);
     }
-    free(namelist);
+    if (namelist)
+        free(namelist);
 
     // Delete the directory
     if (rmdir(filter->full_path)) {
