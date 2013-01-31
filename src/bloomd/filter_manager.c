@@ -805,10 +805,11 @@ static void* filtmgr_thread_main(void *in) {
         if (!current->prev) continue;
 
         // Determine the minimum version
-        unsigned long long min_vsn = current->vsn;
+        unsigned long long thread_vsn, min_vsn = current->vsn;
         for (int i=0; i < mgr->config->worker_threads; i++) {
-            if (mgr->vsn_checkpoint[i] < min_vsn) {
-                min_vsn = mgr->vsn_checkpoint[i];
+            thread_vsn = mgr->vsn_checkpoint[i];
+            if (thread_vsn < min_vsn) {
+                min_vsn = thread_vsn;
             }
         }
 
