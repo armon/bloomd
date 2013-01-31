@@ -1,3 +1,18 @@
+$script = <<CODE
+
+echo
+echo Provisioning started...
+echo
+
+sudo apt-get update
+sudo apt-get -y install build-essential scons
+
+CODE
+
 Vagrant::Config.run do |config|
   config.vm.box = "precise64"
+  config.vm.box_url = "http://files.vagrantup.com/precise64.box"
+
+  # Provision using the shell to install fog
+  config.vm.provision :shell, :inline => $script
 end
