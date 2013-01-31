@@ -341,7 +341,6 @@ class TestInteg(object):
 
         def create():
             for x in xrange(10):
-                time.sleep(0.05)
                 server2.sendall("create pingpong%d\n" % x)
 
         server.sendall("create pingpong\n")
