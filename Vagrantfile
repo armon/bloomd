@@ -5,7 +5,9 @@ echo Provisioning started...
 echo
 
 sudo apt-get update
-sudo apt-get -y install build-essential scons
+sudo apt-get -y install build-essential scons python-setuptools
+sudo easy_install pip
+sudo pip install pytest
 
 CODE
 
