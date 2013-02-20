@@ -1,3 +1,10 @@
+# 0.5.1 (Unreleased)
+
+  * Fixed possible crashing bug
+  * Fixed possible race condition in vacuum thread
+  * Fixing build issues on OSX 10.8
+  * Fixing validation of filter names
+
 # 0.5.0
 
   * Adding `in_memory` flag for the info command. This avoids needing to use
