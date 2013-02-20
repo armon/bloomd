@@ -93,6 +93,13 @@ class TestInteg(object):
         assert "foobar" in fh.readline()
         assert fh.readline() == "END\n"
 
+    def test_create_bad(self, servers):
+        "Tests creating a filter"
+        server, _ = servers
+        fh = server.makefile()
+        server.sendall("create " + ("foo"*100) + "\n")
+        assert fh.readline() == "Client Error: Bad filter name\n"
+
     def test_doublecreate(self, servers):
         "Tests creating a filter twice"
         server, _ = servers
