@@ -77,5 +77,5 @@ typedef enum {
 
 /* Static regexes */
 static regex_t VALID_FILTER_NAMES_RE;
-static const char *VALID_FILTER_NAMES_PATTERN = "[a-zA-Z0-9._-]{1,200}";
+static const char *VALID_FILTER_NAMES_PATTERN = "^[^\\s]{1,200}$";
 

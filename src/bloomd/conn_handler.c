@@ -249,7 +249,7 @@ static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_l
 
     // Verify the filter name is valid
     char *filter_name = args;
-    if (regexec(&VALID_FILTER_NAMES_RE, filter_name, 0, NULL, 0)) {
+    if (regexec(&VALID_FILTER_NAMES_RE, filter_name, 0, NULL, 0) != 0) {
         handle_client_err(handle->conn, (char*)&BAD_FILT_NAME, BAD_FILT_NAME_LEN);
         return;
     }
