@@ -253,7 +253,7 @@ extern "C" void MurmurHash3_x86_128 ( const void * key, const int len,
 //-----------------------------------------------------------------------------
 
 extern "C" void MurmurHash3_x64_128 ( const void * key, const int len,
-                           const uint32_t seed, void * out )
+                           uint32_t seed, void * out )
 {
   const uint8_t * data = (const uint8_t*)key;
   const int nblocks = len / 16;
