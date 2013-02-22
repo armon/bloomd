@@ -9,7 +9,7 @@ murmur = envmurmur.Library('murmur', Glob("deps/murmurhash/*.cpp"))
 envbloom = Environment(CCFLAGS = '-std=c99 -Wall -Werror -Wextra -O2 -D_GNU_SOURCE')
 bloom = envbloom.Library('bloom', Glob("src/libbloom/*.c"), LIBS=[murmur, spooky])
 
-envtest = Environment(CCFLAGS = '-std=c99 -Wall -Werror -Wextra -Wno-unused-function -D_GNU_SOURCE -Isrc/libbloom/')
+envtest = Environment(CCFLAGS = '-std=c99 -Wall -Werror -Wextra -Wno-unused-function -Wno-unused-result -D_GNU_SOURCE -Isrc/libbloom/')
 envtest.Program('test_libbloom_runner', Glob("tests/libbloom/*.c"), LIBS=["check", bloom, murmur, spooky, "m"])
 
 envinih = Environment(CPATH = ['deps/inih/'], CFLAGS="-O2")
