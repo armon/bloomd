@@ -120,7 +120,8 @@ int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *m
  * Populates a buffer with the contents of a file
  */
 static int fill_buffer(int fileno, unsigned char* buf, uint64_t len) {
-    uint64_t total_read = 0, more;
+    uint64_t total_read = 0;
+    ssize_t more;
     while (total_read < len) {
         more = pread(fileno, buf+total_read, len-total_read, total_read);
         if (more == 0)
