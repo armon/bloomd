@@ -37,7 +37,7 @@ int hashmap_init(int initial_size, bloom_hashmap **map) {
     // Round up to power of 2
     } else {
         int most_sig_bit = 0;
-        for (int idx= 0; idx < sizeof(initial_size)*8; idx++) {
+        for (unsigned idx = 0; idx < sizeof(initial_size)*8; idx++) {
             if ((initial_size >> idx) & 0x1)
                 most_sig_bit = idx;
         }
