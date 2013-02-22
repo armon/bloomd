@@ -390,6 +390,9 @@ static void list_filter_cb(void *data, char *filter_name, bloom_filter *filter) 
 }
 
 static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len) {
+    (void)args;
+    (void)args_len;
+
     // List all the filters
     bloom_filter_list_head *head;
     int res = filtmgr_list_filters(handle->mgr, &head);
@@ -439,6 +442,8 @@ static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len
 // line for each filter. We hold a filter handle which we
 // can use to get some info about it
 static void info_filter_cb(void *data, char *filter_name, bloom_filter *filter) {
+    (void)filter_name;
+
     // Cast the intput
     char **out = data;
 

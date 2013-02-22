@@ -171,7 +171,7 @@ int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, b
             perror("fstat failed on bitmap!");
             return -errno;
         }
-        if (buf.st_size < len) {
+        if ((uint64_t)buf.st_size < len) {
             res = ftruncate(fileno, len);
             if (res != 0) {
                 perror("ftrunctate failed on the bitmap!");
