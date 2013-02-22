@@ -8,6 +8,12 @@ typedef struct bloom_hashmap bloom_hashmap;
 typedef int(*hashmap_callback)(void *data, const char *key, void *value);
 
 /**
+ * Load hash seed value from system randomness source.
+ * @return 0 on success.
+ */
+int init_hashmap_random(void);
+
+/**
  * Creates a new hashmap and allocates space for it.
  * @arg initial_size The minimim initial size. 0 for default (64).
  * @arg map Output. Set to the address of the map

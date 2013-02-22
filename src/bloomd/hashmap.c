@@ -1,10 +1,14 @@
+#include <sys/fcntl.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 #include "hashmap.h"
 
 #define MAX_CAPACITY 0.75
 #define DEFAULT_CAPACITY 128
+
+static uint32_t mh3_seed;
 
 // Basic hash entry.
 typedef struct hashmap_entry {
@@ -22,6 +26,28 @@ struct bloom_hashmap {
 
 // Link the external murmur hash in
 extern void MurmurHash3_x64_128(const void * key, const int len, const uint32_t seed, void *out);
+
+/**
+ * Load hash seed value from system randomness source.
+ * @return 0 on success, -1 on error (setting errno)
+ */
+int init_hashmap_random(void) {
+    int fd, rc = -1;
+    ssize_t rd;
+
+    fd = open("/dev/random", O_RDONLY);
+    if (fd < 0)
+        goto out;
+
+    rd = read(fd, &mh3_seed, sizeof mh3_seed);
+    if (rd < sizeof mh3_seed)
+        goto out;
+
+    rc = close(fd);
+
+out:
+    return rc;
+}
 
 /**
  * Creates a new hashmap and allocates space for it.
@@ -113,7 +139,7 @@ int hashmap_size(bloom_hashmap *map) {
 int hashmap_get(bloom_hashmap *map, char *key, void **value) {
     // Compute the hash value of the key
     uint64_t out[2];
-    MurmurHash3_x64_128(key, strlen(key), 0, &out);
+    MurmurHash3_x64_128(key, strlen(key), mh3_seed, &out);
 
     // Mod the lower 64bits of the hash function with the table
     // size to get the index
@@ -153,7 +179,7 @@ static int hashmap_insert_table(hashmap_entry *table, int table_size, char *key,
                                 void *value, int should_cmp, int should_dup) {
     // Compute the hash value of the key
     uint64_t out[2];
-    MurmurHash3_x64_128(key, key_len, 0, &out);
+    MurmurHash3_x64_128(key, key_len, mh3_seed, &out);
 
     // Mod the lower 64bits of the hash function with the table
     // size to get the index
@@ -273,7 +299,7 @@ int hashmap_put(bloom_hashmap *map, char *key, void *value) {
 int hashmap_delete(bloom_hashmap *map, char *key) {
     // Compute the hash value of the key
     uint64_t out[2];
-    MurmurHash3_x64_128(key, strlen(key), 0, &out);
+    MurmurHash3_x64_128(key, strlen(key), mh3_seed, &out);
 
     // Mod the lower 64bits of the hash function with the table
     // size to get the index

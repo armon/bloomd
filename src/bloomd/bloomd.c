@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include "config.h"
+#include "hashmap.h"
 #include "networking.h"
 #include "filter_manager.h"
 #include "background.h"
@@ -143,6 +144,12 @@ int main(int argc, char **argv) {
 
     // Log that we are starting up
     syslog(LOG_INFO, "Starting bloomd.");
+
+    int hm_res = init_hashmap_random();
+    if (hm_res != 0) {
+        syslog(LOG_ERR, "Failed to initialize hashmap!");
+        return 1;
+    }
 
     // Initialize the filters
     bloom_filtmgr *mgr;
