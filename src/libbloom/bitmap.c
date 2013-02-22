@@ -27,6 +27,11 @@ extern inline void bitmap_setbit(bloom_bitmap *map, uint64_t idx);
  * @return 0 on success. Negative on error.
  */
 int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *map) {
+    // Hack for old kernels and bad length checking
+    if (len == 0) {
+        return -EINVAL;
+    }
+
     // Handle each mode
     int flags;
     int newfileno;
