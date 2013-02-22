@@ -15,6 +15,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <signal.h>
+#include <openssl/err.h>
 #include "config.h"
 #include "hashmap.h"
 #include "networking.h"
@@ -115,6 +116,9 @@ int main(int argc, char **argv) {
     // Initialize syslog
     setup_syslog();
 
+    // Load OpenSSL error strings
+    ERR_load_crypto_strings();
+
     // Parse the command line
     char *config_file = NULL;
     int workers = 0;
@@ -144,12 +148,6 @@ int main(int argc, char **argv) {
 
     // Log that we are starting up
     syslog(LOG_INFO, "Starting bloomd.");
-
-    int hm_res = init_hashmap_random();
-    if (hm_res != 0) {
-        syslog(LOG_ERR, "Failed to initialize hashmap!");
-        return 1;
-    }
 
     // Initialize the filters
     bloom_filtmgr *mgr;

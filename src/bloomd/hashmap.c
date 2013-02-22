@@ -2,13 +2,14 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <syslog.h>
 #include <unistd.h>
+#include <openssl/err.h>
+#include <openssl/rand.h>
 #include "hashmap.h"
 
 #define MAX_CAPACITY 0.75
 #define DEFAULT_CAPACITY 128
-
-static uint32_t mh3_seed;
 
 // Basic hash entry.
 typedef struct hashmap_entry {
@@ -21,6 +22,7 @@ struct bloom_hashmap {
     int count;      // Number of entries
     int table_size; // Size of table in nodes
     int max_size;   // Max size before we resize
+    uint32_t seed;  // Random hash seed
     hashmap_entry *table; // Pointer to an arry of hashmap_entry objects
 };
 
@@ -28,25 +30,25 @@ struct bloom_hashmap {
 extern void MurmurHash3_x64_128(const void * key, const int len, const uint32_t seed, void *out);
 
 /**
- * Load hash seed value from system randomness source.
- * @return 0 on success, -1 on error (setting errno)
+ * Create hash seed value from good randomness source.
+ * @arg random The output random value
+ * @return 0 on success, -1 on error
  */
-int init_hashmap_random(void) {
-    int fd, rc = -1;
-    ssize_t rd;
+static int hashmap_get_random(uint32_t *random_out) {
+    unsigned long ssl_err;
+    int rc;
 
-    fd = open("/dev/random", O_RDONLY);
-    if (fd < 0)
-        goto out;
+    rc = RAND_bytes((void*)random_out, sizeof *random_out);
+    if (rc == 1)
+        return 0;
 
-    rd = read(fd, &mh3_seed, sizeof mh3_seed);
-    if (rd < sizeof mh3_seed)
-        goto out;
+    char errbuf[200];
 
-    rc = close(fd);
+    ssl_err = ERR_get_error();
+    ERR_error_string_n(ssl_err, errbuf, sizeof errbuf);
 
-out:
-    return rc;
+    syslog(LOG_ERR, "%s failed! %s", __func__, errbuf);
+    return -1;
 }
 
 /**
@@ -56,6 +58,9 @@ out:
  * @return 0 on success.
  */
 int hashmap_init(int initial_size, bloom_hashmap **map) {
+    int rc;
+    uint32_t random_seed;
+
     // Default to 64 if no size
     if (initial_size <= DEFAULT_CAPACITY) {
        initial_size = DEFAULT_CAPACITY;
@@ -75,10 +80,16 @@ int hashmap_init(int initial_size, bloom_hashmap **map) {
         initial_size = 1 << most_sig_bit;
     }
 
+    // Get a random seed to protect table against DoS collision attacks
+    rc = hashmap_get_random(&random_seed);
+    if (rc < 0)
+        return -1;
+
     // Allocate the map
     bloom_hashmap *m = calloc(1, sizeof(bloom_hashmap));
     m->table_size = initial_size;
     m->max_size = MAX_CAPACITY * initial_size;
+    m->seed = random_seed;
 
     // Allocate the table
     m->table = (hashmap_entry*)calloc(initial_size, sizeof(hashmap_entry));
@@ -139,7 +150,7 @@ int hashmap_size(bloom_hashmap *map) {
 int hashmap_get(bloom_hashmap *map, char *key, void **value) {
     // Compute the hash value of the key
     uint64_t out[2];
-    MurmurHash3_x64_128(key, strlen(key), mh3_seed, &out);
+    MurmurHash3_x64_128(key, strlen(key), map->seed, &out);
 
     // Mod the lower 64bits of the hash function with the table
     // size to get the index
@@ -176,10 +187,10 @@ int hashmap_get(bloom_hashmap *map, char *key, void **value) {
  * @return 1 if the key is new, 0 if updated.
  */
 static int hashmap_insert_table(hashmap_entry *table, int table_size, char *key, int key_len,
-                                void *value, int should_cmp, int should_dup) {
+                                void *value, int should_cmp, int should_dup, uint32_t seed) {
     // Compute the hash value of the key
     uint64_t out[2];
-    MurmurHash3_x64_128(key, key_len, mh3_seed, &out);
+    MurmurHash3_x64_128(key, key_len, seed, &out);
 
     // Mod the lower 64bits of the hash function with the table
     // size to get the index
@@ -246,7 +257,7 @@ static void hashmap_double_size(bloom_hashmap *map) {
             // Do not compare keys or duplicate since we are just doubling our
             // size, and we have unique keys and duplicates already.
             hashmap_insert_table(new_table, new_size, old->key, strlen(old->key),
-                    old->value, 0, 0);
+                    old->value, 0, 0, map->seed);
 
             // The initial entry is in the table
             // and we should not free that one.
@@ -284,7 +295,8 @@ int hashmap_put(bloom_hashmap *map, char *key, void *value) {
     }
 
     // Insert into the map, comparing keys and duplicating keys
-    int new = hashmap_insert_table(map->table, map->table_size, key, strlen(key), value, 1, 1);
+    int new = hashmap_insert_table(map->table, map->table_size, key,
+        strlen(key), value, 1, 1, map->seed);
     if (new) map->count += 1;
 
     return new;
@@ -299,7 +311,7 @@ int hashmap_put(bloom_hashmap *map, char *key, void *value) {
 int hashmap_delete(bloom_hashmap *map, char *key) {
     // Compute the hash value of the key
     uint64_t out[2];
-    MurmurHash3_x64_128(key, strlen(key), mh3_seed, &out);
+    MurmurHash3_x64_128(key, strlen(key), map->seed, &out);
 
     // Mod the lower 64bits of the hash function with the table
     // size to get the index
