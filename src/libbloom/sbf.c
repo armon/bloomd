@@ -89,7 +89,7 @@ int sbf_add(bloom_sbf *sbf, char* key) {
 int sbf_contains(bloom_sbf *sbf, char* key) {
     // Check each filter from largest to smallest
     int res;
-    for (int i=0;i<sbf->num_filters;i++) {
+    for (uint32_t i=0;i<sbf->num_filters;i++) {
         res = bf_contains(sbf->filters[i], key);
         if (res == 1) return 1;
     }
@@ -101,7 +101,7 @@ int sbf_contains(bloom_sbf *sbf, char* key) {
  */
 uint64_t sbf_size(bloom_sbf *sbf) {
     uint64_t size = 0;
-    for (int i=0;i<sbf->num_filters;i++) {
+    for (uint32_t i=0;i<sbf->num_filters;i++) {
         size += bf_size(sbf->filters[i]);
     }
     return size;
@@ -118,7 +118,7 @@ int sbf_flush(bloom_sbf *sbf) {
     }
 
     int res = 0;
-    for (int i=0;i<sbf->num_filters;i++) {
+    for (uint32_t i=0;i<sbf->num_filters;i++) {
         if (sbf->dirty_filters[i] == 1) {
             res = bf_flush(sbf->filters[i]);
             if (res != 0) break;
@@ -144,7 +144,7 @@ int sbf_close(bloom_sbf *sbf) {
 
     int res = 0;
     bloom_bitmap *map;
-    for (int i=0;i<sbf->num_filters;i++) {
+    for (uint32_t i=0;i<sbf->num_filters;i++) {
         map = sbf->filters[i]->map;
         res |= bf_close(sbf->filters[i]);
         free(sbf->filters[i]);
@@ -172,7 +172,7 @@ int sbf_close(bloom_sbf *sbf) {
  */
 uint64_t sbf_total_capacity(bloom_sbf *sbf) {
     uint64_t total_capacity = 0;
-    for (int i=0;i<sbf->num_filters;i++) {
+    for (uint32_t i=0;i<sbf->num_filters;i++) {
         total_capacity += sbf->capacities[i];
     }
     return total_capacity;
@@ -184,7 +184,7 @@ uint64_t sbf_total_capacity(bloom_sbf *sbf) {
 uint64_t sbf_total_byte_size(bloom_sbf *sbf) {
     uint64_t size = 0;
     bloom_bloomfilter *filter;
-    for (int i=0;i<sbf->num_filters;i++) {
+    for (uint32_t i=0;i<sbf->num_filters;i++) {
         filter = sbf->filters[i];
         size += filter->map->size;
     }
@@ -279,7 +279,7 @@ static void sbf_init_capacities(bloom_sbf *sbf) {
     uint64_t init_capacity = sbf->params.initial_capacity;
     uint64_t capacity;
 
-    for (int i=0;i<sbf->num_filters;i++) {
+    for (uint32_t i=0;i<sbf->num_filters;i++) {
         // Compute the capacity of the ith filter
         capacity = init_capacity * pow(sbf->params.scale_size, (sbf->num_filters - i - 1));
         sbf->capacities[i] = capacity;

@@ -10,8 +10,8 @@
 #include "config.h"
 #include "filter.h"
 
-static int filter_out_special(struct dirent *d) {
-    char *name = d->d_name;
+static int filter_out_special(const struct dirent *d) {
+    const char *name = d->d_name;
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
         return 0;
     }

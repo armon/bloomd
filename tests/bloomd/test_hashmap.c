@@ -46,7 +46,6 @@ START_TEST(test_map_put)
     fail_unless(hashmap_size(map) == 0);
 
     char buf[100];
-    void *out;
     for (int i=0; i<100;i++) {
         snprintf((char*)&buf, 100, "test%d", i);
         fail_unless(hashmap_put(map, (char*)buf, NULL) == 1);
@@ -68,14 +67,14 @@ START_TEST(test_map_put_get)
     void *out;
     for (int i=0; i<100;i++) {
         snprintf((char*)&buf, 100, "test%d", i);
-        out = 0 & i;
+        out = (void*)(intptr_t)i;
         fail_unless(hashmap_put(map, (char*)buf, out) == 1);
     }
 
     for (int i=0; i<100;i++) {
         snprintf((char*)&buf, 100, "test%d", i);
         fail_unless(hashmap_get(map, (char*)buf, &out) == 0);
-        fail_unless(out == (0 & i));
+        fail_unless(out == (void*)(intptr_t)i);
     }
 
     res = hashmap_destroy(map);
@@ -111,7 +110,7 @@ START_TEST(test_map_put_delete)
     void *out;
     for (int i=0; i<100;i++) {
         snprintf((char*)&buf, 100, "test%d", i);
-        out = 0 & i;
+        out = (void*)(intptr_t)i;
         fail_unless(hashmap_put(map, (char*)buf, out) == 1);
     }
     fail_unless(hashmap_size(map) == 100);
@@ -138,7 +137,7 @@ START_TEST(test_map_put_delete_get)
     void *out;
     for (int i=0; i<100;i++) {
         snprintf((char*)&buf, 100, "test%d", i);
-        out = 0 & i;
+        out = (void*)(intptr_t)i;
         fail_unless(hashmap_put(map, (char*)buf, out) == 1);
     }
 
@@ -180,7 +179,7 @@ START_TEST(test_map_put_clear_get)
     void *out;
     for (int i=0; i<100;i++) {
         snprintf((char*)&buf, 100, "test%d", i);
-        out = 0 & i;
+        out = (void*)(intptr_t)i;
         fail_unless(hashmap_put(map, (char*)buf, out) == 1);
     }
 
@@ -199,6 +198,9 @@ START_TEST(test_map_put_clear_get)
 END_TEST
 
 int iter_test(void *data, const char *key, void *value) {
+    (void)key;
+    (void)value;
+
     // All we do is increment val
     int *v = data;
     *v += 1;
@@ -227,7 +229,6 @@ START_TEST(test_map_put_iter)
     fail_unless(res == 0);
 
     char buf[100];
-    void *out;
     for (int i=0; i<100;i++) {
         snprintf((char*)&buf, 100, "test%d", i);
         fail_unless(hashmap_put(map, (char*)buf, NULL) == 1);
@@ -243,6 +244,9 @@ START_TEST(test_map_put_iter)
 END_TEST
 
 int iter_break_test(void *data, const char *key, void *value) {
+    (void)key;
+    (void)value;
+
     // All we do is increment val
     int *v = data;
     *v += 1;
@@ -256,7 +260,6 @@ START_TEST(test_map_put_iter_break)
     fail_unless(res == 0);
 
     char buf[100];
-    void *out;
     for (int i=0; i<100;i++) {
         snprintf((char*)&buf, 100, "test%d", i);
         fail_unless(hashmap_put(map, (char*)buf, NULL) == 1);
@@ -278,7 +281,6 @@ START_TEST(test_map_put_grow)
     fail_unless(res == 0);
 
     char buf[100];
-    void *out;
     for (int i=0; i<1000;i++) {
         snprintf((char*)&buf, 100, "test%d", i);
         fail_unless(hashmap_put(map, (char*)buf, NULL) == 1);

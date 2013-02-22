@@ -653,6 +653,9 @@ static int filter_map_list_cold_cb(void *data, const char *key, void *value) {
  * to cleanup the filters.
  */
 static int filter_map_delete_cb(void *data, const char *key, void *value) {
+    (void)data;
+    (void)key;
+
     // Cast the inputs
     bloom_filter_wrapper *filt = value;
 
