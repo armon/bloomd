@@ -4,8 +4,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <unistd.h>
-#include <openssl/err.h>
-#include <openssl/rand.h>
+#include "crypto.h"
 #include "hashmap.h"
 
 #define MAX_CAPACITY 0.75

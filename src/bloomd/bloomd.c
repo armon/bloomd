@@ -15,7 +15,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <signal.h>
-#include <openssl/err.h>
+#include "crypto.h"
 #include "config.h"
 #include "hashmap.h"
 #include "networking.h"
