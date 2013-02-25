@@ -1,6 +1,5 @@
-Bloomd
+Bloomd [![Build Status](https://travis-ci.org/armon/bloomd.png?branch=master)](https://travis-ci.org/armon/bloomd)
 =========
-![Build Status](https://travis-ci.org/armon/bloomd.png)
 
 Bloomd is a high-performance C server which is used
 to expose bloom filters and operations over them to
