@@ -4,6 +4,8 @@
   * Fixed possible race condition in vacuum thread
   * Fixing build issues on OSX 10.8
   * Fixing validation of filter names
+  * Added link to RPM repo, thanks to @penpen
+  * Many bug fixes and improvements, thanks to @cemeyer
 
 # 0.5.0
 
