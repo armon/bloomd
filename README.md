@@ -42,6 +42,12 @@ do the following::
 Then re-build bloomd. At this point, the test code should build
 successfully.
 
+For CentOS or RHEL users, the kind folks from Vortex RPM have made
+a repo available with RPM's.
+
+* Repo: http://vortex-rpm.org/
+* Bloomd RPM spec: https://github.com/vortex-rpm/bloomd
+
 Usage
 -----
 
