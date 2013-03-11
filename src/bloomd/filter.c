@@ -112,6 +112,12 @@ int init_bloom_filter(bloom_config *config, char *filter_name, int discover, blo
         }
     }
 
+    // Trigger a flush on first instantiation. This will create
+    // a new ini file for first time filters.
+    if (!res) {
+        res = bloomf_flush(f);
+    }
+
     return res;
 }
 

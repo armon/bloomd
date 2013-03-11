@@ -45,6 +45,14 @@ int bf_from_bitmap(bloom_bitmap *map, uint32_t k_num, int new_filter, bloom_bloo
         filter->header->k_num = k_num;
         filter->header->count = 0;
 
+        // Since this is a new filter, force a flush of
+        // the headers. This mainly affects bitmaps that
+        // are in the PERSIST mode. Since no flush happens
+        // until the first key is set, it can cause filters
+        // to be created that have no headers, and thus cannot
+        // be loaded.
+        bf_flush(filter);
+
     // Check for the header if not new
     } else if (filter->header->magic != MAGIC_HEADER) {
         return -1;
