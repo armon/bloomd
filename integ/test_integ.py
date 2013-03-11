@@ -39,7 +39,7 @@ port = %(port)d
     def cleanup():
         try:
             subprocess.Popen("killall -15 bloomd", shell=True)
-            proc.wait()
+            time.sleep(1)
             subprocess.Popen("killall -9 bloomd", shell=True)
             time.sleep(1)
             shutil.rmtree(tmpdir)
