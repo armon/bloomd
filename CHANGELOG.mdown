@@ -1,5 +1,7 @@
 # 0.5.1 (Unreleased)
 
+  * Perform an early flush when filters are created to ensure
+    the config.ini file and bitmap headers are written
   * Fixed possible crashing bug
   * Fixed possible race condition in vacuum thread
   * Fixing build issues on OSX 10.8
