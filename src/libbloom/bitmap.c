@@ -207,6 +207,12 @@ int bitmap_from_filename(char* filename, uint64_t len, int create, bitmap_mode m
 
     // Handle is dup'ed, we can close
     close(fileno);
+
+    // Delete the file if we created it and had an error
+    if (res && extra_flags & NEW_BITMAP && unlink(filename)) {
+        perror("unlink failed!");
+        syslog(LOG_ERR, "Failed to unlink new file %s", filename);
+    }
     return res;
 }
 
