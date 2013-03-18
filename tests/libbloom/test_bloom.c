@@ -349,7 +349,7 @@ START_TEST(test_flush_close)
     bf_params_for_capacity(&params);
     bloom_bitmap map;
     bloom_bloomfilter filter;
-    bitmap_from_filename("/tmp/test_flush_close.mmap", params.bytes, 1, 1, SHARED, &map);
+    bitmap_from_filename("/tmp/test_flush_close.mmap", params.bytes, 1, SHARED, &map);
     bf_from_bitmap(&map, params.k_num, 1, &filter);
 
     fail_unless(bf_flush(&filter) == 0);
@@ -365,7 +365,7 @@ START_TEST(test_bf_flush)
     bf_params_for_capacity(&params);
     bloom_bitmap map;
     bloom_bloomfilter filter;
-    fail_unless(bitmap_from_filename("/tmp/test_flush.mmap", params.bytes, 1, 1, SHARED, &map) == 0);
+    fail_unless(bitmap_from_filename("/tmp/test_flush.mmap", params.bytes, 1, SHARED, &map) == 0);
     fail_unless(bf_from_bitmap(&map, params.k_num, 1, &filter) == 0);
     fchmod(map.fileno, 0777);
 
@@ -381,7 +381,7 @@ START_TEST(test_bf_flush)
 
     bloom_bitmap map2;
     bloom_bloomfilter filter2;
-    fail_unless(bitmap_from_filename("/tmp/test_flush.mmap", params.bytes, 1, 1, SHARED, &map2) == 0);
+    fail_unless(bitmap_from_filename("/tmp/test_flush.mmap", params.bytes, 1, SHARED, &map2) == 0);
     fail_unless(bf_from_bitmap(&map2, params.k_num, 1, &filter2) == 0);
 
     // Test all the keys are contained
@@ -401,7 +401,7 @@ START_TEST(test_bf_close_does_flush)
     bf_params_for_capacity(&params);
     bloom_bitmap map;
     bloom_bloomfilter filter;
-    fail_unless(bitmap_from_filename("/tmp/test_close_does_flush.mmap", params.bytes, 1, 1, SHARED, &map) == 0);
+    fail_unless(bitmap_from_filename("/tmp/test_close_does_flush.mmap", params.bytes, 1, SHARED, &map) == 0);
     fail_unless(bf_from_bitmap(&map, params.k_num, 1, &filter) == 0);
     fchmod(map.fileno, 0777);
 
@@ -416,7 +416,7 @@ START_TEST(test_bf_close_does_flush)
     fail_unless(bf_close(&filter) == 0);
 
     // Test all the keys are contained
-    fail_unless(bitmap_from_filename("/tmp/test_close_does_flush.mmap", params.bytes, 1, 1, SHARED, &map) == 0);
+    fail_unless(bitmap_from_filename("/tmp/test_close_does_flush.mmap", params.bytes, 1, SHARED, &map) == 0);
     fail_unless(bf_from_bitmap(&map, params.k_num, 1, &filter) == 0);
     for (int i=0;i<1000;i++) {
         snprintf((char*)&buf, 100, "test%d", i);
@@ -483,7 +483,7 @@ START_TEST(test_bf_shared_compatible_persist)
     bf_params_for_capacity(&params);
     bloom_bitmap map;
     bloom_bloomfilter filter;
-    fail_unless(bitmap_from_filename("/tmp/shared_compat_persist.mmap", params.bytes, 1, 1, PERSISTENT, &map) == 0);
+    fail_unless(bitmap_from_filename("/tmp/shared_compat_persist.mmap", params.bytes, 1, PERSISTENT, &map) == 0);
     fail_unless(bf_from_bitmap(&map, params.k_num, 1, &filter) == 0);
     fchmod(map.fileno, 0777);
 
@@ -498,7 +498,7 @@ START_TEST(test_bf_shared_compatible_persist)
     fail_unless(bf_close(&filter) == 0);
 
     // Test all the keys are contained
-    fail_unless(bitmap_from_filename("/tmp/shared_compat_persist.mmap", params.bytes, 1, 1, SHARED, &map) == 0);
+    fail_unless(bitmap_from_filename("/tmp/shared_compat_persist.mmap", params.bytes, 1, SHARED, &map) == 0);
     fail_unless(bf_from_bitmap(&map, params.k_num, 1, &filter) == 0);
     for (int i=0;i<1000;i++) {
         snprintf((char*)&buf, 100, "test%d", i);

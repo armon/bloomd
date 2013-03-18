@@ -169,7 +169,7 @@ static int sbf_make_callback(void *in, uint64_t bytes, bloom_bitmap *map) {
     nextfile *n = in;
     snprintf(buf, 1000, n->format, n->num);
     n->num++;
-    int res = bitmap_from_filename((char*)&buf, bytes, 1, 1, SHARED, map);
+    int res = bitmap_from_filename((char*)&buf, bytes, 1, SHARED, map);
     fchmod(map->fileno, 0777);
     return res;
 }
@@ -203,8 +203,8 @@ START_TEST(test_sbf_flush)
     fail_unless(sbf_flush(&sbf) == 0);
 
     bloom_bitmap maps[2];
-    bitmap_from_filename("/tmp/mmap_flush.0.data", get_size("/tmp/mmap_flush.0.data"), 1, 1, SHARED, (bloom_bitmap*)&maps);
-    bitmap_from_filename("/tmp/mmap_flush.1.data", get_size("/tmp/mmap_flush.1.data"), 1, 1, SHARED, ((bloom_bitmap*)&maps)+1);
+    bitmap_from_filename("/tmp/mmap_flush.0.data", get_size("/tmp/mmap_flush.0.data"), 1, SHARED, (bloom_bitmap*)&maps);
+    bitmap_from_filename("/tmp/mmap_flush.1.data", get_size("/tmp/mmap_flush.1.data"), 1, SHARED, ((bloom_bitmap*)&maps)+1);
 
     bloom_bloomfilter filters[2];
     bf_from_bitmap((bloom_bitmap*)&maps, 1, 0, (bloom_bloomfilter*)&filters);
@@ -255,8 +255,8 @@ START_TEST(test_sbf_close_does_flush)
     fail_unless(sbf_close(&sbf) == 0);
 
     bloom_bitmap maps[2];
-    bitmap_from_filename("/tmp/mmap_close.0.data", get_size("/tmp/mmap_close.0.data"), 1, 1, SHARED, (bloom_bitmap*)&maps);
-    bitmap_from_filename("/tmp/mmap_close.1.data", get_size("/tmp/mmap_close.1.data"), 1, 1, SHARED, ((bloom_bitmap*)&maps)+1);
+    bitmap_from_filename("/tmp/mmap_close.0.data", get_size("/tmp/mmap_close.0.data"), 1, SHARED, (bloom_bitmap*)&maps);
+    bitmap_from_filename("/tmp/mmap_close.1.data", get_size("/tmp/mmap_close.1.data"), 1, SHARED, ((bloom_bitmap*)&maps)+1);
 
     bloom_bloomfilter filters[2];
     bf_from_bitmap((bloom_bitmap*)&maps, 1, 0, (bloom_bloomfilter*)&filters);

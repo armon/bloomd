@@ -53,7 +53,7 @@ bloom_bitmap *bitmap_from_filename(char* filename, size_t len, int create, int r
 START_TEST(make_bitmap_nofile)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/asdf123", 4096, 0, 0, SHARED, &map);
+    int res = bitmap_from_filename("/tmp/asdf123", 4096, 0, SHARED, &map);
     fail_unless(res == -ENOENT);
 }
 END_TEST
@@ -61,7 +61,7 @@ END_TEST
 START_TEST(make_bitmap_nofile_persistent)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/asdf123", 4096, 0, 0, PERSISTENT, &map);
+    int res = bitmap_from_filename("/tmp/asdf123", 4096, 0, PERSISTENT, &map);
     fail_unless(res == -ENOENT);
 }
 END_TEST
@@ -69,7 +69,7 @@ END_TEST
 START_TEST(make_bitmap_nofile_create)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_nofile_create", 4096, 1, 1, SHARED, &map);
+    int res = bitmap_from_filename("/tmp/mmap_nofile_create", 4096, 1, SHARED, &map);
     unlink("/tmp/mmap_nofile_create");
     fail_unless(res == 0);
 }
@@ -78,33 +78,8 @@ END_TEST
 START_TEST(make_bitmap_nofile_create_persistent)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_nofile_create_persist", 4096, 1, 1, PERSISTENT, &map);
+    int res = bitmap_from_filename("/tmp/mmap_nofile_create_persist", 4096, 1, PERSISTENT, &map);
     unlink("/tmp/mmap_nofile_create_persist");
-    fail_unless(res == 0);
-}
-END_TEST
-
-START_TEST(make_bitmap_resize)
-{
-    int fh = open("/tmp/mmap_resize", O_RDWR|O_CREAT);
-    fchmod(fh, 0777);
-    fail_unless(fh > 0);
-    bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_resize", 4096, 0, 1, SHARED, &map);
-    unlink("/tmp/mmap_resize");
-    fail_unless(res == 0);
-}
-END_TEST
-
-START_TEST(make_bitmap_resize_persistent)
-{
-    int fh = open("/tmp/mmap_resize_persist", O_RDWR|O_CREAT);
-    fchmod(fh, 0777);
-    fail_unless(fh > 0);
-    bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_resize_persist",
-            4096, 0, 1, PERSISTENT, &map);
-    unlink("/tmp/mmap_resize_persist");
     fail_unless(res == 0);
 }
 END_TEST
@@ -125,7 +100,7 @@ END_TEST
 START_TEST(flush_bitmap_file)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_flush_bitmap", 8196, 1, 1, SHARED, &map);
+    int res = bitmap_from_filename("/tmp/mmap_flush_bitmap", 8196, 1, SHARED, &map);
     fail_unless(res == 0);
     fail_unless(bitmap_flush(&map) == 0);
     unlink("/tmp/mmap_flush_bitmap");
@@ -136,7 +111,7 @@ START_TEST(flush_bitmap_file_persistent)
 {
     bloom_bitmap map;
     int res = bitmap_from_filename("/tmp/mmap_flush_bitmap_persist", 8196,
-            1, 1, PERSISTENT, &map);
+            1, PERSISTENT, &map);
     fail_unless(res == 0);
     fail_unless(bitmap_flush(&map) == 0);
     unlink("/tmp/mmap_flush_bitmap_persist");
@@ -166,7 +141,7 @@ END_TEST
 START_TEST(close_bitmap_file)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_close_bitmap", 8196, 1, 1, SHARED, &map);
+    int res = bitmap_from_filename("/tmp/mmap_close_bitmap", 8196, 1, SHARED, &map);
     fail_unless(res == 0);
     fail_unless(bitmap_close(&map) == 0);
     fail_unless(map.mmap == NULL);
@@ -177,7 +152,7 @@ END_TEST
 START_TEST(close_bitmap_file_persistent)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_close_bitmap_persist", 8196, 1, 1,
+    int res = bitmap_from_filename("/tmp/mmap_close_bitmap_persist", 8196, 1,
             PERSISTENT, &map);
     fail_unless(res == 0);
     fail_unless(bitmap_close(&map) == 0);
@@ -189,7 +164,7 @@ END_TEST
 START_TEST(double_close_bitmap_file)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_close_bitmap", 8196, 1, 1, SHARED, &map);
+    int res = bitmap_from_filename("/tmp/mmap_close_bitmap", 8196, 1, SHARED, &map);
     fail_unless(res == 0);
     fail_unless(bitmap_close(&map) == 0);
     fail_unless(map.mmap == NULL);
@@ -202,7 +177,7 @@ START_TEST(double_close_bitmap_file_persist)
 {
     bloom_bitmap map;
     int res = bitmap_from_filename("/tmp/mmap_close_bitmap_persist",
-            8196, 1, 1, PERSISTENT, &map);
+            8196, 1, PERSISTENT, &map);
     fail_unless(res == 0);
     fail_unless(bitmap_close(&map) == 0);
     fail_unless(map.mmap == NULL);
@@ -245,7 +220,7 @@ END_TEST
 START_TEST(getbit_bitmap_file_zero)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_getbit_zero", 4096, 1, 1, SHARED, &map);
+    int res = bitmap_from_filename("/tmp/mmap_getbit_zero", 4096, 1, SHARED, &map);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096*8 ; idx++) {
         fail_unless(bitmap_getbit((&map), idx) == 0);
@@ -257,7 +232,7 @@ END_TEST
 START_TEST(getbit_bitmap_file_one)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_getbit_one", 4096, 1, 1, SHARED, &map);
+    int res = bitmap_from_filename("/tmp/mmap_getbit_one", 4096, 1, SHARED, &map);
     fail_unless(res == 0);
     memset(map.mmap, 255, 4096);
     for (int idx = 0; idx < 4096*8 ; idx++) {
@@ -270,7 +245,7 @@ END_TEST
 START_TEST(getbit_bitmap_file_persist_zero)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/persist_getbit_zero", 4096, 1, 1, PERSISTENT, &map);
+    int res = bitmap_from_filename("/tmp/persist_getbit_zero", 4096, 1, PERSISTENT, &map);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096*8 ; idx++) {
         fail_unless(bitmap_getbit((&map), idx) == 0);
@@ -282,7 +257,7 @@ END_TEST
 START_TEST(getbit_bitmap_file_persist_one)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/persist_getbit_one", 4096, 1, 1, PERSISTENT, &map);
+    int res = bitmap_from_filename("/tmp/persist_getbit_one", 4096, 1, PERSISTENT, &map);
     fail_unless(res == 0);
     memset(map.mmap, 255, 4096);
     for (int idx = 0; idx < 4096*8 ; idx++) {
@@ -340,7 +315,7 @@ END_TEST
 START_TEST(setbit_bitmap_file_one)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_setbit_one", 4096, 1, 1, SHARED, &map);
+    int res = bitmap_from_filename("/tmp/mmap_setbit_one", 4096, 1, SHARED, &map);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096*8 ; idx++) {
         bitmap_setbit((&map), idx);
@@ -355,7 +330,7 @@ END_TEST
 START_TEST(setbit_bitmap_file_persist_one)
 {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/persist_setbit_one", 4096, 1, 1,
+    int res = bitmap_from_filename("/tmp/persist_setbit_one", 4096, 1,
             PERSISTENT, &map);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096*8 ; idx++) {
@@ -374,7 +349,7 @@ END_TEST
  */
 START_TEST(flush_does_write) {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_flush_write", 4096, 1, 1, SHARED, &map);
+    int res = bitmap_from_filename("/tmp/mmap_flush_write", 4096, 1, SHARED, &map);
     fchmod(map.fileno, 0777);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096*8 ; idx++) {
@@ -383,7 +358,7 @@ START_TEST(flush_does_write) {
     bitmap_flush(&map);
 
     bloom_bitmap map2;
-    res = bitmap_from_filename("/tmp/mmap_flush_write", 4096, 0, 0, SHARED, &map2);
+    res = bitmap_from_filename("/tmp/mmap_flush_write", 4096, 0, SHARED, &map2);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096; idx++) {
         fail_unless(map2.mmap[idx] == 255);
@@ -394,7 +369,7 @@ END_TEST
 
 START_TEST(close_does_flush) {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/mmap_close_flush", 4096, 1, 1, SHARED, &map);
+    int res = bitmap_from_filename("/tmp/mmap_close_flush", 4096, 1, SHARED, &map);
     fchmod(map.fileno, 0777);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096*8 ; idx++) {
@@ -402,7 +377,7 @@ START_TEST(close_does_flush) {
     }
     bitmap_close(&map);
 
-    res = bitmap_from_filename("/tmp/mmap_close_flush", 4096, 0, 0, SHARED, &map);
+    res = bitmap_from_filename("/tmp/mmap_close_flush", 4096, 0, SHARED, &map);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096; idx++) {
         fail_unless(map.mmap[idx] == 255);
@@ -413,7 +388,7 @@ END_TEST
 
 START_TEST(flush_does_write_persist) {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/persist_flush_write", 4096, 1, 1, PERSISTENT, &map);
+    int res = bitmap_from_filename("/tmp/persist_flush_write", 4096, 1, PERSISTENT, &map);
     fchmod(map.fileno, 0777);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096*8 ; idx++) {
@@ -422,7 +397,7 @@ START_TEST(flush_does_write_persist) {
     bitmap_flush(&map);
 
     bloom_bitmap map2;
-    res = bitmap_from_filename("/tmp/persist_flush_write", 4096, 0, 0,
+    res = bitmap_from_filename("/tmp/persist_flush_write", 4096, 0,
             PERSISTENT, &map2);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096; idx++) {
@@ -434,7 +409,7 @@ END_TEST
 
 START_TEST(close_does_flush_persist) {
     bloom_bitmap map;
-    int res = bitmap_from_filename("/tmp/persist_close_flush", 4096, 1, 1,
+    int res = bitmap_from_filename("/tmp/persist_close_flush", 4096, 1,
             PERSISTENT, &map);
     fchmod(map.fileno, 0777);
     fail_unless(res == 0);
@@ -443,7 +418,7 @@ START_TEST(close_does_flush_persist) {
     }
     bitmap_close(&map);
 
-    res = bitmap_from_filename("/tmp/persist_close_flush", 4096, 0, 0,
+    res = bitmap_from_filename("/tmp/persist_close_flush", 4096, 0,
             PERSISTENT, &map);
     fail_unless(res == 0);
     for (int idx = 0; idx < 4096; idx++) {
