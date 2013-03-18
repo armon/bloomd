@@ -488,7 +488,7 @@ static int discover_existing_filters(bloom_filter *f) {
 
         // Create the bitmap
         bloom_bitmap *bitmap = maps[num - i - 1] = malloc(sizeof(bloom_bitmap));
-        res = bitmap_from_filename(bitmap_path, size, 0, 0, mode, bitmap);
+        res = bitmap_from_filename(bitmap_path, size, 0, mode, bitmap);
         if (res != 0) {
             err = 1;
             syslog(LOG_ERR, "Failed to load bitmap for: %s. %s", bitmap_path, strerror(errno));
@@ -622,7 +622,7 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
 
     // Create the bitmap
     bitmap_mode mode = (filt->config->use_mmap) ? SHARED : PERSISTENT;
-    int res = bitmap_from_filename(full_path, bytes, 1, 1, mode, out);
+    int res = bitmap_from_filename(full_path, bytes, 1, mode, out);
     if (res) {
         syslog(LOG_CRIT, "Failed to create new file: %s for filter %s. Err: %s",
             full_path, filt->filter_name, strerror(errno));
