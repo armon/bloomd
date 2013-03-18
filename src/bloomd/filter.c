@@ -626,9 +626,6 @@ static int bloomf_sbf_callback(void* in, uint64_t bytes, bloom_bitmap *out) {
     if (res) {
         syslog(LOG_CRIT, "Failed to create new file: %s for filter %s. Err: %s",
             full_path, filt->filter_name, strerror(errno));
-
-        // Send a TERM signal to ourself!
-        kill(getpid(), SIGTERM);
     }
     free(full_path);
     return res;
