@@ -1,5 +1,6 @@
-# 0.5.1 (Unreleased)
+# 0.5.1
 
+  * Added error message if the magic byte is incorrect
   * Perform an early flush when filters are created to ensure
     the config.ini file and bitmap headers are written
   * Fixed possible crashing bug
@@ -8,6 +9,7 @@
   * Fixing validation of filter names
   * Added link to RPM repo, thanks to @penpen
   * Many bug fixes and improvements, thanks to @cemeyer
+  * Git SHA: da8d3c8
 
 # 0.5.0
 
