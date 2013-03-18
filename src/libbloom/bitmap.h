@@ -5,9 +5,10 @@
 #include <inttypes.h>
 
 typedef enum {
-    SHARED = 0,     // MAP_SHARED mmap used, file backed.
-    PERSISTENT,     // MAP_ANONYMOUS used, file backed.
-    ANONYMOUS       // MAP_ANONYMOUS mmap used. No file backing.
+    SHARED      = 1, // MAP_SHARED mmap used, file backed.
+    PERSISTENT  = 2, // MAP_ANONYMOUS used, file backed.
+    ANONYMOUS   = 4, // MAP_ANONYMOUS mmap used. No file backing.
+    NEW_BITMAP  = 8  // File contents not read. Used with PERSISTENT
 } bitmap_mode;
 
 typedef struct {
@@ -37,12 +38,11 @@ int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *m
  * @arg fileno The fileno
  * @arg len The length of the bitmap in bytes.
  * @arg create If 1, then the file will be created if it does not exist.
- * @arg resize If 1, then the file will be expanded to len
  * @arg mode The mode to use for the bitmap.
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, bitmap_mode mode, bloom_bitmap *map);
+int bitmap_from_filename(char* filename, uint64_t len, int create, bitmap_mode mode, bloom_bitmap *map);
 
 /**
  * Flushes the bitmap back to disk. This is
