@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
+#include <syslog.h>
 #include "bloom.h"
 
 /*
@@ -55,6 +56,7 @@ int bf_from_bitmap(bloom_bitmap *map, uint32_t k_num, int new_filter, bloom_bloo
 
     // Check for the header if not new
     } else if (filter->header->magic != MAGIC_HEADER) {
+        syslog(LOG_ERR, "Magic byte for bloom filter is wrong! Aborting load.");
         return -1;
     }
 
