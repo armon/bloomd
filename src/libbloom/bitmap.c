@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
+#include <syslog.h>
 #include "bitmap.h"
 
 /* Static declarations */
@@ -32,6 +33,10 @@ int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *m
         return -EINVAL;
     }
 
+    // Check for and clear NEW_BITMAP from the mode
+    int new_bitmap = (mode & NEW_BITMAP) ? 1 : 0;
+    mode &= ~NEW_BITMAP;
+
     // Handle each mode
     int flags;
     int newfileno;
@@ -45,9 +50,12 @@ int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *m
         newfileno = dup(fileno);
         if (newfileno < 0) return -errno;
 
-    } else {
+    } else if (mode == ANONYMOUS) {
         flags = MAP_ANON | MAP_PRIVATE;
         newfileno = -1;
+
+    } else {
+        return -1;
     }
 
     // Perform the map in
@@ -96,9 +104,9 @@ int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *m
         // Zero out the bit field
         bzero(dirty, field_size);
 
-        // Now we need to read in the existing data
+        // For existing bitmaps we need to read in the data
         // since we cannot use the kernel to fault it in
-        if ((res = fill_buffer(newfileno, addr, len))) {
+        if (!new_bitmap && (res = fill_buffer(newfileno, addr, len))) {
             free(dirty);
             munmap(addr, len);
             if (newfileno >= 0) close(newfileno);
@@ -149,7 +157,7 @@ static int fill_buffer(int fileno, unsigned char* buf, uint64_t len) {
  * @arg map The output map. Will be initialized.
  * @return 0 on success. Negative on error.
  */
-int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, bitmap_mode mode, bloom_bitmap *map) {
+int bitmap_from_filename(char* filename, uint64_t len, int create, bitmap_mode mode, bloom_bitmap *map) {
     // Get the flags
     int flags = O_RDWR;
     if (create) {
@@ -164,20 +172,33 @@ int bitmap_from_filename(char* filename, uint64_t len, int create, int resize, b
     }
 
     // Check if we need to resize
-    if (resize) {
+    bitmap_mode extra_flags = 0;
+    if (create) {
         struct stat buf;
         int res = fstat(fileno, &buf);
         if (res != 0) {
             perror("fstat failed on bitmap!");
+            close(fileno);
             return -errno;
         }
-        if ((uint64_t)buf.st_size < len) {
+
+        // Only ever truncate a new file, never resize
+        // an existing file
+        if ((uint64_t)buf.st_size == 0) {
+            extra_flags |= NEW_BITMAP;
             res = ftruncate(fileno, len);
             if (res != 0) {
                 perror("ftrunctate failed on the bitmap!");
                 close(fileno);
                 return -errno;
             }
+
+        // Log an error if we are trying to change the
+        // size of a file that has non-zero length
+        } else if ((uint64_t)buf.st_size != len) {
+            syslog(LOG_ERR, "File size does not match length but is already truncated!");
+            close(fileno);
+            return -1;
         }
     }
 
