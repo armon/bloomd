@@ -1,3 +1,16 @@
+# 0.6.0
+
+  * Optimize creation of new bitmaps. Dramatic speedup for create on
+    new filters, or doing a resize.
+  * Bloomd will no longer terminate if it fails to create a filter,
+    instead an internal error will be reported.
+  * More robust checkpointing mechanism to improve the safely of the
+    vacuum thread.
+  * `create` command can now return "Delete in progress" error. This
+    is to expose the fact that a previously issued delete or clear may
+    not yet be complete, and that the client should retry the create.
+    Previously, the system could run into internal consistency issues.
+
 # 0.5.1
 
   * Added error message if the magic byte is incorrect
