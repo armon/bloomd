@@ -203,7 +203,7 @@ int bitmap_from_filename(char* filename, uint64_t len, int create, bitmap_mode m
     }
 
     // Use the filehandler mode
-    int res = bitmap_from_file(fileno, len, mode, map);
+    int res = bitmap_from_file(fileno, len, mode | extra_flags, map);
 
     // Handle is dup'ed, we can close
     close(fileno);
