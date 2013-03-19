@@ -251,10 +251,9 @@ Performance
 -----------
 
 Although extensive performance evaluations have not been done,
-casual testing on a 2011 Macbook Air shows response times of about
-5 μs for set/check operations. Doing pure set/check operations also
-allows for a throughput of at least 300K ops/sec. On Linux,
-response times can be as low as 2 μs.
+casual testing on a 2012 MBP with pure set/check operations
+allows for a throughput of at least 600K ops/sec. On Linux,
+response times can be as low as 1.5 μs.
 
 Bloomd also supports multi-core systems for scalability, so
 it is important to tune it for the given work load. The number
