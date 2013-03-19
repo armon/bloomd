@@ -123,7 +123,7 @@ int handle_client_connect(bloom_conn_handler *handle) {
  * the filter manager, so that vacuum progress can be made.
  */
 void periodic_update(bloom_conn_handler *handle) {
-    filtmgr_worker_checkpoint(handle->mgr);
+    filtmgr_client_checkpoint(handle->mgr);
 }
 
 
