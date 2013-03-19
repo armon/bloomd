@@ -22,6 +22,13 @@
 #include "filter_manager.h"
 #include "background.h"
 
+// Simple struct that holds args for the workers
+typedef struct {
+    bloom_filtmgr *mgr;
+    bloom_networking *netconf;
+} worker_args;
+static void worker_main(worker_args *args);
+
 /**
  * By default we should run. Our signal
  * handler updates this variable to allow the
@@ -172,13 +179,11 @@ int main(int argc, char **argv) {
     }
 
     // Start the network workers
+    worker_args wargs = {mgr, netconf};
     pthread_t *threads = calloc(config->worker_threads, sizeof(pthread_t));
     for (int i=0; i < config->worker_threads; i++) {
-        pthread_create(&threads[i], NULL, (void*(*)(void*))start_networking_worker, netconf);
+        pthread_create(&threads[i], NULL, (void*(*)(void*))worker_main, &wargs);
     }
-
-    // Provide the threads to the filter manager
-    filtmgr_provide_workers(mgr, threads);
 
     // Prepare our signal handlers to loop until we are signaled to quit
     signal(SIGPIPE, SIG_IGN);       // Ignore SIG_IGN
@@ -206,3 +211,13 @@ int main(int argc, char **argv) {
     // Done
     return 0;
 }
+
+// Main entry point for the worker threads
+static void worker_main(worker_args *args) {
+    // Perform the initial checkpoint with the manager
+    filtmgr_client_checkpoint(args->mgr);
+
+    // Enter the networking event loop forever
+    start_networking_worker(args->netconf);
+}
+
