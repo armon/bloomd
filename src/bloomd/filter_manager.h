@@ -38,18 +38,22 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr);
 int destroy_filter_manager(bloom_filtmgr *mgr);
 
 /**
- * Provides a list of worker threads to the filter manager
+ * Should be invoked periodically by client threads to allow
+ * the vacuum thread to cleanup garbage state. It should also
+ * be called before making other calls into the filter manager
+ * so that it is aware of a client making use of the current
+ * state.
  * @arg mgr The manager
- * @arg threads A list of thread IDs, should be `worker_threads` long
  */
-void filtmgr_provide_workers(bloom_filtmgr *mgr, pthread_t *threads);
+void filtmgr_client_checkpoint(bloom_filtmgr *mgr);
 
 /**
- * Should be invoked periodically by worker threads to allow
- * the vacuum thread to cleanup garbage state.
+ * Should be invoked by clients when they no longer
+ * need to make use of the filter manager. This
+ * allows the vacuum thread to cleanup garbage state.
  * @arg mgr The manager
  */
-void filtmgr_worker_checkpoint(bloom_filtmgr *mgr);
+void filtmgr_client_leave(bloom_filtmgr *mgr);
 
 /**
  * Flushes the filter with the given name

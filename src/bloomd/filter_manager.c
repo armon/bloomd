@@ -55,6 +55,20 @@ typedef struct filtmgr_vsn {
     struct filtmgr_vsn *prev;
 } filtmgr_vsn;
 
+/**
+ * We use a linked list of filtmgr_client
+ * structs to track any clients of the filter manager.
+ * Each client maintains a thread ID as well as the
+ * last known version they used. The vacuum thread
+ * uses this information to safely garbage collect
+ * old versions.
+ */
+typedef struct filtmgr_client {
+    pthread_t id;
+    unsigned long long vsn;
+    struct filtmgr_client *next;
+} filtmgr_client;
+
 struct bloom_filtmgr {
     bloom_config *config;
 
@@ -71,8 +85,8 @@ struct bloom_filtmgr {
      * can scan for the minimum seen version and clean all older
      * versions.
      */
-    pthread_t *threads;
-    unsigned long long *vsn_checkpoint;
+    filtmgr_client *clients;
+    bloom_spinlock clients_lock;
 };
 
 /**
@@ -112,8 +126,9 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
     // Copy the config
     m->config = config;
 
-    // Initialize the write lock
+    // Initialize the locks
     pthread_mutex_init(&m->write_lock, NULL);
+    INIT_BLOOM_SPIN(&m->clients_lock);
 
     // Allocate the initial version and hash table
     filtmgr_vsn *vsn = calloc(1, sizeof(filtmgr_vsn));
@@ -124,9 +139,6 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
         free(m);
         return -1;
     }
-
-    // Make room for the checkpoints
-    m->vsn_checkpoint = calloc(config->worker_threads, sizeof(unsigned long long));
 
     // Discover existing filters
     load_existing_filters(m);
@@ -167,44 +179,87 @@ int destroy_filter_manager(bloom_filtmgr *mgr) {
         vsn = next;
     }
 
+    // Free the clients
+    filtmgr_client *cl_next, *cl = mgr->clients;
+    while (cl) {
+        cl_next = cl->next;
+        free(cl);
+        cl = cl_next;
+    }
+
     // Free the manager
-    free(mgr->vsn_checkpoint);
     free(mgr);
     return 0;
 }
 
 /**
- * Provides a list of worker threads to the filter manager
- * @arg mgr The manager
- * @arg threads A list of thread IDs, should be `worker_threads` long
- */
-void filtmgr_provide_workers(bloom_filtmgr *mgr, pthread_t *threads) {
-    // Maintain a reference to the threads, nothing crazy...
-    mgr->threads = threads;
-}
-
-/**
- * Should be invoked periodically by worker threads to allow
- * the vacuum thread to cleanup garbage state.
+ * Should be invoked periodically by client threads to allow
+ * the vacuum thread to cleanup garbage state. It should also
+ * be called before making other calls into the filter manager
+ * so that it is aware of a client making use of the current
+ * state.
  * @arg mgr The manager
  */
-void filtmgr_worker_checkpoint(bloom_filtmgr *mgr) {
-    // Skip if we don't have the thread list yet
-    if (!mgr->threads) return;
-
+void filtmgr_client_checkpoint(bloom_filtmgr *mgr) {
     // Get a reference to ourself
     pthread_t id = pthread_self();
 
-    // Look for the matching index
-    // This is O(n), but N is small, and this should be done
-    // relatively infrequently...
-    for (int idx=0; idx < mgr->config->worker_threads; idx++) {
-        if (pthread_equal(id, mgr->threads[idx])) {
-            // Update the checkpoint version
-            mgr->vsn_checkpoint[idx] = mgr->latest->vsn;
+    // Look for our ID, and update the version
+    // This is O(n), but N is small and its done infrequently
+    filtmgr_client *cl = mgr->clients;
+    while (cl) {
+        if (cl->id == id) {
+            cl->vsn = mgr->latest->vsn;
+            return;
+        }
+        cl = cl->next;
+    }
+
+    // If we make it here, we are not a client yet
+    // so we need to safely add ourself
+    cl = malloc(sizeof(filtmgr_client));
+    cl->id = id;
+    cl->vsn = mgr->latest->vsn;
+
+    // Critical section for the flip
+    LOCK_BLOOM_SPIN(&mgr->clients_lock);
+
+    cl->next = mgr->clients;
+    mgr->clients = cl;
+
+    UNLOCK_BLOOM_SPIN(&mgr->clients_lock);
+}
+
+/**
+ * Should be invoked by clients when they no longer
+ * need to make use of the filter manager. This
+ * allows the vacuum thread to cleanup garbage state.
+ * @arg mgr The manager
+ */
+void filtmgr_client_leave(bloom_filtmgr *mgr) {
+    // Get a reference to ourself
+    pthread_t id = pthread_self();
+
+    // Critical section
+    LOCK_BLOOM_SPIN(&mgr->clients_lock);
+
+    // Look for our ID, and update the version
+    // This is O(n), but N is small and its done infrequently
+    filtmgr_client **last_next = &mgr->clients;
+    filtmgr_client *cl = mgr->clients;
+    while (cl) {
+        if (cl->id == id) {
+            // Set the last prev pointer to skip the current entry
+            *last_next = cl->next;
+
+            // Cleanup the memory associated
+            free(cl);
             break;
         }
+        last_next = &cl->next;
+        cl = cl->next;
     }
+    UNLOCK_BLOOM_SPIN(&mgr->clients_lock);
 }
 
 /**
@@ -816,8 +871,8 @@ static void* filtmgr_thread_main(void *in) {
 
         // Determine the minimum version
         unsigned long long thread_vsn, min_vsn = current->vsn;
-        for (int i=0; i < mgr->config->worker_threads; i++) {
-            thread_vsn = mgr->vsn_checkpoint[i];
+        for (filtmgr_client *cl=mgr->clients; cl != NULL; cl=cl->next) {
+            thread_vsn = cl->vsn;
             if (thread_vsn < min_vsn) {
                 min_vsn = thread_vsn;
             }
