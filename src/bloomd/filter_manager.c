@@ -907,3 +907,16 @@ static void* filtmgr_thread_main(void *in) {
     return NULL;
 }
 
+
+/**
+ * This method is used to force a vacuum up to the current
+ * version. It is generally unsafe to use in bloomd,
+ * but can be used in an embeded or test environment.
+ */
+void filtmgr_vacuum(bloom_filtmgr *mgr) {
+    // Cleanup the old versions
+    pthread_mutex_lock(&mgr->vacuum_lock);
+    clean_old_versions(mgr->latest, mgr->latest->vsn);
+    pthread_mutex_unlock(&mgr->vacuum_lock);
+}
+

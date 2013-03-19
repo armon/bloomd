@@ -160,5 +160,11 @@ void filtmgr_cleanup_list(bloom_filter_list_head *head);
 typedef void(*filter_cb)(void* in, char *filter_name, bloom_filter *filter);
 int filtmgr_filter_cb(bloom_filtmgr *mgr, char *filter_name, filter_cb cb, void* data);
 
+/**
+ * This method is used to force a vacuum up to the current
+ * version. It is generally unsafe to use in bloomd,
+ * but can be used in an embeded or test environment.
+ */
+void filtmgr_vacuum(bloom_filtmgr *mgr);
 
 #endif
