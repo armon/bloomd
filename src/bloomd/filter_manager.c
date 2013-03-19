@@ -74,6 +74,7 @@ struct bloom_filtmgr {
 
     filtmgr_vsn *latest;
     pthread_mutex_t write_lock; // Serializes destructive operations
+    pthread_mutex_t vacuum_lock; // Held while vacuum is happening
 
     volatile int should_run;  // Used to stop the vacuum thread
     pthread_t vacuum_thread;
@@ -128,6 +129,7 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
 
     // Initialize the locks
     pthread_mutex_init(&m->write_lock, NULL);
+    pthread_mutex_init(&m->vacuum_lock, NULL);
     INIT_BLOOM_SPIN(&m->clients_lock);
 
     // Allocate the initial version and hash table
@@ -353,7 +355,7 @@ int filtmgr_set_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int num
  * @arg filter_name The name of the filter
  * @arg custom_config Optional, can be null. Configs that override the defaults.
  * @return 0 on success, -1 if the filter already exists.
- * -2 for internal error.
+ * -2 for internal error. -3 if there is a pending delete.
  */
 int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *custom_config) {
     // Lock the creation
@@ -367,6 +369,20 @@ int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *c
         pthread_mutex_unlock(&mgr->write_lock);
         return -1;
     }
+
+    // Scan for a pending delete
+    pthread_mutex_lock(&mgr->vacuum_lock);
+    filtmgr_vsn *vsn = mgr->latest->prev;
+    while (vsn) {
+        if (vsn->deleted && strcmp(vsn->deleted->filter->filter_name, filter_name) == 0) {
+            syslog(LOG_WARNING, "Tried to create filter '%s' with a pending delete!", filter_name);
+            pthread_mutex_unlock(&mgr->vacuum_lock);
+            pthread_mutex_unlock(&mgr->write_lock);
+            return -3;
+        }
+        vsn = vsn->prev;
+    }
+    pthread_mutex_unlock(&mgr->vacuum_lock);
 
     // Create a new version
     filtmgr_vsn *new_vsn = create_new_version(mgr);
@@ -884,7 +900,9 @@ static void* filtmgr_thread_main(void *in) {
         }
 
         // Cleanup the old versions
+        pthread_mutex_lock(&mgr->vacuum_lock);
         clean_old_versions(current, min_vsn);
+        pthread_mutex_unlock(&mgr->vacuum_lock);
     }
     return NULL;
 }

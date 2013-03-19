@@ -120,7 +120,10 @@ As an example::
 
 This will create a filter foobar that has a 1M initial capacity,
 and a 1/1000 probability of generating false positives. Valid responses
-are either "Done", or "Exists".
+are either "Done", "Exists", or "Delete in progress". The last response
+occurs if a filter of the same name was recently deleted, and bloomd
+has not yet completed the delete operation. If so, a client should
+retry the create in a few seconds.
 
 The ``list`` command takes no arguments, and returns information
 about all the filters. Here is an example response::

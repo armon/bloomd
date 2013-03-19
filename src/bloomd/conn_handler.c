@@ -314,6 +314,10 @@ static void handle_create_cmd(bloom_conn_handler *handle, char *args, int args_l
             handle_client_resp(handle->conn, (char*)EXISTS_RESP, EXISTS_RESP_LEN);
             if (config) free(config);
             break;
+        case -3:
+            handle_client_resp(handle->conn, (char*)DELETE_IN_PROGRESS, DELETE_IN_PROGRESS_LEN);
+            if (config) free(config);
+            break;
         default:
             INTERNAL_ERROR();
             if (config) free(config);

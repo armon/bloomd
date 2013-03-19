@@ -33,6 +33,9 @@ static const int FILT_NOT_EXIST_LEN = sizeof(FILT_NOT_EXIST) - 1;
 static const char FILT_NOT_PROXIED[] = "Filter is not proxied. Close it first.\n";
 static const int FILT_NOT_PROXIED_LEN = sizeof(FILT_NOT_PROXIED) - 1;
 
+static const char DELETE_IN_PROGRESS[] = "Delete in progress\n";
+static const int DELETE_IN_PROGRESS_LEN = sizeof(DELETE_IN_PROGRESS) - 1;
+
 static const char DONE_RESP[] = "Done\n";
 static const int DONE_RESP_LEN = sizeof(DONE_RESP) - 1;
 
