@@ -38,9 +38,7 @@ port = %(port)d
     # Define a cleanup handler
     def cleanup():
         try:
-            subprocess.Popen("killall -15 bloomd", shell=True)
-            time.sleep(1)
-            subprocess.Popen("killall -9 bloomd", shell=True)
+            subprocess.Popen("kill -9 %s" % proc.pid, shell=True)
             time.sleep(1)
             shutil.rmtree(tmpdir)
         except:
@@ -173,6 +171,7 @@ class TestInteg(object):
         assert fh.readline() == "END\n"
 
         # Load + Drop the filter
+        time.sleep(2)
         server.sendall("create cleartest\n")
         assert fh.readline() == "Done\n"
         server.sendall("drop cleartest\n")
@@ -393,6 +392,30 @@ class TestInteg(object):
         server.sendall("list\n")
         assert fh.readline() == "START\n"
         assert fh.readline() == "END\n"
+
+    def test_in_progress_drop(self, servers):
+        "Tests creating/dropping a filter and getting the 'Delete in progress'"
+        server, _ = servers
+        fh = server.makefile()
+
+        for x in xrange(10):
+            # Create and drop should cause the vacuum to fall behind
+            server.sendall("create drop_in_prog\n")
+            assert fh.readline() == "Done\n"
+            server.sendall("drop drop_in_prog\n")
+            assert fh.readline() == "Done\n"
+
+            # Create after drop should fail
+            server.sendall("create drop_in_prog\n")
+            resp = fh.readline()
+            if resp == "Delete in progress\n":
+                return
+            elif resp == "Done\n":
+                server.sendall("drop drop_in_prog\n")
+                fh.readline()
+
+        assert False, "Failed to do a concurrent create"
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main(args="-k TestInteg."))
