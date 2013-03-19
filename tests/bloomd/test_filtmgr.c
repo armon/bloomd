@@ -416,6 +416,9 @@ START_TEST(test_mgr_clear)
     res = filtmgr_clear_filter(mgr, "dub2");
     fail_unless(res == 0);
 
+    // Force a vacuum
+    filtmgr_vacuum(mgr);
+
     res = filtmgr_create_filter(mgr, "dub2", NULL);
     fail_unless(res == 0);
 
@@ -459,6 +462,9 @@ START_TEST(test_mgr_clear_reload)
 
     res = filtmgr_clear_filter(mgr, "zab9");
     fail_unless(res == 0);
+
+    // Force a vacuum
+    filtmgr_vacuum(mgr);
 
     // This should rediscover
     res = filtmgr_create_filter(mgr, "zab9", NULL);
