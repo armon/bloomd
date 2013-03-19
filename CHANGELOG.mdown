@@ -10,6 +10,7 @@
     is to expose the fact that a previously issued delete or clear may
     not yet be complete, and that the client should retry the create.
     Previously, the system could run into internal consistency issues.
+  * Git SHA: 8f045fc
 
 # 0.5.1
 
