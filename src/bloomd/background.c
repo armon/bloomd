@@ -81,10 +81,14 @@ static void* flush_thread_main(void *in) {
     int *should_run;
     UNPACK_ARGS();
 
+    // Perform the initial checkpoint with the manager
+    filtmgr_client_checkpoint(mgr);
+
     syslog(LOG_INFO, "Flush thread started. Interval: %d seconds.", config->flush_interval);
     unsigned int ticks = 0;
     while (*should_run) {
         sleep(1);
+        filtmgr_client_checkpoint(mgr);
         if ((++ticks % config->flush_interval) == 0 && *should_run) {
             // List all the filters
             syslog(LOG_INFO, "Scheduled flush started.");
@@ -116,10 +120,14 @@ static void* unmap_thread_main(void *in) {
     int *should_run;
     UNPACK_ARGS();
 
+    // Perform the initial checkpoint with the manager
+    filtmgr_client_checkpoint(mgr);
+
     syslog(LOG_INFO, "Cold unmap thread started. Interval: %d seconds.", config->cold_interval);
     unsigned int ticks = 0;
     while (*should_run) {
         sleep(1);
+        filtmgr_client_checkpoint(mgr);
         if ((++ticks % config->cold_interval) == 0 && *should_run) {
             // List the cold filters
             syslog(LOG_INFO, "Cold unmap started.");
