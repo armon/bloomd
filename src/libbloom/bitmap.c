@@ -12,6 +12,7 @@
 #include "bitmap.h"
 
 /* Static declarations */
+static void* alloc_dirty_page_bitmap(uint64_t len);
 static int fill_buffer(int fileno, unsigned char* buf, uint64_t len);
 static int flush_dirty_pages(bloom_bitmap *map);
 static int flush_page(bloom_bitmap *map, uint64_t page, uint64_t size, uint64_t max_page);
@@ -88,21 +89,13 @@ int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *m
     // dirty pages, and need a bit field for this
     unsigned char* dirty = NULL;
     if (mode == PERSISTENT) {
-        // Calculate how big a bit field we need
-        uint64_t pages = ceil(len / 4096.0);        // 1 bit per page
-        uint64_t field_size = ceil(pages / 8.0);    // 8 bits per byte
-
-        // Allocate the field
-        dirty = malloc(field_size);
+        // Allocate a dirty bitmap
+        dirty = alloc_dirty_page_bitmap(len);
         if (!dirty) {
-            perror("Failed to allocate dirty page bitfield!");
             munmap(addr, len);
             if (newfileno >= 0) close(newfileno);
             return -errno;
         }
-
-        // Zero out the bit field
-        bzero(dirty, field_size);
 
         // For existing bitmaps we need to read in the data
         // since we cannot use the kernel to fault it in
@@ -121,6 +114,24 @@ int bitmap_from_file(int fileno, uint64_t len, bitmap_mode mode, bloom_bitmap *m
     map->mmap = addr;
     map->dirty_pages = dirty;
     return 0;
+}
+
+// Allocates a new dirty page bitmap
+static void* alloc_dirty_page_bitmap(uint64_t len) {
+    // Calculate how big a bit field we need
+    uint64_t pages = ceil(len / 4096.0);        // 1 bit per page
+    uint64_t field_size = ceil(pages / 8.0);    // 8 bits per byte
+
+    // Allocate the field
+    void* dirty = malloc(field_size);
+    if (!dirty) {
+        perror("Failed to allocate dirty page bitfield!");
+        return NULL;
+    }
+
+    // Zero out the bit field
+    bzero(dirty, field_size);
+    return dirty;
 }
 
 
