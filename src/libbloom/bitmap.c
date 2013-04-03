@@ -269,9 +269,28 @@ int bitmap_flush(bloom_bitmap *map) {
  * and is not reliably marked as dirty.
  */
 static int flush_dirty_pages(bloom_bitmap *map) {
+    /**
+     * The dirty page bitmap is a problematic
+     * shared data structure since reads and writes are
+     * byte aligned. This means when we set a single bit,
+     * we are doing a read/update/write on the whole byte.
+     * Because of this, concurrent updates are not safe.
+     * To solve this, we allocate a new fresh bitmap, and
+     * swap the old one out. This allows the other threads
+     * to mark bits as dirty, while we go through and flush.
+     * At the end, we free our old version.
+     */
+    void *new_dirty = alloc_dirty_page_bitmap(map->size);
+    if (!new_dirty) {
+        syslog(LOG_ERR, "Failed to allocate new dirty page bitmap!");
+        return -1;
+    }
+    unsigned char* dirty_pages = map->dirty_pages;
+    map->dirty_pages = new_dirty;
+
     uint64_t pages = map->size / 4096 + ((map->size % 4096) ? 1 : 0);
-    unsigned char byte, *dirty_pages = map->dirty_pages;
-    int dirty, res;
+    unsigned char byte;
+    int dirty, res = 0;
     for (uint64_t i=0; i < pages; i++) {
         // Check if the page is dirty
         byte = dirty_pages[i >> 3];
@@ -280,14 +299,13 @@ static int flush_dirty_pages(bloom_bitmap *map) {
         if (dirty || i == 0) {
             // Flush the page
             res = flush_page(map, i, map->size, pages - 1);
-            if (res) return res;
-
-            // Zero out the bit
-            byte &= ~(1 << (7 - (i % 8)));
-            dirty_pages[i >> 3] = byte;
+            if (res) goto LEAVE;
         }
     }
-    return 0;
+LEAVE:
+    // Cleanup the old bitmap
+    free(dirty_pages);
+    return res;
 }
 
 
