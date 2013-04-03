@@ -1,3 +1,10 @@
+# 0.6.1 (unreleased)
+
+  * Fixing thread safety issue with new-style memory buffers that
+    could potentially lead to either pages not being flushed, or
+    pages with no changes being re-flushed.
+
+
 # 0.6.0
 
   * Optimize creation of new bitmaps. Dramatic speedup for create on
