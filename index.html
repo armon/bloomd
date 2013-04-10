@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <link href='https://fonts.googleapis.com/css?family=Chivo:900' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <title>Bloomd by armon</title>
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+
+        <header>
+          <h1>Bloomd</h1>
+          <h2>A high performance C server for bloom filters</h2>
+        </header>
+
+        <section id="downloads" class="clearfix">
+          <a href="https://github.com/armon/bloomd/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
+          <a href="https://github.com/armon/bloomd/tarball/master" id="download-tar-gz" class="button"><span>Download .tar.gz</span></a>
+          <a href="https://github.com/armon/bloomd" id="view-on-github" class="button"><span>View on GitHub</span></a>
+        </section>
+
+        <hr>
+
+        <section id="main_content">
+          <h1>Bloomd <a href="https://travis-ci.org/armon/bloomd"><img src="https://travis-ci.org/armon/bloomd.png?branch=master" alt="Build Status"></a>
+</h1>
+
+<p>Bloomd is a high-performance C server which is used
+to expose bloom filters and operations over them to
+networked clients. It uses a simple ASCI protocol
+which is human readable, and similar to memcached.</p>
+
+<h2>Features</h2>
+
+<ul>
+<li>Scalable non-blocking core allows for many connected
+clients and concurrent operations</li>
+<li>Implements scalable bloom filters, allowing dynamic filter sizes</li>
+<li>Supports asynchronous flushes to disk for persistence</li>
+<li>Supports non-disk backed bloom filters for high I/O</li>
+<li>Automatically faults cold filters out of memory to save resources</li>
+<li>Dead simple to start and administer</li>
+<li>FAST, FAST, FAST</li>
+</ul><h2>Install</h2>
+
+<p>Download and build from source::</p>
+
+<pre><code>$ git clone https://armon@github.com/armon/bloomd.git
+$ cd bloomd
+$ pip install SCons  # Uses the Scons build system, may not be necessary
+$ scons
+$ ./bloomd
+</code></pre>
+
+<p>This will generate some errors related to building the test code
+as it depends on libcheck. To build the test code successfully,
+do the following::</p>
+
+<pre><code>$ cd deps/check-0.9.8/
+$ ./configure
+$ make
+# make install
+# ldconfig (necessary on some Linux distros)
+</code></pre>
+
+<p>Then re-build bloomd. At this point, the test code should build
+successfully.</p>
+
+<p>For CentOS or RHEL users, the kind folks from Vortex RPM have made
+a repo available with RPM's.</p>
+
+<ul>
+<li>Repo: <a href="http://vortex-rpm.org/">http://vortex-rpm.org/</a>
+</li>
+<li>Bloomd RPM spec: <a href="https://github.com/vortex-rpm/bloomd">https://github.com/vortex-rpm/bloomd</a>
+</li>
+</ul><h2>Usage</h2>
+
+<p>Bloomd can be configured using a file which is in INI format.
+Here is an example configuration file:</p>
+
+<p>::</p>
+
+<pre><code># Settings for bloomd
+[bloomd]
+tcp_port = 8673
+udp_port = 8674
+data_dir = /mnt/bloomd
+log_level = INFO
+cold_interval = 3600
+flush_interval = 60
+initial_capacity = 100000
+default_probability = 0.0001
+workers = 2
+</code></pre>
+
+<p>Then run bloomd, pointing it to that file::</p>
+
+<pre><code>bloomd -f /etc/bloomd.conf
+</code></pre>
+
+<h2>Protocol</h2>
+
+<p>By default, Bloomd will listen for TCP connections on port 8673.
+It uses a simple ASCII protocol that is very similar to memcached.</p>
+
+<p>A command has the following syntax::</p>
+
+<pre><code>cmd [args][\r]\n
+</code></pre>
+
+<p>We start each line by specifying a command, providing optional arguments,
+and ending the line in a newline (carriage return is optional).</p>
+
+<p>There are a total of 10 commands:</p>
+
+<ul>
+<li>create - Create a new filter (a filter is a named bloom filter)</li>
+<li>list - List all filters</li>
+<li>drop - Drop a filters (Deletes from disk)</li>
+<li>close - Closes a filter (Unmaps from memory, but still accessible)</li>
+<li>clear - Clears a filter from the lists (Removes memory, left on disk)</li>
+<li>check|c - Check if a key is in a filter</li>
+<li>multi|m - Checks if a list of keys are in a filter</li>
+<li>set|s - Set an item in a filter</li>
+<li>bulk|b - Set many items in a filter at once</li>
+<li>info - Gets info about a filter</li>
+<li>flush - Flushes all filters or just a specified one</li>
+</ul><p>For the <code>create</code> command, the format is::</p>
+
+<pre><code>create filter_name [capacity=initial_capacity] [prob=max_prob] [in_memory=0|1]
+</code></pre>
+
+<p>Where <code>filter_name</code> is the name of the filter,
+and can contain the characters a-z, A-Z, 0-9, ., _.
+If an initial capacity is provided the filter
+will be created to store at least that many items in the initial filter.
+Otherwise the configured default value will be used.
+If a maximum false positive probability is provided,
+that will be used, otherwise the configured default is used.
+You can optionally specify in_memory to force the filter to not be
+persisted to disk.</p>
+
+<p>As an example::</p>
+
+<pre><code>create foobar capacity=1000000 prob=0.001
+</code></pre>
+
+<p>This will create a filter foobar that has a 1M initial capacity,
+and a 1/1000 probability of generating false positives. Valid responses
+are either "Done", "Exists", or "Delete in progress". The last response
+occurs if a filter of the same name was recently deleted, and bloomd
+has not yet completed the delete operation. If so, a client should
+retry the create in a few seconds.</p>
+
+<p>The <code>list</code> command takes no arguments, and returns information
+about all the filters. Here is an example response::</p>
+
+<pre><code>START
+foobar 0.001 1797211 1000000 0
+END
+</code></pre>
+
+<p>This indicates a single filter named foobar, with a probability
+of 0.001 of false positives, a 1.79MB size, a current capacity of
+1M items, and 0 current items. The size and capacity automatically
+scale as more items are added.</p>
+
+<p>The <code>drop</code>, <code>close</code> and <code>clear</code> commands are like create, but only takes a filter name.
+It can either return "Done" or "Filter does not exist". <code>clear</code> can also return "Filter is not proxied. Close it first.".
+This means that the filter is still in-memory and not qualified for being cleared.
+This can be resolved by first closing the filter.</p>
+
+<p>Check and set look similar, they are either::</p>
+
+<pre><code>[check|set] filter_name key
+</code></pre>
+
+<p>The command must specify a filter and a key to use.
+They will either return "Yes", "No" or "Filter does not exist".</p>
+
+<p>The bulk and multi commands are similar to check/set but allows for many keys
+to be set or checked at once. Keys must be separated by a space::</p>
+
+<pre><code>[multi|bulk] filter_name key1 [key_2 [key_3 [key_N]]]
+</code></pre>
+
+<p>The check, multi, set and bulk commands can also be called by their aliasses
+c, m, s and b respectively.</p>
+
+<p>The <code>info</code> command takes a filter name, and returns
+information about the filter. Here is an example output::</p>
+
+<pre><code>START
+capacity 1000000
+checks 0
+check_hits 0
+check_misses 0
+page_ins 0
+page_outs 0
+probability 0.001
+sets 0
+set_hits 0
+set_misses 0
+size 0
+storage 1797211
+END
+</code></pre>
+
+<p>The command may also return "Filter does not exist" if the filter does
+not exist.</p>
+
+<p>The <code>flush</code> command may be called without any arguments, which
+causes all filters to be flushed. If a filter name is provided
+then that filter will be flushed. This will either return "Done" or
+"Filter does not exist".</p>
+
+<h2>Example</h2>
+
+<p>Here is an example of a client flow, assuming bloomd is
+running on the default port using just telnet::</p>
+
+<pre><code>$ telnet localhost 8673
+&gt; list
+START
+END
+
+&gt; create foobar
+Done
+
+&gt; check foobar zipzab
+No
+
+&gt; set foobar zipzab
+Yes
+
+&gt; check foobar zipzab
+Yes
+
+&gt; multi foobar zipzab blah boo
+Yes No No
+
+&gt; bulk foobar zipzab blah boo
+No Yes Yes
+
+&gt; multi foobar zipzab blah boo
+Yes Yes Yes
+
+&gt; list
+START
+foobar 0.000100 300046 100000 3
+END
+
+&gt; drop foobar
+Done
+
+&gt; list
+START
+END
+</code></pre>
+
+<h2>Clients</h2>
+
+<p>Here is a list of known client implementations:</p>
+
+<ul>
+<li>Python : <a href="https://github.com/kiip/bloom-python-driver">https://github.com/kiip/bloom-python-driver</a>
+</li>
+<li>Ruby : <a href="https://github.com/SponsorPay/bloomrb">https://github.com/SponsorPay/bloomrb</a>
+</li>
+<li>Erlang : <a href="https://github.com/armon/erl-bloomd">https://github.com/armon/erl-bloomd</a>
+</li>
+<li>Go : <a href="https://github.com/geetarista/go-bloomd">https://github.com/geetarista/go-bloomd</a>
+</li>
+</ul><p>Here is a list of "best-practices" for client implementations:</p>
+
+<ul>
+<li>Maintain a set of open connections to the server to minimize connection time</li>
+<li>Make use of the bulk operations when possible, as they are more efficient.</li>
+<li>For long keys, it is better to do a client-side hash (SHA1 at least), and send
+the hash as the key to minimize network traffic.</li>
+</ul><h2>Performance</h2>
+
+<p>Although extensive performance evaluations have not been done,
+casual testing on a 2012 MBP with pure set/check operations
+allows for a throughput of at least 600K ops/sec. On Linux,
+response times can be as low as 1.5 μs.</p>
+
+<p>Bloomd also supports multi-core systems for scalability, so
+it is important to tune it for the given work load. The number
+of worker threads can be configured either in the configuration
+file, or by providing a <code>-w</code> flag. This should be set to at most
+2 * CPU count. By default, only a single worker is used.</p>
+
+<h2>References</h2>
+
+<p>Here are some related works which we make use of:</p>
+
+<ul>
+<li>Space/Time Trade-offs in Hash Coding with Allowable Errors (Bloom): <a href="http://www.lsi.upc.edu/%7Ediaz/p422-bloom.pdf">http://www.lsi.upc.edu/~diaz/p422-bloom.pdf</a>
+</li>
+<li>Scalable Bloom Filters (Almeida et. al): <a href="http://gsd.di.uminho.pt/members/cbm/ps/dbloom.pdf">http://gsd.di.uminho.pt/members/cbm/ps/dbloom.pdf</a>
+</li>
+<li>Less Hashing, Same Performance: Building a Better Bloom Filter (Kirsch and Mitzenmacher): <a href="http://www.eecs.harvard.edu/%7Ekirsch/pubs/bbbf/esa06.pdf">http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf</a>
+</li>
+</ul>
+        </section>
+
+        <footer>
+          Bloomd is maintained by <a href="https://github.com/armon">armon</a><br>
+          This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="http://twitter.com/jasonlong">Jason Long</a>.
+        </footer>
+
+        
+      </div>
+    </div>
+  </body>
+</html>
