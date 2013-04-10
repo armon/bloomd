@@ -1,4 +1,5 @@
 import platform
+plat = platform.system()
 
 envspooky = Environment(CPPPATH = ['deps/spookyhash/'], CPPFLAGS="-fno-exceptions -O2")
 spooky = envspooky.Library('spooky', Glob("deps/spookyhash/*.cpp"))
@@ -29,11 +30,15 @@ objs =  envbloomd_with_err.Object('src/bloomd/config', 'src/bloomd/config.c') + 
         envbloomd_with_err.Object('src/bloomd/background', 'src/bloomd/background.c')
 
 bloom_libs = ["pthread", murmur, bloom, inih, spooky, "m", "crypto"]
-if platform.system() == 'Linux':
+if plat == 'Linux':
    bloom_libs.append("rt")
 
 bloomd = envbloomd_with_err.Program('bloomd', objs + ["src/bloomd/bloomd.c"], LIBS=bloom_libs)
-bloomd_test = envbloomd_without_unused_err.Program('test_bloomd_runner', objs + Glob("tests/bloomd/runner.c"), LIBS=bloom_libs + ["check"])
+
+if plat == "Darwin":
+    bloomd_test = envbloomd_without_err.Program('test_bloomd_runner', objs + Glob("tests/bloomd/runner.c"), LIBS=bloom_libs + ["check"])
+else:
+    bloomd_test = envbloomd_without_unused_err.Program('test_bloomd_runner', objs + Glob("tests/bloomd/runner.c"), LIBS=bloom_libs + ["check"])
 
 bench_obj = Object("bench", "bench.c", CCFLAGS="-std=c99 -O2")
 Program('bench', bench_obj, LIBS=["pthread"])
