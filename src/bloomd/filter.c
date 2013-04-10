@@ -9,19 +9,7 @@
 #include <sys/time.h>
 #include <assert.h>
 #include "filter.h"
-
-#ifdef DARWIN
-#define __MAC_10_8 1080
-#include <Availability.h>
-#if __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_8
-#define CONST_DIRENT_T struct dirent
-#else
-#define CONST_DIRENT_T const struct dirent
-#endif
-#else
-#define CONST_DIRENT_T const struct dirent
-#endif
-
+#include "type_compat.h"
 
 /*
  * Generates the folder name, given a filter name.
