@@ -394,12 +394,11 @@ static void list_filter_cb(void *data, char *filter_name, bloom_filter *filter) 
 }
 
 static void handle_list_cmd(bloom_conn_handler *handle, char *args, int args_len) {
-    (void)args;
     (void)args_len;
 
     // List all the filters
     bloom_filter_list_head *head;
-    int res = filtmgr_list_filters(handle->mgr, &head);
+    int res = filtmgr_list_filters(handle->mgr, args, &head);
     if (res != 0) {
         INTERNAL_ERROR();
         return;
@@ -538,7 +537,7 @@ static void handle_flush_cmd(bloom_conn_handler *handle, char *args, int args_le
 
     // List all the filters
     bloom_filter_list_head *head;
-    int res = filtmgr_list_filters(handle->mgr, &head);
+    int res = filtmgr_list_filters(handle->mgr, NULL, &head);
     if (res != 0) {
         INTERNAL_ERROR();
         return;
