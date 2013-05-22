@@ -29,7 +29,7 @@ objs =  envbloomd_with_err.Object('src/bloomd/config', 'src/bloomd/config.c') + 
         envbloomd_with_err.Object('src/bloomd/background', 'src/bloomd/background.c') + \
         envbloomd_with_err.Object('src/bloomd/art', 'src/bloomd/art.c')
 
-bloom_libs = ["pthread", murmur, bloom, inih, spooky, "m"]
+bloom_libs = ["pthread", bloom, murmur, inih, spooky, "m"]
 if plat == 'Linux':
    bloom_libs.append("rt")
 
