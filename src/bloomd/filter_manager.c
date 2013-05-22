@@ -6,7 +6,7 @@
 #include <string.h>
 #include "spinlock.h"
 #include "filter_manager.h"
-#include "hashmap.h"
+#include "art.h"
 #include "filter.h"
 #include "type_compat.h"
 
@@ -37,7 +37,7 @@ typedef struct filtmgr_vsn {
     unsigned long long vsn;
 
     // Maps key names -> bloom_filter_wrapper
-    bloom_hashmap *filter_map;
+    art_tree filter_map;
 
     // Holds a reference to the deleted filter, since
     // it is no longer in the hash map
@@ -95,13 +95,12 @@ static const int FOLDER_PREFIX_LEN = sizeof(FOLDER_PREFIX) - 1;
 static bloom_filter_wrapper* take_filter(filtmgr_vsn *vsn, char *filter_name);
 static void delete_filter(bloom_filter_wrapper *filt);
 static int add_filter(bloom_filtmgr *mgr, filtmgr_vsn *vsn, char *filter_name, bloom_config *config, int is_hot);
-static int filter_map_list_cb(void *data, const char *key, void *value);
-static int filter_map_list_cold_cb(void *data, const char *key, void *value);
-static int filter_map_delete_cb(void *data, const char *key, void *value);
+static int filter_map_list_cb(void *data, const char *key, uint32_t key_len, void *value);
+static int filter_map_list_cold_cb(void *data, const char *key, uint32_t key_len, void *value);
+static int filter_map_delete_cb(void *data, const char *key, uint32_t key_len, void *value);
 static int load_existing_filters(bloom_filtmgr *mgr);
 static filtmgr_vsn* create_new_version(bloom_filtmgr *mgr);
 static void destroy_version(filtmgr_vsn *vsn);
-static int copy_hash_entries(void *data, const char *key, void *value);
 static void* filtmgr_thread_main(void *in);
 
 /**
@@ -125,9 +124,9 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
     // Allocate the initial version and hash table
     filtmgr_vsn *vsn = calloc(1, sizeof(filtmgr_vsn));
     m->latest = vsn;
-    int res = hashmap_init(0, &vsn->filter_map);
+    int res = init_art_tree(&vsn->filter_map);
     if (res) {
-        syslog(LOG_ERR, "Failed to allocate filter hash map!");
+        syslog(LOG_ERR, "Failed to allocate filter map!");
         free(m);
         return -1;
     }
@@ -159,7 +158,7 @@ int destroy_filter_manager(bloom_filtmgr *mgr) {
 
     // Nuke all the keys in the current version
     filtmgr_vsn *current = mgr->latest;
-    hashmap_iter(current->filter_map, filter_map_delete_cb, mgr);
+    art_iter(&current->filter_map, filter_map_delete_cb, mgr);
 
     // Destroy the versions
     filtmgr_vsn *next, *vsn = mgr->latest;
@@ -354,7 +353,7 @@ int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *c
     // Bail if the filter already exists
     bloom_filter_wrapper *filt = NULL;
     filtmgr_vsn *latest = mgr->latest;
-    hashmap_get(latest->filter_map, filter_name, (void**)&filt);
+    filt = art_search(&latest->filter_map, filter_name, strlen(filter_name)+1);
     if (filt) {
         pthread_mutex_unlock(&mgr->write_lock);
         return -1;
@@ -419,7 +418,7 @@ int filtmgr_drop_filter(bloom_filtmgr *mgr, char *filter_name) {
 
     // Create a new version without this filter
     filtmgr_vsn *new_vsn = create_new_version(mgr);
-    hashmap_delete(new_vsn->filter_map, filter_name);
+    art_delete(&new_vsn->filter_map, filter_name, strlen(filter_name)+1);
     current->deleted = filt;
 
     // Install the new version
@@ -493,7 +492,7 @@ int filtmgr_clear_filter(bloom_filtmgr *mgr, char *filter_name) {
 
     // Create a new version without this filter
     filtmgr_vsn *new_vsn = create_new_version(mgr);
-    hashmap_delete(new_vsn->filter_map, filter_name);
+    art_delete(&new_vsn->filter_map, filter_name, strlen(filter_name)+1);
     current->deleted = filt;
 
     // Install the new version
@@ -509,16 +508,20 @@ int filtmgr_clear_filter(bloom_filtmgr *mgr, char *filter_name) {
  * Allocates space for and returns a linked
  * list of all the filters.
  * @arg mgr The manager to list from
+ * @arg prefix The prefix to list or NULL
  * @arg head Output, sets to the address of the list header
  * @return 0 on success.
  */
-int filtmgr_list_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head) {
+int filtmgr_list_filters(bloom_filtmgr *mgr, char *prefix, bloom_filter_list_head **head) {
     // Allocate the head
     bloom_filter_list_head *h = *head = calloc(1, sizeof(bloom_filter_list_head));
 
     // Iterate through a callback to append
     filtmgr_vsn *current = mgr->latest;
-    hashmap_iter(current->filter_map, filter_map_list_cb, h);
+    if (prefix)
+        art_iter_prefix(&current->filter_map, prefix, strlen(prefix), filter_map_list_cb, h);
+    else
+        art_iter(&current->filter_map, filter_map_list_cb, h);
     return 0;
 }
 
@@ -537,7 +540,7 @@ int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head)
 
     // Scan for the cold filters
     filtmgr_vsn *current = mgr->latest;
-    hashmap_iter(current->filter_map, filter_map_list_cold_cb, h);
+    art_iter(&current->filter_map, filter_map_list_cold_cb, h);
     return 0;
 }
 
@@ -581,8 +584,7 @@ void filtmgr_cleanup_list(bloom_filter_list_head *head) {
  * Gets the bloom filter in a thread safe way.
  */
 static bloom_filter_wrapper* take_filter(filtmgr_vsn *vsn, char *filter_name) {
-    bloom_filter_wrapper *filt = NULL;
-    hashmap_get(vsn->filter_map, filter_name, (void**)&filt);
+    bloom_filter_wrapper *filt = art_search(&vsn->filter_map, filter_name, strlen(filter_name)+1);
     return (filt && filt->is_active) ? filt : NULL;
 }
 
@@ -641,11 +643,7 @@ static int add_filter(bloom_filtmgr *mgr, filtmgr_vsn *vsn, char *filter_name, b
     }
 
     // Add to the hash map
-    if (!hashmap_put(vsn->filter_map, filter_name, filt)) {
-        destroy_bloom_filter(filt->filter);
-        free(filt);
-        return -1;
-    }
+    art_insert(&vsn->filter_map, filter_name, strlen(filter_name)+1, filt);
     return 0;
 }
 
@@ -654,7 +652,8 @@ static int add_filter(bloom_filtmgr *mgr, filtmgr_vsn *vsn, char *filter_name, b
  * to list all the filters. Only works if value is
  * not NULL.
  */
-static int filter_map_list_cb(void *data, const char *key, void *value) {
+static int filter_map_list_cb(void *data, const char *key, uint32_t key_len, void *value) {
+    (void)key_len;
     // Filter out the non-active nodes
     bloom_filter_wrapper *filt = value;
     if (!filt->is_active) return 0;
@@ -680,7 +679,8 @@ static int filter_map_list_cb(void *data, const char *key, void *value) {
  * to list cold filters. Only works if value is
  * not NULL.
  */
-static int filter_map_list_cold_cb(void *data, const char *key, void *value) {
+static int filter_map_list_cold_cb(void *data, const char *key, uint32_t key_len, void *value) {
+    (void)key_len;
     // Cast the inputs
     bloom_filter_list_head *head = data;
     bloom_filter_wrapper *filt = value;
@@ -713,9 +713,10 @@ static int filter_map_list_cold_cb(void *data, const char *key, void *value) {
  * Called as part of the hashmap callback
  * to cleanup the filters.
  */
-static int filter_map_delete_cb(void *data, const char *key, void *value) {
+static int filter_map_delete_cb(void *data, const char *key, uint32_t key_len, void *value) {
     (void)data;
     (void)key;
+    (void)key_len;
 
     // Cast the inputs
     bloom_filter_wrapper *filt = value;
@@ -795,19 +796,9 @@ static filtmgr_vsn* create_new_version(bloom_filtmgr *mgr) {
     vsn->prev = current;
 
     // Initialize the hashmap
-    int res = hashmap_init(hashmap_size(current->filter_map), &vsn->filter_map);
+    int res = art_copy(&vsn->filter_map, &current->filter_map);
     if (res) {
-        syslog(LOG_ERR, "Failed to allocate new filter hash map!");
-        free(vsn);
-        return NULL;
-    }
-
-    // Copy old keys, this is likely a bottle neck...
-    // We need to make this more efficient in the future.
-    res = hashmap_iter(current->filter_map, copy_hash_entries, vsn->filter_map);
-    if (res != 0) {
-        syslog(LOG_ERR, "Failed to copy filter hash map!");
-        hashmap_destroy(vsn->filter_map);
+        syslog(LOG_ERR, "Failed to allocate new filter map!");
         free(vsn);
         return NULL;
     }
@@ -819,16 +810,9 @@ static filtmgr_vsn* create_new_version(bloom_filtmgr *mgr) {
 
 // Destroys a version. Does basic cleanup.
 static void destroy_version(filtmgr_vsn *vsn) {
-    hashmap_destroy(vsn->filter_map);
+    destroy_art_tree(&vsn->filter_map);
     free(vsn);
 }
-
-// Copies entries from an existing map into a new one
-static int copy_hash_entries(void *data, const char *key, void *value) {
-    bloom_hashmap *new = data;
-    return (hashmap_put(new, (char*)key, value) ? 0 : 1);
-}
-
 
 // Recursively waits and cleans up old versions
 static int clean_old_versions(filtmgr_vsn *v, unsigned long long min_vsn) {

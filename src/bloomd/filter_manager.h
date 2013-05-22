@@ -128,10 +128,11 @@ int filtmgr_clear_filter(bloom_filtmgr *mgr, char *filter_name);
  * list of all the filters. The memory should be free'd by
  * the caller.
  * @arg mgr The manager to list from
+ * @arg prefix The prefix to list or NULL
  * @arg head Output, sets to the address of the list header
  * @return 0 on success.
  */
-int filtmgr_list_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head);
+int filtmgr_list_filters(bloom_filtmgr *mgr, char *prefix, bloom_filter_list_head **head);
 
 /**
  * Allocates space for and returns a linked
