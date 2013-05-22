@@ -15,9 +15,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <signal.h>
-#include "crypto.h"
 #include "config.h"
-#include "hashmap.h"
 #include "networking.h"
 #include "filter_manager.h"
 #include "background.h"
@@ -122,9 +120,6 @@ void signal_handler(int signum) {
 int main(int argc, char **argv) {
     // Initialize syslog
     setup_syslog();
-
-    // Load OpenSSL error strings
-    ERR_load_crypto_strings();
 
     // Parse the command line
     char *config_file = NULL;

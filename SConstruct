@@ -24,13 +24,12 @@ objs =  envbloomd_with_err.Object('src/bloomd/config', 'src/bloomd/config.c') + 
         envbloomd_without_err.Object('src/bloomd/networking', 'src/bloomd/networking.c') + \
         envbloomd_with_err.Object('src/bloomd/barrier', 'src/bloomd/barrier.c') + \
         envbloomd_with_err.Object('src/bloomd/conn_handler', 'src/bloomd/conn_handler.c') + \
-        envbloomd_with_err.Object('src/bloomd/hashmap', 'src/bloomd/hashmap.c') + \
         envbloomd_with_err.Object('src/bloomd/filter', 'src/bloomd/filter.c') + \
         envbloomd_with_err.Object('src/bloomd/filter_manager', 'src/bloomd/filter_manager.c') + \
         envbloomd_with_err.Object('src/bloomd/background', 'src/bloomd/background.c') + \
         envbloomd_with_err.Object('src/bloomd/art', 'src/bloomd/art.c')
 
-bloom_libs = ["pthread", murmur, bloom, inih, spooky, "m", "crypto"]
+bloom_libs = ["pthread", murmur, bloom, inih, spooky, "m"]
 if plat == 'Linux':
    bloom_libs.append("rt")
 
