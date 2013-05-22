@@ -88,6 +88,8 @@ class TestInteg(object):
         server.sendall("create foobar1\n")
         server.sendall("create test4\n")
         assert fh.readline() == "Done\n"
+        assert fh.readline() == "Done\n"
+        assert fh.readline() == "Done\n"
         server.sendall("list foo\n")
         assert fh.readline() == "START\n"
         assert "foobar2" in fh.readline()
