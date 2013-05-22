@@ -1,3 +1,8 @@
+# 0.6.6
+
+  * Bug fixes for filters with long prefixes
+  * Git SHA: dbce6b2
+
 # 0.6.5
 
   * Replace internal hashmap with an Adaptive Radix Tree (ART). This
