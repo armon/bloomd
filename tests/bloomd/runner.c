@@ -5,6 +5,7 @@
 #include "test_hashmap.c"
 #include "test_filter.c"
 #include "test_filtmgr.c"
+#include "test_art.c"
 
 int main(void)
 {
@@ -15,6 +16,7 @@ int main(void)
     TCase *tc2 = tcase_create("hashmap");
     TCase *tc3 = tcase_create("filter");
     TCase *tc4 = tcase_create("filter manager");
+    TCase *tc5 = tcase_create("art");
     SRunner *sr = srunner_create(s1);
     int nf;
 
@@ -102,6 +104,16 @@ int main(void)
     tcase_add_test(tc4, test_mgr_grow);
     tcase_add_test(tc4, test_mgr_restore);
     tcase_add_test(tc4, test_mgr_callback);
+
+    // Add the art tests
+    suite_add_tcase(s1, tc5);
+    tcase_add_test(tc5, test_art_init_and_destroy);
+    tcase_add_test(tc5, test_art_insert);
+    tcase_add_test(tc5, test_art_insert_search);
+    tcase_add_test(tc5, test_art_insert_delete);
+    tcase_add_test(tc5, test_art_insert_iter);
+    tcase_add_test(tc5, test_art_iter_prefix);
+    tcase_add_test(tc5, test_art_insert_copy_delete);
 
     srunner_run_all(sr, CK_ENV);
     nf = srunner_ntests_failed(sr);
