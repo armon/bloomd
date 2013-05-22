@@ -89,7 +89,7 @@ and ending the line in a newline (carriage return is optional).
 There are a total of 10 commands:
 
 * create - Create a new filter (a filter is a named bloom filter)
-* list - List all filters
+* list - List all filters or those matching a prefix
 * drop - Drop a filters (Deletes from disk)
 * close - Closes a filter (Unmaps from memory, but still accessible)
 * clear - Clears a filter from the lists (Removes memory, left on disk)
@@ -125,14 +125,15 @@ occurs if a filter of the same name was recently deleted, and bloomd
 has not yet completed the delete operation. If so, a client should
 retry the create in a few seconds.
 
-The ``list`` command takes no arguments, and returns information
-about all the filters. Here is an example response::
+The ``list`` command takes either no arguments or a set prefix, and returns information
+about the matching filters. Here is an example response to a command::
 
+    > list foo
     START
     foobar 0.001 1797211 1000000 0
     END
 
-This indicates a single filter named foobar, with a probability
+With the list prefix "foo", this indicates a single filter named foobar, with a probability
 of 0.001 of false positives, a 1.79MB size, a current capacity of
 1M items, and 0 current items. The size and capacity automatically
 scale as more items are added.
