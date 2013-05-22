@@ -1,9 +1,15 @@
+# 0.6.5
+
+  * Replace internal hashmap with an Adaptive Radix Tree (ART). This
+  improves the create/drop time for instances with many many filters.
+  * `list` command now can take a prefix and returns only filters matching
+  * As a result of the ART tree, list results are sorted in descending order
+
 # 0.6.1 (unreleased)
 
   * Fixing thread safety issue with new-style memory buffers that
     could potentially lead to either pages not being flushed, or
     pages with no changes being re-flushed.
-
 
 # 0.6.0
 
