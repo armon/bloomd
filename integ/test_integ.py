@@ -80,6 +80,20 @@ class TestInteg(object):
         assert fh.readline() == "START\n"
         assert fh.readline() == "END\n"
 
+    def test_list_prefix(self, servers):
+        "Tests lists with prefix"
+        server, _ = servers
+        fh = server.makefile()
+        server.sendall("create foobar2\n")
+        server.sendall("create foobar1\n")
+        server.sendall("create test4\n")
+        assert fh.readline() == "Done\n"
+        server.sendall("list foo\n")
+        assert fh.readline() == "START\n"
+        assert "foobar2" in fh.readline()
+        assert "foobar1" in fh.readline()
+        assert fh.readline() == "END\n"
+
     def test_create(self, servers):
         "Tests creating a filter"
         server, _ = servers
