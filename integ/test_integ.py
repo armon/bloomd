@@ -432,6 +432,22 @@ class TestInteg(object):
 
         assert False, "Failed to do a concurrent create"
 
+    def test_create_long_prefix(self, servers):
+        "Tests create with long prefix"
+        server, _ = servers
+        fh = server.makefile()
+        server.sendall("create test:create:filter:with:long:prefix:1\n")
+        server.sendall("create test:create:filter:with:long:prefix:2\n")
+        server.sendall("create test:create:filter:with:long:common:1\n")
+        assert fh.readline() == "Done\n"
+        assert fh.readline() == "Done\n"
+        assert fh.readline() == "Done\n"
+        server.sendall("list test:create:filter\n")
+        assert fh.readline() == "START\n"
+        assert "test:create:filter:with:long:prefix:2" in fh.readline()
+        assert "test:create:filter:with:long:prefix:1" in fh.readline()
+        assert "test:create:filter:with:long:common:1" in fh.readline()
+        assert fh.readline() == "END\n"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(args="-k TestInteg."))
