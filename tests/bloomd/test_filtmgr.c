@@ -87,7 +87,7 @@ START_TEST(test_mgr_list)
     fail_unless(res == 0);
 
     bloom_filter_list_head *head;
-    res = filtmgr_list_filters(mgr, &head);
+    res = filtmgr_list_filters(mgr, NULL, &head);
     fail_unless(res == 0);
     fail_unless(head->size == 2);
 
@@ -128,7 +128,7 @@ START_TEST(test_mgr_list_no_filters)
     fail_unless(res == 0);
 
     bloom_filter_list_head *head;
-    res = filtmgr_list_filters(mgr, &head);
+    res = filtmgr_list_filters(mgr, NULL, &head);
     fail_unless(res == 0);
     fail_unless(head->size == 0);
     filtmgr_cleanup_list(head);
