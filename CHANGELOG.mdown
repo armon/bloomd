@@ -4,6 +4,7 @@
   improves the create/drop time for instances with many many filters.
   * `list` command now can take a prefix and returns only filters matching
   * As a result of the ART tree, list results are sorted in descending order
+  * Git SHA: 238e85f
 
 # 0.6.1 (unreleased)
 
