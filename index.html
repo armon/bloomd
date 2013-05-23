@@ -125,7 +125,7 @@ and ending the line in a newline (carriage return is optional).</p>
 
 <ul>
 <li>create - Create a new filter (a filter is a named bloom filter)</li>
-<li>list - List all filters</li>
+<li>list - List all filters or those matching a prefix</li>
 <li>drop - Drop a filters (Deletes from disk)</li>
 <li>close - Closes a filter (Unmaps from memory, but still accessible)</li>
 <li>clear - Clears a filter from the lists (Removes memory, left on disk)</li>
@@ -162,15 +162,16 @@ occurs if a filter of the same name was recently deleted, and bloomd
 has not yet completed the delete operation. If so, a client should
 retry the create in a few seconds.</p>
 
-<p>The <code>list</code> command takes no arguments, and returns information
-about all the filters. Here is an example response::</p>
+<p>The <code>list</code> command takes either no arguments or a set prefix, and returns information
+about the matching filters. Here is an example response to a command::</p>
 
-<pre><code>START
+<pre><code>&gt; list foo
+START
 foobar 0.001 1797211 1000000 0
 END
 </code></pre>
 
-<p>This indicates a single filter named foobar, with a probability
+<p>With the list prefix "foo", this indicates a single filter named foobar, with a probability
 of 0.001 of false positives, a 1.79MB size, a current capacity of
 1M items, and 0 current items. The size and capacity automatically
 scale as more items are added.</p>
