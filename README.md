@@ -239,7 +239,7 @@ Here is a list of known client implementations:
 * Ruby : https://github.com/SponsorPay/bloomrb
 * Erlang : https://github.com/armon/erl-bloomd
 * Go : https://github.com/geetarista/go-bloomd
-
+* Perl : https://github.com/dams/Bloomd-Client
 
 Here is a list of "best-practices" for client implementations:
 
