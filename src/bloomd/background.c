@@ -1,6 +1,13 @@
 #include <unistd.h>
 #include "background.h"
 
+/*
+* After how many background operations should we force a client
+* checkpoint. This allows the vacuum thread to make progress even
+* if we have a very slow background task
+*/
+#define PERIODIC_CHECKPOINT 16
+
 static void* flush_thread_main(void *in);
 static void* unmap_thread_main(void *in);
 typedef struct {
@@ -102,8 +109,10 @@ static void* flush_thread_main(void *in) {
             // Flush all, ignore errors since
             // filters might get deleted in the process
             bloom_filter_list *node = head->head;
+            unsigned int cmds = 0;
             while (node) {
                 filtmgr_flush_filter(mgr, node->filter_name);
+                if (!(++cmds % PERIODIC_CHECKPOINT)) filtmgr_client_checkpoint(mgr);
                 node = node->next;
             }
 
@@ -140,9 +149,11 @@ static void* unmap_thread_main(void *in) {
             // Close the filters, save memory
             syslog(LOG_INFO, "Cold filter count: %d", head->size);
             bloom_filter_list *node = head->head;
+            unsigned int cmds = 0;
             while (node) {
                 syslog(LOG_INFO, "Unmapping filter '%s' for being cold.", node->filter_name);
                 filtmgr_unmap_filter(mgr, node->filter_name);
+                if (!(++cmds % PERIODIC_CHECKPOINT)) filtmgr_client_checkpoint(mgr);
                 node = node->next;
             }
 
