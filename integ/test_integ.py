@@ -90,10 +90,11 @@ class TestInteg(object):
         assert fh.readline() == "Done\n"
         assert fh.readline() == "Done\n"
         assert fh.readline() == "Done\n"
+        time.sleep(1) # Wait for vacuum
         server.sendall("list foo\n")
         assert fh.readline() == "START\n"
-        assert "foobar2" in fh.readline()
         assert "foobar1" in fh.readline()
+        assert "foobar2" in fh.readline()
         assert fh.readline() == "END\n"
 
     def test_create(self, servers):
@@ -185,13 +186,6 @@ class TestInteg(object):
         server.sendall("list\n")
         assert fh.readline() == "START\n"
         assert fh.readline() == "END\n"
-
-        # Load + Drop the filter
-        time.sleep(2)
-        server.sendall("create cleartest\n")
-        assert fh.readline() == "Done\n"
-        server.sendall("drop cleartest\n")
-        assert fh.readline() == "Done\n"
 
     def test_set(self, servers):
         "Tests setting a value"
@@ -442,11 +436,12 @@ class TestInteg(object):
         assert fh.readline() == "Done\n"
         assert fh.readline() == "Done\n"
         assert fh.readline() == "Done\n"
+        time.sleep(1) # Wait for vacuum, ensures filters are in ascending order
         server.sendall("list test:create:filter\n")
         assert fh.readline() == "START\n"
-        assert "test:create:filter:with:long:prefix:2" in fh.readline()
-        assert "test:create:filter:with:long:prefix:1" in fh.readline()
         assert "test:create:filter:with:long:common:1" in fh.readline()
+        assert "test:create:filter:with:long:prefix:1" in fh.readline()
+        assert "test:create:filter:with:long:prefix:2" in fh.readline()
         assert fh.readline() == "END\n"
 
 if __name__ == "__main__":
