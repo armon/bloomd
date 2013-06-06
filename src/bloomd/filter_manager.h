@@ -25,10 +25,12 @@ typedef struct {
 /**
  * Initializer
  * @arg config The configuration
+ * @arg vacuum Should vacuuming be enabled. True unless in a
+ * test or embedded environment using filtmgr_vacuum()
  * @arg mgr Output, resulting manager.
  * @return 0 on success.
  */
-int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr);
+int init_filter_manager(bloom_config *config, int vacuum, bloom_filtmgr **mgr);
 
 /**
  * Cleanup

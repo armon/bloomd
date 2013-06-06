@@ -18,7 +18,7 @@ START_TEST(test_mgr_init_destroy)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = destroy_filter_manager(mgr);
@@ -33,7 +33,7 @@ START_TEST(test_mgr_create_drop)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "foo1", NULL);
@@ -54,7 +54,7 @@ START_TEST(test_mgr_create_double_drop)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "dub1", NULL);
@@ -78,7 +78,7 @@ START_TEST(test_mgr_list)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "bar1", NULL);
@@ -124,7 +124,7 @@ START_TEST(test_mgr_list_prefix)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "bar1", NULL);
@@ -174,7 +174,7 @@ START_TEST(test_mgr_list_no_filters)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     bloom_filter_list_head *head;
@@ -196,7 +196,7 @@ START_TEST(test_mgr_add_check_keys)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "zab1", NULL);
@@ -232,7 +232,7 @@ START_TEST(test_mgr_check_no_keys)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "zab2", NULL);
@@ -261,7 +261,7 @@ START_TEST(test_mgr_add_check_no_filter)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     char *keys[] = {"hey","there","person"};
@@ -286,7 +286,7 @@ START_TEST(test_mgr_flush_no_filter)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_flush_filter(mgr, "noop1");
@@ -304,7 +304,7 @@ START_TEST(test_mgr_flush)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "zab3", NULL);
@@ -329,7 +329,7 @@ START_TEST(test_mgr_unmap_no_filter)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_unmap_filter(mgr, "noop2");
@@ -347,7 +347,7 @@ START_TEST(test_mgr_unmap)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "zab4", NULL);
@@ -371,7 +371,7 @@ START_TEST(test_mgr_unmap_add_keys)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "zab5", NULL);
@@ -410,7 +410,7 @@ START_TEST(test_mgr_clear_no_filter)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_clear_filter(mgr, "noop2");
@@ -428,7 +428,7 @@ START_TEST(test_mgr_clear_not_proxied)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "dub1", NULL);
@@ -453,7 +453,7 @@ START_TEST(test_mgr_clear)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "dub2", NULL);
@@ -487,7 +487,7 @@ START_TEST(test_mgr_clear_reload)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "zab9", NULL);
@@ -543,7 +543,7 @@ START_TEST(test_mgr_list_cold_no_filters)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     bloom_filter_list_head *head;
@@ -564,7 +564,7 @@ START_TEST(test_mgr_list_cold)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "zab6", NULL);
@@ -625,7 +625,7 @@ START_TEST(test_mgr_unmap_in_mem)
     config.in_memory = 1;
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "mem1", NULL);
@@ -667,7 +667,7 @@ START_TEST(test_mgr_create_custom_config)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     // Custom config
@@ -696,7 +696,7 @@ START_TEST(test_mgr_grow)
     config.initial_capacity = 10000;
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "scale1", NULL);
@@ -730,7 +730,7 @@ START_TEST(test_mgr_restore)
     fail_unless(res == 0);
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "zab8", NULL);
@@ -754,7 +754,7 @@ START_TEST(test_mgr_restore)
     fail_unless(chmod("/tmp/bloomd/bloomd.zab8/data.000.mmap", 0777) == 0);
 
     // Restrore
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     for (int i=0;i<3;i++) result[i] = 0;
@@ -788,7 +788,7 @@ START_TEST(test_mgr_callback)
     config.initial_capacity = 10000;
 
     bloom_filtmgr *mgr;
-    res = init_filter_manager(&config, &mgr);
+    res = init_filter_manager(&config, 0, &mgr);
     fail_unless(res == 0);
 
     res = filtmgr_create_filter(mgr, "cb1", NULL);

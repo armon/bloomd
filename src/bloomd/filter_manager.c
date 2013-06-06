@@ -106,10 +106,12 @@ static void* filtmgr_thread_main(void *in);
 /**
  * Initializer
  * @arg config The configuration
+ * @arg vacuum Should vacuuming be enabled. True unless in a
+ * test or embedded environment using filtmgr_vacuum()
  * @arg mgr Output, resulting manager.
  * @return 0 on success.
  */
-int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
+int init_filter_manager(bloom_config *config, int vacuum, bloom_filtmgr **mgr) {
     // Allocate a new object
     bloom_filtmgr *m = *mgr = calloc(1, sizeof(bloom_filtmgr));
 
@@ -135,8 +137,8 @@ int init_filter_manager(bloom_config *config, bloom_filtmgr **mgr) {
     load_existing_filters(m);
 
     // Start the vacuum thread
-    m->should_run = 1;
-    if (pthread_create(&m->vacuum_thread, NULL, filtmgr_thread_main, m)) {
+    m->should_run = vacuum;
+    if (vacuum && pthread_create(&m->vacuum_thread, NULL, filtmgr_thread_main, m)) {
         perror("Failed to start vacuum thread!");
         destroy_filter_manager(m);
         return 1;

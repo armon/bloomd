@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
 
     // Initialize the filters
     bloom_filtmgr *mgr;
-    int mgr_res = init_filter_manager(config, &mgr);
+    int mgr_res = init_filter_manager(config, 1, &mgr);
     if (mgr_res != 0) {
         syslog(LOG_ERR, "Failed to initialize bloomd filter manager!");
         return 1;
