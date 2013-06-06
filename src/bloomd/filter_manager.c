@@ -668,10 +668,18 @@ static int filter_map_list_cb(void *data, const char *key, uint32_t key_len, voi
 
     // Setup
     node->filter_name = strdup(key);
-    node->next = head->head;
+    node->next = NULL;
 
-    // Inject
-    head->head = node;
+    // Inject at head if first node
+    if (!head->head) {
+        head->head = node;
+        head->tail = node;
+
+    // Inject at tail
+    } else {
+        head->tail->next = node;
+        head->tail = node;
+    }
     head->size++;
     return 0;
 }

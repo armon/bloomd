@@ -20,6 +20,7 @@ typedef struct bloom_filter_list {
 typedef struct {
    int size;
    bloom_filter_list *head;
+   bloom_filter_list *tail;
 } bloom_filter_list_head;
 
 /**
