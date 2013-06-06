@@ -59,7 +59,7 @@ typedef struct filter_list {
  * to prevent locking on access to the map of filter name -> bloom_filter_wrapper.
  *
  * The way it works is we have 2 ART trees, the "primary" and an alternate.
- * All the clients of the set manager have reads go through the primary
+ * All the clients of the filter manager have reads go through the primary
  * without any locking. We also maintain a delta list of new and deleted filters,
  * which is a simple linked list.
  *
@@ -171,7 +171,7 @@ int init_filter_manager(bloom_config *config, int vacuum, bloom_filtmgr **mgr) {
     // Initialize the alternate map
     res = art_copy(m->alt_filter_map, m->filter_map);
     if (res) {
-        syslog(LOG_ERR, "Failed to copy set map to alternate!");
+        syslog(LOG_ERR, "Failed to copy filter map to alternate!");
         destroy_filter_manager(m);
         return -1;
     }
@@ -395,7 +395,7 @@ int filtmgr_create_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *c
     int res = 0;
     pthread_mutex_lock(&mgr->write_lock);
 
-    // Bail if the set already exists.
+    // Bail if the filter already exists.
     bloom_filter_wrapper *filt = find_filter(mgr, filter_name);
     if (filt) {
         res = (filt->is_active) ? -1 : -3;
@@ -580,7 +580,7 @@ int filtmgr_list_cold_filters(bloom_filtmgr *mgr, bloom_filter_list_head **head)
     // Allocate the head of a new hashmap
     bloom_filter_list_head *h = *head = calloc(1, sizeof(bloom_filter_list_head));
 
-    // Scan for the cold sets. Ignore deltas, since they are either
+    // Scan for the cold filters. Ignore deltas, since they are either
     // new (e.g. hot), or being deleted anyways.
     art_iter(mgr->filter_map, filter_map_list_cold_cb, h);
     return 0;
@@ -620,13 +620,11 @@ void filtmgr_cleanup_list(bloom_filter_list_head *head) {
     free(head);
 }
 
-// Searches the primary tree and the delta list for a set
+// Searches the primary tree and the delta list for a filter
 static bloom_filter_wrapper* find_filter(bloom_filtmgr *mgr, char *filter_name) {
     // Search the tree first
     bloom_filter_wrapper *filt = art_search(mgr->filter_map,
             filter_name, strlen(filter_name)+1);
-
-    // If we found the set, check if it is active
     if (filt) return filt;
 
     // Check if the primary has all delta changes
@@ -683,7 +681,7 @@ static void delete_filter(bloom_filter_wrapper *filt) {
 }
 
 /**
- * Creates a new filter and adds it to the filter set.
+ * Creates a new filter and adds it to the filter map.
  * @arg mgr The manager to add to
  * @arg filter_name The name of the filter
  * @arg config The configuration for the filter
@@ -864,7 +862,7 @@ static int load_existing_filters(bloom_filtmgr *mgr) {
  * This must be invoked with the write lock as it is unsafe.
  * @arg mgr The manager
  * @arg type The type of delta
- * @arg set The set that is affected
+ * @arg filt The filter that is affected
  * @return The new version we created
  */
 static unsigned long long create_delta_update(bloom_filtmgr *mgr, delta_type type, bloom_filter_wrapper *filt) {
