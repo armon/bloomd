@@ -572,6 +572,9 @@ START_TEST(test_mgr_list_cold)
     res = filtmgr_create_filter(mgr, "zab7", NULL);
     fail_unless(res == 0);
 
+    // Force a vacuum so that list_cold_filters sees them
+    filtmgr_vacuum(mgr);
+
     bloom_filter_list_head *head;
     res = filtmgr_list_cold_filters(mgr, &head);
     fail_unless(res == 0);
