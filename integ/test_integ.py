@@ -187,6 +187,13 @@ class TestInteg(object):
         assert fh.readline() == "START\n"
         assert fh.readline() == "END\n"
 
+        # Load + Drop the filter
+        time.sleep(3)
+        server.sendall("create cleartest\n")
+        assert fh.readline() == "Done\n"
+        server.sendall("drop cleartest\n")
+        assert fh.readline() == "Done\n"
+
     def test_set(self, servers):
         "Tests setting a value"
         server, _ = servers
