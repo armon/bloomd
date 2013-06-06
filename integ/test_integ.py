@@ -443,7 +443,7 @@ class TestInteg(object):
         assert fh.readline() == "Done\n"
         assert fh.readline() == "Done\n"
         assert fh.readline() == "Done\n"
-        time.sleep(1) # Wait for vacuum, ensures filters are in ascending order
+        time.sleep(2) # Wait for vacuum, ensures filters are in ascending order
         server.sendall("list test:create:filter\n")
         assert fh.readline() == "START\n"
         assert "test:create:filter:with:long:common:1" in fh.readline()
