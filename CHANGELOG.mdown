@@ -1,3 +1,19 @@
+# 0.7.0
+
+  * Major rewrite of the internal Multi-Version Concurrency Controll (MVCC).
+    The old system was based on a single map per version, along side a
+    vacuum thread to do periodic cleanup. This did not scale well as each version
+    had to copy the map of the last version, and since many versions could exist
+    concurrently, it is possible for the heap to explode to many hundreds of MB or
+    GB worth of just versioning information. Instead, we now maintain only 2 maps,
+    a "primary" and "alternate", and make use of a list of delta updates. The vacuum
+    thread now manages applying delta updates to the alternate map and rotating the
+    primary and alternate. This reduces the memory overhead, and reduces the cost
+    of creating a new version (create, drop, clear).
+  * List ordering is no defined due to delta lists
+  * Slow flush and unmap operations still allow vacuum to make progress
+  * Git SHA: 8dc38de
+
 # 0.6.6
 
   * Bug fixes for filters with long prefixes
