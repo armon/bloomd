@@ -73,6 +73,87 @@ Then run bloomd, pointing it to that file::
 
     bloomd -f /etc/bloomd.conf
 
+
+Configuration Options
+---------------------
+
+Each configuration option is documented below:
+
+ * port: Integer, sets the tcp port to listen on. Default 8673.
+
+ * tcp\_port : Same as above
+
+ * udp\_port : Integer, sets the udp port. Currently listened on
+                but otherwise unused. Default 8674.
+
+ * data\_dir : The data directory that is used. Defaults to /tmp/bloomd
+
+ * log\_level : The logging level that bloomd should use. One of:
+    DEBUG, INFO, WARN, ERROR, or CRITICAL. All logs go to syslog,
+    and stderr if that is a TTY.
+
+ * workers : This controls the number of worker threads that are used.
+   Defaults to 1. If many different filters are used, it can be advantageous
+   to increase this to the number of CPU cores. If only a few filters are used,
+   the increased lock contention may reduce throughput, and a single worker
+   may be better.
+
+ * flush\_interval : This is the time interval in seconds in which
+    filters are flushed to disk. Defaults to 60 seconds. Set to 0 to
+    disable.
+
+ * cold\_interval : If a filter is not accessed (check or set), for
+    this amount of time, it is eligible to be removed from memory
+    and left only on disk. If a filter is accessed, it will automatically
+    be faulted back into memory. Set to 3600 seconds by default (1 hour).
+    Set to 0 to disable cold faulting.
+
+ * in\_memory : If set to 1, then all filters are in-memory ONLY by
+    default. This means they are not persisted to disk, and are not
+    eligible for cold fault out. Defaults to 0.
+
+ * initial\_capacity : If a create command does not provide an initial
+    capacity for a filter, this value is used. Defaults to 100K items.
+
+ * default\_probability : If a create command does not provide a false-positive
+    probability rate, this value is used. Defaults to 1/10K.
+
+ * use\_mmap : If set to 1, the bloomd internal buffer management
+    is disabled, and instead buffers use a plain mmap() and rely on
+    the kernel for all management. This increases data safety in the
+    case that bloomd crashes, but has adverse affects on performance
+    if the total memory utilization of the system is high. In general,
+    this should be left to 0, which is the default.
+
+ * scale\_size : When a bloom filter is "scaled" up, this is the
+    multiplier that is used. It should either be 2 or 4. Setting it
+    to 2 will conserve memory, but is slower due to the increased number
+    of filters that need to be checked. Defaults to 4.
+
+ * probability\_reduction : This is a subtle control value that affects the
+    scaling of bloom filters. It should probably not be modified. Defaults
+    to 0.9.
+
+
+Clients
+----------
+
+Here is a list of known client implementations:
+
+* Python : https://github.com/kiip/bloom-python-driver
+* Ruby : https://github.com/SponsorPay/bloomrb
+* Erlang : https://github.com/armon/erl-bloomd
+* Go : https://github.com/geetarista/go-bloomd
+* Perl : https://github.com/dams/Bloomd-Client
+
+Here is a list of "best-practices" for client implementations:
+
+* Maintain a set of open connections to the server to minimize connection time
+* Make use of the bulk operations when possible, as they are more efficient.
+* For long keys, it is better to do a client-side hash (SHA1 at least), and send
+  the hash as the key to minimize network traffic.
+
+
 Protocol
 --------
 
@@ -229,24 +310,6 @@ running on the default port using just telnet::
     START
     END
 
-
-Clients
-----------
-
-Here is a list of known client implementations:
-
-* Python : https://github.com/kiip/bloom-python-driver
-* Ruby : https://github.com/SponsorPay/bloomrb
-* Erlang : https://github.com/armon/erl-bloomd
-* Go : https://github.com/geetarista/go-bloomd
-* Perl : https://github.com/dams/Bloomd-Client
-
-Here is a list of "best-practices" for client implementations:
-
-* Maintain a set of open connections to the server to minimize connection time
-* Make use of the bulk operations when possible, as they are more efficient.
-* For long keys, it is better to do a client-side hash (SHA1 at least), and send
-  the hash as the key to minimize network traffic.
 
 Performance
 -----------
