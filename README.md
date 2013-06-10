@@ -67,6 +67,8 @@ Here is an example configuration file:
     initial_capacity = 100000
     default_probability = 0.0001
     workers = 2
+    in_memory = 0
+    use_mmap = 1
 
 
 Then run bloomd, pointing it to that file::
