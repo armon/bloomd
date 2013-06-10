@@ -54,34 +54,47 @@ Usage
 Bloomd can be configured using a file which is in INI format.
 Here is an example configuration file:
 
-::
-
     # Settings for bloomd
     [bloomd]
     tcp_port = 8673
-    udp_port = 8674
     data_dir = /mnt/bloomd
     log_level = INFO
-    cold_interval = 3600
-    flush_interval = 60
-    initial_capacity = 100000
-    default_probability = 0.0001
+    flush_interval = 300
     workers = 2
 
 
-Then run bloomd, pointing it to that file::
+Then run bloomd, pointing it to that file:
 
     bloomd -f /etc/bloomd.conf
 
+A full list of configuration options is below.
+
+Clients
+----------
+
+Here is a list of known client implementations:
+
+* Python : https://github.com/kiip/bloom-python-driver
+* Ruby : https://github.com/SponsorPay/bloomrb
+* Erlang : https://github.com/armon/erl-bloomd
+* Go : https://github.com/geetarista/go-bloomd
+* Perl : https://github.com/dams/Bloomd-Client
+
+Here is a list of "best-practices" for client implementations:
+
+* Maintain a set of open connections to the server to minimize connection time
+* Make use of the bulk operations when possible, as they are more efficient.
+* For long keys, it is better to do a client-side hash (SHA1 at least), and send
+  the hash as the key to minimize network traffic.
 
 Configuration Options
 ---------------------
 
 Each configuration option is documented below:
 
- * port: Integer, sets the tcp port to listen on. Default 8673.
+ * tcp\_port : Integer, sets the tcp port to listen on. Default 8673.
 
- * tcp\_port : Same as above
+ * port: Same as above. For compatibility.
 
  * udp\_port : Integer, sets the udp port. Currently listened on
                 but otherwise unused. Default 8674.
@@ -90,7 +103,7 @@ Each configuration option is documented below:
 
  * log\_level : The logging level that bloomd should use. One of:
     DEBUG, INFO, WARN, ERROR, or CRITICAL. All logs go to syslog,
-    and stderr if that is a TTY.
+    and stderr if that is a TTY. Default is DEBUG.
 
  * workers : This controls the number of worker threads that are used.
    Defaults to 1. If many different filters are used, it can be advantageous
@@ -133,25 +146,6 @@ Each configuration option is documented below:
  * probability\_reduction : This is a subtle control value that affects the
     scaling of bloom filters. It should probably not be modified. Defaults
     to 0.9.
-
-
-Clients
-----------
-
-Here is a list of known client implementations:
-
-* Python : https://github.com/kiip/bloom-python-driver
-* Ruby : https://github.com/SponsorPay/bloomrb
-* Erlang : https://github.com/armon/erl-bloomd
-* Go : https://github.com/geetarista/go-bloomd
-* Perl : https://github.com/dams/Bloomd-Client
-
-Here is a list of "best-practices" for client implementations:
-
-* Maintain a set of open connections to the server to minimize connection time
-* Make use of the bulk operations when possible, as they are more efficient.
-* For long keys, it is better to do a client-side hash (SHA1 at least), and send
-  the hash as the key to minimize network traffic.
 
 
 Protocol
