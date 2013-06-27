@@ -45,11 +45,6 @@ int shutdown_networking(bloom_networking *netconf, pthread_t *threads);
  */
 
 /**
- * Closes the client connection.
- */
-void close_client_connection(bloom_conn_info *conn);
-
-/**
  * Sends a response to a client.
  * @arg conn The client connection
  * @arg response_buffers A list of response buffers to send
