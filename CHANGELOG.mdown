@@ -1,3 +1,10 @@
+# 0.7.1
+  * Increase the safety of connection handling. Prevents some crashing
+    conditions.
+  * Reduce checkpoint intervals from 1 second to 250 milliseconds. This
+    allows faster cleanups, and helps prevent "Delete in progress" errors.
+  * Git SHA: 5715bea
+
 # 0.7.0
 
   * Major rewrite of the internal Multi-Version Concurrency Controll (MVCC).
