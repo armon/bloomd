@@ -60,7 +60,7 @@
  * This allows certain cleanups and state updates
  * to take place.
  */
-#define PERIODIC_TIME_SEC 1.0
+#define PERIODIC_TIME_SEC 0.25
 
 
 /**
