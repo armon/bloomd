@@ -66,12 +66,17 @@
 /**
  * Stores the worker thread specific user data.
  */
+typedef struct conn_info conn_info;
 typedef struct {
     bloom_networking *netconf;
     ev_loop *loop;
     int pipefd[2];
     ev_io pipe_client;
     ev_timer periodic;
+    int should_run;
+
+    // Used to free inactive connections
+    conn_info *inactive;
 } worker_ev_userdata;
 
 /**
@@ -113,8 +118,9 @@ struct conn_info {
     int use_write_buf;
     ev_io write_client;
     circular_buffer output;
+
+    struct conn_info *next;
 };
-typedef struct conn_info conn_info;
 
 
 /**
@@ -146,6 +152,9 @@ static void handle_client_writebuf(ev_loop *lp, ev_io *watcher, int ready_events
 static int read_client_data(conn_info *conn);
 static void handle_worker_notification(ev_loop *lp, ev_io *watcher, int ready_events);
 static void handle_periodic_timeout(ev_loop *lp, ev_timer *t, int ready_events);
+
+static void close_client_connection(conn_info *conn);
+static void deactivate_client_connection(conn_info *conn);
 
 // Helpers for send_client_response
 static int send_client_response_buffered(conn_info *conn, char **response_buffers, int *buf_sizes, int num_bufs);
@@ -419,6 +428,9 @@ static void handle_client_writebuf(ev_loop *lp, ev_io *watcher, int ready_events
     // Get the associated connection struct
     conn_info *conn = watcher->data;
 
+    // Bail if inactive
+    if (!conn->active) return;
+
     // Build the IO vectors to perform the write
     struct iovec vectors[2];
     int num_vectors;
@@ -443,7 +455,7 @@ static void handle_client_writebuf(ev_loop *lp, ev_io *watcher, int ready_events
     if (write_bytes <= 0 && (errno != EAGAIN && errno != EINTR)) {
         syslog(LOG_ERR, "Failed to write() to connection [%d]! %s.",
                 conn->client.fd, strerror(errno));
-        close_client_connection(conn);
+        deactivate_client_connection(conn);
         return;
     }
 }
@@ -458,11 +470,14 @@ static void handle_client_writebuf(ev_loop *lp, ev_io *watcher, int ready_events
 static void invoke_event_handler(ev_loop *lp, ev_io *watcher, int ready_events) {
     // Get the user data
     worker_ev_userdata *data = ev_userdata(lp);
+    conn_info *conn = watcher->data;
+
+    // Bail if inactive
+    if (!conn->active) return;
 
     // Read in the data, and close on issues
-    conn_info *conn = watcher->data;
     if (read_client_data(conn)) {
-        close_client_connection(conn);
+        deactivate_client_connection(conn);
         return;
     }
 
@@ -473,8 +488,8 @@ static void invoke_event_handler(ev_loop *lp, ev_io *watcher, int ready_events) 
     handle.conn = conn;
 
     // Reschedule the watcher, unless it's non-active now
-    if (handle_client_connect(&handle) || !conn->active)
-        close_client_connection(conn);
+    if (handle_client_connect(&handle))
+        deactivate_client_connection(conn);
 }
 
 
@@ -508,6 +523,7 @@ static void handle_worker_notification(ev_loop *lp, ev_io *watcher, int ready_ev
 
         // Quit
         case 'q':
+            data->should_run = 0;
             ev_break(lp, EVBREAK_ALL);
             break;
 
@@ -546,6 +562,8 @@ void start_networking_worker(bloom_networking *netconf) {
     // Allocate our user data
     worker_ev_userdata data;
     data.netconf = netconf;
+    data.should_run = 1;
+    data.inactive = NULL;
 
     // Allocate our pipe
     if (pipe(data.pipefd)) {
@@ -590,7 +608,18 @@ void start_networking_worker(bloom_networking *netconf) {
     barrier_wait(&netconf->thread_barrier);
 
     // Run the event loop
-    ev_run(data.loop, 0);
+    while (data.should_run) {
+        ev_run(data.loop, EVRUN_ONCE);
+
+        // Free inactive connections
+        conn_info *c = data.inactive;
+        while (c) {
+            conn_info *n = c->next;
+            close_client_connection(c);
+            c = n;
+        }
+        data.inactive = NULL;
+    }
 
     // Cleanup after exit
     ev_timer_stop(data.loop, &data.periodic);
@@ -678,7 +707,7 @@ int shutdown_networking(bloom_networking *netconf, pthread_t *threads) {
  * can be re-used.
  * @arg conn The connection to close
  */
-void close_client_connection(conn_info *conn) {
+static void close_client_connection(conn_info *conn) {
     // Stop the libev clients
     ev_io_stop(conn->thread_ev->loop, &conn->client);
     ev_io_stop(conn->thread_ev->loop, &conn->write_client);
@@ -693,6 +722,16 @@ void close_client_connection(conn_info *conn) {
     free(conn);
 }
 
+/**
+ * Marks a client connection as 'inactive' and
+ * to be closed when the event loop is finished.
+ */
+static void deactivate_client_connection(conn_info *conn) {
+    if (!conn->active) return;
+    conn->active = 0;
+    conn->next = conn->thread_ev->inactive;
+    conn->thread_ev->inactive = conn;
+}
 
 /**
  * Sends a response to a client.
@@ -720,7 +759,7 @@ int send_client_response(conn_info *conn, char **response_buffers, int *buf_size
     }
 
     // Disable the connection on error
-    if (res) conn->active = 0;
+    if (res) deactivate_client_connection(conn);
     return res;
 }
 
@@ -757,7 +796,6 @@ static int send_client_response_direct(conn_info *conn, char **response_buffers,
         if (errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
             syslog(LOG_ERR, "Failed to send() to connection [%d]! %s.",
                     conn->client.fd, strerror(errno));
-            close_client_connection(conn);
             return 1;
         }
     }
