@@ -1073,7 +1073,7 @@ static void* filtmgr_thread_main(void *in) {
             // Release the lock and see if we should loop back
             pthread_mutex_unlock(&mgr->write_lock);
             if (should_continue) {
-                syslog(LOG_INFO, "All updates applyed. (vsn: %llu)", mgr_vsn);
+                syslog(LOG_INFO, "All updates applied. (vsn: %llu)", mgr_vsn);
                 continue;
             }
         }
