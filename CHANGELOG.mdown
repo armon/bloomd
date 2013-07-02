@@ -1,3 +1,9 @@
+# 0.7.2
+
+  * Fixing issue with flush and unmap being invoked too often due
+  to integer divide bug
+  * Git SHA: 455d38b
+
 # 0.7.1
   * Increase the safety of connection handling. Prevents some crashing
     conditions.
