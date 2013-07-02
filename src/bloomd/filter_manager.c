@@ -11,6 +11,12 @@
 #include "type_compat.h"
 
 /**
+ * This defines how log we sleep between vacuum poll
+ * iterations in microseconds
+ */
+#define VACUUM_POLL_USEC 500000
+
+/**
  * Wraps a bloom_filter to ensure only a single
  * writer access it at a time. Tracks the outstanding
  * references, to allow a sane close to take place.
@@ -1030,7 +1036,7 @@ static void version_barrier(bloom_filtmgr *mgr) {
 
     // Wait until we converge on the version
     while (mgr->should_run && client_min_vsn(mgr) < vsn)
-        sleep(1);
+        usleep(VACUUM_POLL_USEC);
 }
 
 /**
@@ -1048,7 +1054,7 @@ static void* filtmgr_thread_main(void *in) {
     while (mgr->should_run) {
         // Do nothing if there is no changes
         if (mgr->vsn == mgr->primary_vsn) {
-            sleep(1);
+            usleep(VACUUM_POLL_USEC);
             continue;
         }
 
