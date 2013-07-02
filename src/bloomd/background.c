@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <stdlib.h>
 #include "background.h"
 
 
@@ -10,10 +11,10 @@
 
 /**
  * Based on the PERIODIC_TIME_USEC, this should
- * convert 'ticks' to seconds. One tick occurs
+ * convert seconds to tick counts. One tick occurs
  * each PERIODIC_TIME_USEC interval
  */
-#define TICK_TO_SEC(ticks) ((ticks / 4))
+#define SEC_TO_TICKS(sec) ((sec * 4))
 
 /*
 * After how many background operations should we force a client
@@ -110,7 +111,7 @@ static void* flush_thread_main(void *in) {
     while (*should_run) {
         usleep(PERIODIC_TIME_USEC);
         filtmgr_client_checkpoint(mgr);
-        if ((TICK_TO_SEC(++ticks) % config->flush_interval) == 0 && *should_run) {
+        if ((++ticks % SEC_TO_TICKS(config->flush_interval)) == 0 && *should_run) {
             // List all the filters
             syslog(LOG_INFO, "Scheduled flush started.");
             bloom_filter_list_head *head;
@@ -151,7 +152,7 @@ static void* unmap_thread_main(void *in) {
     while (*should_run) {
         usleep(PERIODIC_TIME_USEC);
         filtmgr_client_checkpoint(mgr);
-        if ((TICK_TO_SEC(++ticks) % config->cold_interval) == 0 && *should_run) {
+        if ((++ticks % SEC_TO_TICKS(config->cold_interval)) == 0 && *should_run) {
             // List the cold filters
             syslog(LOG_INFO, "Cold unmap started.");
             bloom_filter_list_head *head;
