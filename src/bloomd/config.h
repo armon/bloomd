@@ -9,6 +9,7 @@
 typedef struct {
     int tcp_port;
     int udp_port;
+    char *bind_address;
     char *data_dir;
     char *log_level;
     int syslog_log_level;

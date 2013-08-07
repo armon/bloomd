@@ -18,6 +18,7 @@
 static const bloom_config DEFAULT_CONFIG = {
     8673,               // TCP defaults to 8673
     8674,               // UDP on 8674
+    "0.0.0.0",          // Listen on all IPv4 addresses
     "/tmp/bloomd",      // Tmp data dir, until configured
     "DEBUG",            // DEBUG level
     LOG_DEBUG,
@@ -135,6 +136,8 @@ static int config_callback(void* user, const char* section, const char* name, co
         config->data_dir = strdup(value);
     } else if (NAME_MATCH("log_level")) {
         config->log_level = strdup(value);
+    } else if (NAME_MATCH("bind_address")) {
+        config->bind_address = strdup(value);
 
     // Unknown parameter?
     } else {

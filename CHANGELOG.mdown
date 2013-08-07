@@ -1,3 +1,7 @@
+# 0.7.3
+
+  * Adding support for a bind\_address
+
 # 0.7.2
 
   * Fixing issue with flush and unmap being invoked too often due

@@ -100,6 +100,8 @@ Each configuration option is documented below:
  * udp\_port : Integer, sets the udp port. Currently listened on
                 but otherwise unused. Default 8674.
 
+ * bind\_address: The IP to bind to. Defaults to 0.0.0.0
+
  * data\_dir : The data directory that is used. Defaults to /tmp/bloomd
 
  * log\_level : The logging level that bloomd should use. One of:

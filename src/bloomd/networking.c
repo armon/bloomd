@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <math.h>
+#include <errno.h>
 #include "conn_handler.h"
 #include "spinlock.h"
 #include "barrier.h"
@@ -184,10 +185,18 @@ static int circbuf_write(circular_buffer *buf, char *in, uint64_t bytes);
  */
 static int setup_tcp_listener(bloom_networking *netconf) {
     struct sockaddr_in addr;
+    struct in_addr bind_addr;
     bzero(&addr, sizeof(addr));
+    bzero(&bind_addr, sizeof(bind_addr));
     addr.sin_family = PF_INET;
     addr.sin_port = htons(netconf->config->tcp_port);
-    addr.sin_addr.s_addr = INADDR_ANY;
+
+    int ret = inet_pton(AF_INET, netconf->config->bind_address, &bind_addr);
+    if (ret != 1) {
+        syslog(LOG_ERR, "Invalid IPv4 address '%s'!", netconf->config->bind_address);
+        return 1;
+    }
+    addr.sin_addr = bind_addr;
 
     // Make the socket, bind and listen
     int tcp_listener_fd = socket(PF_INET, SOCK_STREAM, 0);
@@ -223,10 +232,18 @@ static int setup_tcp_listener(bloom_networking *netconf) {
  */
 static int setup_udp_listener(bloom_networking *netconf) {
     struct sockaddr_in addr;
+    struct in_addr bind_addr;
     bzero(&addr, sizeof(addr));
+    bzero(&bind_addr, sizeof(bind_addr));
     addr.sin_family = PF_INET;
     addr.sin_port = htons(netconf->config->udp_port);
-    addr.sin_addr.s_addr = INADDR_ANY;
+
+    int ret = inet_pton(AF_INET, netconf->config->bind_address, &bind_addr);
+    if (ret != 1) {
+        syslog(LOG_ERR, "Invalid IPv4 address '%s'!", netconf->config->bind_address);
+        return 1;
+    }
+    addr.sin_addr = bind_addr;
 
     // Make the socket, bind and listen
     int udp_listener_fd = socket(PF_INET, SOCK_DGRAM, 0);
