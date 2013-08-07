@@ -1,6 +1,7 @@
 # 0.7.3
 
   * Adding support for a bind\_address
+  * Git SHA: a0706a9
 
 # 0.7.2
 
