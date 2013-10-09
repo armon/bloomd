@@ -80,6 +80,7 @@ Here is a list of known client implementations:
 * Go : https://github.com/geetarista/go-bloomd
 * Perl : https://github.com/dams/Bloomd-Client
 * Node.js : https://github.com/majelbstoat/node-bloomd
+* PHP: https://github.com/mdlayher/php-bloomd
 
 Here is a list of "best-practices" for client implementations:
 
