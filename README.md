@@ -3,7 +3,7 @@ Bloomd [![Build Status](https://travis-ci.org/armon/bloomd.png?branch=master)](h
 
 Bloomd is a high-performance C server which is used
 to expose bloom filters and operations over them to
-networked clients. It uses a simple ASCI protocol
+networked clients. It uses a simple ASCII protocol
 which is human readable, and similar to memcached.
 
 Features
