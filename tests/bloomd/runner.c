@@ -91,6 +91,7 @@ int main(void)
 
     // Add the art tests
     suite_add_tcase(s1, tc5);
+    tcase_set_timeout(tc4, 8);
     tcase_add_test(tc5, test_art_init_and_destroy);
     tcase_add_test(tc5, test_art_insert);
     tcase_add_test(tc5, test_art_insert_search);
