@@ -37,8 +37,20 @@
 
 <p>Bloomd is a high-performance C server which is used
 to expose bloom filters and operations over them to
-networked clients. It uses a simple ASCI protocol
+networked clients. It uses a simple ASCII protocol
 which is human readable, and similar to memcached.</p>
+
+<p><a href="http://en.wikipedia.org/wiki/Bloom_filter">Bloom filters</a> are a
+type of sketching or approximate data structure. They trade exactness
+for efficiency of representation. Bloom filters provide a set-like
+abstraction, with the important caveat that they may contain false-positives,
+meaning they may claim an element is part of the set when it was
+never in fact added. The rate of false positives can be tuned to meet
+application demands, but reducing the error rate rapidly increases
+the amount of memory required for the representation.</p>
+
+<p>TL;DR: Bloom filters enable you to represent 1MM items with a false positive rate
+of 0.1% in 2.4MB of RAM.</p>
 
 <h2>
 <a name="features" class="anchor" href="#features"><span class="octicon octicon-link"></span></a>Features</h2>
@@ -125,6 +137,8 @@ workers = 2
 <li>Perl : <a href="https://github.com/dams/Bloomd-Client">https://github.com/dams/Bloomd-Client</a>
 </li>
 <li>Node.js : <a href="https://github.com/majelbstoat/node-bloomd">https://github.com/majelbstoat/node-bloomd</a>
+</li>
+<li>PHP: <a href="https://github.com/mdlayher/php-bloomd">https://github.com/mdlayher/php-bloomd</a>
 </li>
 </ul><p>Here is a list of "best-practices" for client implementations:</p>
 
@@ -215,13 +229,13 @@ and ending the line in a newline (carriage return is optional).</p>
 </code></pre>
 
 <p>Where <code>filter_name</code> is the name of the filter,
-and can contain the characters a-z, A-Z, 0-9, ., _.
+and can contain the characters a-z, A-Z, 0-9, ., <em>.
 If an initial capacity is provided the filter
 will be created to store at least that many items in the initial filter.
 Otherwise the configured default value will be used.
 If a maximum false positive probability is provided,
 that will be used, otherwise the configured default is used.
-You can optionally specify in_memory to force the filter to not be
+You can optionally specify in</em>memory to force the filter to not be
 persisted to disk.</p>
 
 <p>As an example::</p>
