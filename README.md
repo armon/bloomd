@@ -6,6 +6,19 @@ to expose bloom filters and operations over them to
 networked clients. It uses a simple ASCII protocol
 which is human readable, and similar to memcached.
 
+[Bloom filters](http://en.wikipedia.org/wiki/Bloom_filter) are a
+type of sketching or approximate data structure. They trade exactness
+for efficiency of representation. Bloom filters provide a set-like
+abstraction, with the important caveat that they may contain false-positives,
+meaning they may claim an element is part of the set when it was
+never in fact added. The rate of false positives can be tuned to meet
+application demands, but reducing the error rate rapidly increases
+the amount of memory required for the representation.
+
+TL;DR: Bloom filters enable you to represent 1MM items with a false positive rate
+of 0.1% in 2.4MB of RAM.
+
+
 Features
 --------
 
