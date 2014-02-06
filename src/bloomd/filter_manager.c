@@ -131,9 +131,9 @@ static bloom_filter_wrapper* find_filter(bloom_filtmgr *mgr, char *filter_name);
 static bloom_filter_wrapper* take_filter(bloom_filtmgr *mgr, char *filter_name);
 static void delete_filter(bloom_filter_wrapper *filt);
 static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *config, int is_hot, int delta);
-static int filter_map_list_cb(void *data, const char *key, uint32_t key_len, void *value);
-static int filter_map_list_cold_cb(void *data, const char *key, uint32_t key_len, void *value);
-static int filter_map_delete_cb(void *data, const char *key, uint32_t key_len, void *value);
+static int filter_map_list_cb(void *data, const unsigned char *key, uint32_t key_len, void *value);
+static int filter_map_list_cold_cb(void *data, const unsigned char *key, uint32_t key_len, void *value);
+static int filter_map_delete_cb(void *data, const unsigned char *key, uint32_t key_len, void *value);
 static int load_existing_filters(bloom_filtmgr *mgr);
 static unsigned long long create_delta_update(bloom_filtmgr *mgr, delta_type type, bloom_filter_wrapper *filt);
 static void* filtmgr_thread_main(void *in);
@@ -545,7 +545,7 @@ int filtmgr_list_filters(bloom_filtmgr *mgr, char *prefix, bloom_filter_list_hea
     int prefix_len = 0;
     if (prefix) {
         prefix_len = strlen(prefix);
-        art_iter_prefix(mgr->filter_map, prefix, prefix_len, filter_map_list_cb, h);
+        art_iter_prefix(mgr->filter_map, (unsigned char*)prefix, prefix_len, filter_map_list_cb, h);
     } else
         art_iter(mgr->filter_map, filter_map_list_cb, h);
 
@@ -560,7 +560,7 @@ int filtmgr_list_filters(bloom_filtmgr *mgr, char *prefix, bloom_filter_list_hea
             f = current->filter;
             if (!prefix_len || !strncmp(f->filter->filter_name, prefix, prefix_len)) {
                 f = current->filter;
-                filter_map_list_cb(h, f->filter->filter_name, 0, f);
+                filter_map_list_cb(h, (unsigned char*)f->filter->filter_name, 0, f);
             }
         }
 
@@ -630,7 +630,7 @@ void filtmgr_cleanup_list(bloom_filter_list_head *head) {
 static bloom_filter_wrapper* find_filter(bloom_filtmgr *mgr, char *filter_name) {
     // Search the tree first
     bloom_filter_wrapper *filt = art_search(mgr->filter_map,
-            filter_name, strlen(filter_name)+1);
+            (unsigned char*)filter_name, strlen(filter_name)+1);
     if (filt) return filt;
 
     // Check if the primary has all delta changes
@@ -719,7 +719,7 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
     if (delta)
         create_delta_update(mgr, CREATE, filt);
     else
-        art_insert(mgr->filter_map, filter_name, strlen(filter_name)+1, filt);
+        art_insert(mgr->filter_map, (unsigned char*)filter_name, strlen(filter_name)+1, filt);
     return 0;
 }
 
@@ -728,7 +728,7 @@ static int add_filter(bloom_filtmgr *mgr, char *filter_name, bloom_config *confi
  * to list all the filters. Only works if value is
  * not NULL.
  */
-static int filter_map_list_cb(void *data, const char *key, uint32_t key_len, void *value) {
+static int filter_map_list_cb(void *data, const unsigned char *key, uint32_t key_len, void *value) {
     (void)key_len;
     // Filter out the non-active nodes
     bloom_filter_wrapper *filt = value;
@@ -741,7 +741,7 @@ static int filter_map_list_cb(void *data, const char *key, uint32_t key_len, voi
     bloom_filter_list *node = malloc(sizeof(bloom_filter_list));
 
     // Setup
-    node->filter_name = strdup(key);
+    node->filter_name = strdup((char*)key);
     node->next = NULL;
 
     // Inject at head if first node
@@ -763,7 +763,7 @@ static int filter_map_list_cb(void *data, const char *key, uint32_t key_len, voi
  * to list cold filters. Only works if value is
  * not NULL.
  */
-static int filter_map_list_cold_cb(void *data, const char *key, uint32_t key_len, void *value) {
+static int filter_map_list_cold_cb(void *data, const unsigned char *key, uint32_t key_len, void *value) {
     (void)key_len;
     // Cast the inputs
     bloom_filter_list_head *head = data;
@@ -784,7 +784,7 @@ static int filter_map_list_cold_cb(void *data, const char *key, uint32_t key_len
     bloom_filter_list *node = malloc(sizeof(bloom_filter_list));
 
     // Setup
-    node->filter_name = strdup(key);
+    node->filter_name = strdup((char*)key);
     node->next = head->head;
 
     // Inject
@@ -797,7 +797,7 @@ static int filter_map_list_cold_cb(void *data, const char *key, uint32_t key_len
  * Called as part of the hashmap callback
  * to cleanup the filters.
  */
-static int filter_map_delete_cb(void *data, const char *key, uint32_t key_len, void *value) {
+static int filter_map_delete_cb(void *data, const unsigned char *key, uint32_t key_len, void *value) {
     (void)data;
     (void)key;
     (void)key_len;
@@ -896,10 +896,10 @@ static void merge_old_versions(bloom_filtmgr *mgr, filter_list *delta, unsigned 
     bloom_filter_wrapper *s = delta->filter;
     switch (delta->type) {
         case CREATE:
-            art_insert(mgr->alt_filter_map, s->filter->filter_name, strlen(s->filter->filter_name)+1, s);
+            art_insert(mgr->alt_filter_map, (unsigned char*)s->filter->filter_name, strlen(s->filter->filter_name)+1, s);
             break;
         case DELETE:
-            art_delete(mgr->alt_filter_map, s->filter->filter_name, strlen(s->filter->filter_name)+1);
+            art_delete(mgr->alt_filter_map, (unsigned char*)s->filter->filter_name, strlen(s->filter->filter_name)+1);
             break;
         case BARRIER:
             // Ignore the barrier...

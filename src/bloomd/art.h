@@ -9,7 +9,7 @@
 
 #define MAX_PREFIX_LEN 10
 
-typedef int(*art_callback)(void *data, const char *key, uint32_t key_len, void *value);
+typedef int(*art_callback)(void *data, const unsigned char *key, uint32_t key_len, void *value);
 
 /**
  * This struct is included as part
@@ -19,7 +19,7 @@ typedef struct {
     uint8_t type;
     uint8_t num_children;
     uint32_t partial_len;
-    char partial[MAX_PREFIX_LEN];
+    unsigned char partial[MAX_PREFIX_LEN];
 } art_node;
 
 /**
@@ -105,7 +105,7 @@ inline uint64_t art_size(art_tree *t) {
  * @return NULL if the item was newly inserted, otherwise
  * the old value pointer is returned.
  */
-void* art_insert(art_tree *t, char *key, int key_len, void *value);
+void* art_insert(art_tree *t, unsigned char *key, int key_len, void *value);
 
 /**
  * Deletes a value from the ART tree
@@ -115,7 +115,7 @@ void* art_insert(art_tree *t, char *key, int key_len, void *value);
  * @return NULL if the item was not found, otherwise
  * the value pointer is returned.
  */
-void* art_delete(art_tree *t, char *key, int key_len);
+void* art_delete(art_tree *t, unsigned char *key, int key_len);
 
 /**
  * Searches for a value in the ART tree
@@ -125,7 +125,7 @@ void* art_delete(art_tree *t, char *key, int key_len);
  * @return NULL if the item was not found, otherwise
  * the value pointer is returned.
  */
-void* art_search(art_tree *t, char *key, int key_len);
+void* art_search(art_tree *t, unsigned char *key, int key_len);
 
 /**
  * Returns the minimum valued leaf
@@ -163,7 +163,7 @@ int art_iter(art_tree *t, art_callback cb, void *data);
  * @arg data Opaque handle passed to the callback
  * @return 0 on success, or the return of the callback.
  */
-int art_iter_prefix(art_tree *t, char *prefix, int prefix_len, art_callback cb, void *data);
+int art_iter_prefix(art_tree *t, unsigned char *prefix, int prefix_len, art_callback cb, void *data);
 
 /**
  * Creates a copy of an ART tree. The two trees will
