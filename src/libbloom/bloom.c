@@ -303,14 +303,14 @@ void bf_compute_hashes(uint32_t k_num, char *key, uint64_t *hashes) {
 
     // Compute the first hash
     uint64_t out[2];
-    MurmurHash3_x64_128(key, len, 0, &out);
+    MurmurHash3_x64_128(key, len, 0, out);
 
     // Copy these out
     hashes[0] = out[0];  // Upper 64bits of murmur
     hashes[1] = out[1];  // Lower 64bits of murmur
 
     // Compute the second hash
-    uint64_t *hash1 = (uint64_t*)&out;
+    uint64_t *hash1 = out;
     uint64_t *hash2 = hash1+1;
     SpookyHash128(key, len, 0, 0, hash1, hash2);
 
