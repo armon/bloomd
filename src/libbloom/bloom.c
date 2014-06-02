@@ -24,7 +24,7 @@ extern void SpookyHash128(const void *key, size_t len, uint64_t seed1, uint64_t 
  */
 int bf_from_bitmap(bloom_bitmap *map, uint32_t k_num, int new_filter, bloom_bloomfilter *filter) {
     // Check our args
-    if (map == NULL or k_num < 1) {
+    if (map == NULL || k_num < 1) {
         return -EINVAL;
     }
 
@@ -163,7 +163,7 @@ uint64_t bf_size(bloom_bloomfilter *filter) {
  */
 int bf_flush(bloom_bloomfilter *filter) {
     // Flush the bitmap if we have one
-    if (filter == NULL or filter->map == NULL) {
+    if (filter == NULL || filter->map == NULL) {
         return -1;
     }
     return bitmap_flush(filter->map);
@@ -176,7 +176,7 @@ int bf_flush(bloom_bloomfilter *filter) {
  */
 int bf_close(bloom_bloomfilter *filter) {
     // Make sure we have a filter
-    if (filter == NULL or filter->map == NULL) {
+    if (filter == NULL || filter->map == NULL) {
         return -1;
     }
 
@@ -226,7 +226,7 @@ int bf_params_for_capacity(bloom_filter_params *params) {
 int bf_size_for_capacity_prob(bloom_filter_params *params) {
     uint64_t capacity = params->capacity;
     double fp_prob = params->fp_probability;
-    if (capacity == 0 or fp_prob == 0) {
+    if (capacity == 0 || fp_prob == 0) {
         return -1;
     }
     double bits = -(capacity*log(fp_prob)/(log(2)*log(2)));
@@ -244,7 +244,7 @@ int bf_size_for_capacity_prob(bloom_filter_params *params) {
 int bf_fp_probability_for_capacity_size(bloom_filter_params *params) {
     uint64_t bits = params->bytes * 8;
     uint64_t capacity = params->capacity;
-    if (bits == 0 or capacity == 0) {
+    if (bits == 0 || capacity == 0) {
         return -1;
     }
     double fp_prob = pow(M_E, -( (double)bits / (double)capacity)*(pow(log(2),2)));
@@ -260,7 +260,7 @@ int bf_fp_probability_for_capacity_size(bloom_filter_params *params) {
 int bf_capacity_for_size_prob(bloom_filter_params *params) {
     uint64_t bits = params->bytes * 8;
     double prob = params->fp_probability;
-    if (bits == 0 or prob == 0) {
+    if (bits == 0 || prob == 0) {
         return -1;
     }
     uint64_t capacity = -(bits / log(prob) * (log(2) * log(2)));
@@ -276,7 +276,7 @@ int bf_capacity_for_size_prob(bloom_filter_params *params) {
 int bf_ideal_k_num(bloom_filter_params *params) {
     uint64_t bits = params->bytes * 8;
     uint64_t capacity = params->capacity;
-    if (bits == 0 or capacity == 0) {
+    if (bits == 0 || capacity == 0) {
         return -1;
     }
     uint32_t ideal_k = round(log(2) * bits / capacity);

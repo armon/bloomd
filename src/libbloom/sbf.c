@@ -113,7 +113,7 @@ uint64_t sbf_size(bloom_sbf *sbf) {
  */
 int sbf_flush(bloom_sbf *sbf) {
     // Check if it has been previously closed
-    if (sbf == NULL or sbf->num_filters == 0) {
+    if (sbf == NULL || sbf->num_filters == 0) {
         return -1;
     }
 
@@ -135,7 +135,7 @@ int sbf_flush(bloom_sbf *sbf) {
  */
 int sbf_close(bloom_sbf *sbf) {
     // Check if it has been previously closed
-    if (sbf == NULL or sbf->num_filters == 0) {
+    if (sbf == NULL || sbf->num_filters == 0) {
         return -1;
     }
 
