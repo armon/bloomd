@@ -85,10 +85,10 @@ inline void bitmap_setbit(bloom_bitmap *map, uint64_t idx) {
     if (map->mode == PERSISTENT) {
         // >> 12 for 4096 (bytes/page), >> 3 for 8 (bits/byte)
         uint64_t page = idx >> 15;
-        byte = map->dirty_pages[page >> 3];
+        byte = map->dirty_pages[page];
         byte_off = 7 - page % 8;
         byte |= 1 << byte_off;
-        map->dirty_pages[page >> 3] = byte;
+        map->dirty_pages[page] = byte;
     }
 }
 
