@@ -34,7 +34,7 @@ Features
 Install
 -------
 
-Download and build from source::
+Download and build from source:
 
     $ git clone https://armon@github.com/armon/bloomd.git
     $ cd bloomd
@@ -44,7 +44,7 @@ Download and build from source::
 
 This will generate some errors related to building the test code
 as it depends on libcheck. To build the test code successfully,
-do the following::
+do the following:
 
     $ cd deps/check-0.9.8/
     $ ./configure
@@ -171,14 +171,14 @@ Protocol
 By default, Bloomd will listen for TCP connections on port 8673.
 It uses a simple ASCII protocol that is very similar to memcached.
 
-A command has the following syntax::
+A command has the following syntax:
 
     cmd [args][\r]\n
 
 We start each line by specifying a command, providing optional arguments,
 and ending the line in a newline (carriage return is optional).
 
-There are a total of 10 commands:
+There are a total of 11 commands:
 
 * create - Create a new filter (a filter is a named bloom filter)
 * list - List all filters or those matching a prefix
@@ -192,7 +192,7 @@ There are a total of 10 commands:
 * info - Gets info about a filter
 * flush - Flushes all filters or just a specified one
 
-For the ``create`` command, the format is::
+For the ``create`` command, the format is:
 
     create filter_name [capacity=initial_capacity] [prob=max_prob] [in_memory=0|1]
 
@@ -206,7 +206,7 @@ that will be used, otherwise the configured default is used.
 You can optionally specify in_memory to force the filter to not be
 persisted to disk.
 
-As an example::
+As an example:
 
     create foobar capacity=1000000 prob=0.001
 
@@ -218,7 +218,7 @@ has not yet completed the delete operation. If so, a client should
 retry the create in a few seconds.
 
 The ``list`` command takes either no arguments or a set prefix, and returns information
-about the matching filters. Here is an example response to a command::
+about the matching filters. Here is an example response to a command:
 
     > list foo
     START
@@ -235,7 +235,7 @@ It can either return "Done" or "Filter does not exist". ``clear`` can also retur
 This means that the filter is still in-memory and not qualified for being cleared.
 This can be resolved by first closing the filter.
 
-Check and set look similar, they are either::
+Check and set look similar, they are either:
 
     [check|set] filter_name key
 
@@ -244,7 +244,7 @@ They will either return "Yes", "No" or "Filter does not exist".
 
 
 The bulk and multi commands are similar to check/set but allows for many keys
-to be set or checked at once. Keys must be separated by a space::
+to be set or checked at once. Keys must be separated by a space:
 
     [multi|bulk] filter_name key1 [key_2 [key_3 [key_N]]]
 
@@ -252,7 +252,7 @@ The check, multi, set and bulk commands can also be called by their aliasses
 c, m, s and b respectively.
 
 The ``info`` command takes a filter name, and returns
-information about the filter. Here is an example output::
+information about the filter. Here is an example output:
 
     START
     capacity 1000000
@@ -281,7 +281,7 @@ Example
 ----------
 
 Here is an example of a client flow, assuming bloomd is
-running on the default port using just telnet::
+running on the default port using just telnet:
 
     $ telnet localhost 8673
     > list
