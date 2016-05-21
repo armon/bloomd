@@ -94,6 +94,7 @@ Here is a list of known client implementations:
 * Perl : https://github.com/dams/Bloomd-Client
 * Node.js : https://github.com/majelbstoat/node-bloomd
 * PHP: https://github.com/mdlayher/php-bloomd
+* Java: https://github.com/casidiablo/java-bloomd-client
 
 Here is a list of "best-practices" for client implementations:
 
