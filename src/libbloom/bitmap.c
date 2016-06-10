@@ -5,10 +5,10 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <strings.h>
-#include <sys/mman.h>
-#include <sys/errno.h>
-#include <sys/stat.h>
+#include <errno.h>
 #include <syslog.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include "bitmap.h"
 
 /* Static declarations */
