@@ -197,6 +197,12 @@ For the ``create`` command, the format is:
 
     create filter_name [capacity=initial_capacity] [prob=max_prob] [in_memory=0|1]
 
+Note:
+1. `capacity` must > 10,000 (1e4, 10K)
+2. `capacity` is suggested <= 1,000,000,000 (1e9, 1G)
+3. `prob` must < 0.1 (1e-1)
+4. `prob` is suggested <= 0.01 (1e-2)
+
 Where ``filter_name`` is the name of the filter,
 and can contain the characters a-z, A-Z, 0-9, ., _.
 If an initial capacity is provided the filter
