@@ -258,11 +258,11 @@ int sane_log_level(char *log_level, int *syslog_level) {
 }
 
 int sane_initial_capacity(int64_t initial_capacity) {
-    if (initial_capacity <= 10000) {
+    if (initial_capacity <= 10000) {  // 1e4, 10K
         syslog(LOG_ERR,
                "Initial capacity cannot be less than 10K!");
         return 1;
-    } else if (initial_capacity > 1000000000) {
+    } else if (initial_capacity > 1000000000) {  // 1e9, 1G
         syslog(LOG_WARNING, "Initial capacity set very high!");
     }
     return 0;
