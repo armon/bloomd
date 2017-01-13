@@ -338,7 +338,7 @@ int filtmgr_check_keys(bloom_filtmgr *mgr, char *filter_name, char **keys, int n
     if (!filt) return -1;
 
     // Acquire the write lock
-    pthread_rwlock_rdlock(&filt->rwlock);
+    pthread_rwlock_wrlock(&filt->rwlock);
 
     // Check the keys, store the results
     int res = 0;

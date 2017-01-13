@@ -6,11 +6,11 @@
 
 #ifdef __MACH__
 // On OSX use OSAtomic
-#include <libkern/OSAtomic.h>
-typedef OSSpinLock bloom_spinlock;
-#define INIT_BLOOM_SPIN(spin) { *spin = OS_SPINLOCK_INIT; }
-#define LOCK_BLOOM_SPIN(spin) { OSSpinLockLock(spin); }
-#define UNLOCK_BLOOM_SPIN(spin) { OSSpinLockUnlock(spin); }
+#include <os/lock.h>
+typedef os_unfair_lock bloom_spinlock;
+#define INIT_BLOOM_SPIN(spin) { *spin = OS_UNFAIR_LOCK_INIT; }
+#define LOCK_BLOOM_SPIN(spin) { os_unfair_lock_lock(spin); }
+#define UNLOCK_BLOOM_SPIN(spin) { os_unfair_lock_unlock(spin); }
 
 #else
 #ifdef _POSIX_SPIN_LOCKS

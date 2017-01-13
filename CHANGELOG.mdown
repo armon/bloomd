@@ -1,3 +1,9 @@
+# 0.7.5
+
+ * Bug fix for potential SIGSEGV caused by invalid lock on filter check
+ * Fixed circular buffer writing bug
+ * Git SHA: 16a99fd
+
 # 0.7.4
 
   * Bug fix for potential issues related to non-ASCII filter names
