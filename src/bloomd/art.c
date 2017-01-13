@@ -2,9 +2,16 @@
 #include <string.h>
 #include <strings.h>
 #include <stdio.h>
-#include <emmintrin.h>
 #include <assert.h>
 #include "art.h"
+
+#ifdef __i386__
+#include <emmintrin.h>
+#else
+#ifdef __amd64__
+#include <emmintrin.h>
+#endif
+#endif
 
 /**
  * Macros to manipulate pointer tags
@@ -142,17 +149,41 @@ static art_node** find_child(art_node *n, unsigned char c) {
             break;
 
         {
-        __m128i cmp;
         case NODE16:
             p.p2 = (art_node16*)n;
 
-            // Compare the key to all 16 stored keys
-            cmp = _mm_cmpeq_epi8(_mm_set1_epi8(c),
-                    _mm_loadu_si128((__m128i*)p.p2->keys));
+            // support non-86 architectures
+            #ifdef __i386__
+                // Compare the key to all 16 stored keys
+                __m128i cmp;
+                cmp = _mm_cmpeq_epi8(_mm_set1_epi8(c),
+                        _mm_loadu_si128((__m128i*)p.p2->keys));
+                
+                // Use a mask to ignore children that don't exist
+                mask = (1 << n->num_children) - 1;
+                bitfield = _mm_movemask_epi8(cmp) & mask;
+            #else
+            #ifdef __amd64__
+                // Compare the key to all 16 stored keys
+                __m128i cmp;
+                cmp = _mm_cmpeq_epi8(_mm_set1_epi8(c),
+                        _mm_loadu_si128((__m128i*)p.p2->keys));
 
-            // Use a mask to ignore children that don't exist
-            mask = (1 << n->num_children) - 1;
-            bitfield = _mm_movemask_epi8(cmp) & mask;
+                // Use a mask to ignore children that don't exist
+                mask = (1 << n->num_children) - 1;
+                bitfield = _mm_movemask_epi8(cmp) & mask;
+            #else
+                // Compare the key to all 16 stored keys
+                unsigned bitfield = 0;
+                for (short i = 0; i < 16; ++i) {
+                    if (p.p2->keys[i] == c)
+                        bitfield |= (1 << i);
+                }
+
+                // Use a mask to ignore children that don't exist
+                bitfield &= mask;
+            #endif
+            #endif
 
             /*
              * If we have a match (any bit set) then we can
@@ -374,15 +405,40 @@ static void add_child48(art_node48 *n, art_node **ref, unsigned char c, void *ch
 
 static void add_child16(art_node16 *n, art_node **ref, unsigned char c, void *child) {
     if (n->n.num_children < 16) {
-        __m128i cmp;
-
-        // Compare the key to all 16 stored keys
-        cmp = _mm_cmplt_epi8(_mm_set1_epi8(c),
-                _mm_loadu_si128((__m128i*)n->keys));
-
-        // Use a mask to ignore children that don't exist
         unsigned mask = (1 << n->n.num_children) - 1;
-        unsigned bitfield = _mm_movemask_epi8(cmp) & mask;
+        
+        // support non-x86 architectures
+        #ifdef __i386__
+            __m128i cmp;
+
+            // Compare the key to all 16 stored keys
+            cmp = _mm_cmplt_epi8(_mm_set1_epi8(c),
+                    _mm_loadu_si128((__m128i*)n->keys));
+
+            // Use a mask to ignore children that don't exist
+            unsigned bitfield = _mm_movemask_epi8(cmp) & mask;
+        #else
+        #ifdef __amd64__
+            __m128i cmp;
+
+            // Compare the key to all 16 stored keys
+            cmp = _mm_cmplt_epi8(_mm_set1_epi8(c),
+                    _mm_loadu_si128((__m128i*)n->keys));
+
+            // Use a mask to ignore children that don't exist
+            unsigned bitfield = _mm_movemask_epi8(cmp) & mask;
+        #else
+            // Compare the key to all 16 stored keys
+            unsigned bitfield = 0;
+            for (short i = 0; i < 16; ++i) {
+                if (c < n->keys[i])
+                    bitfield |= (1 << i);
+            }
+
+            // Use a mask to ignore children that don't exist
+            bitfield &= mask;    
+        #endif
+        #endif
 
         // Check if less than any
         unsigned idx;
