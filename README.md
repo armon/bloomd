@@ -74,6 +74,8 @@ Here is an example configuration file:
     log_level = INFO
     flush_interval = 300
     workers = 2
+    in_memory = 0
+    use_mmap = 1
 
 
 Then run bloomd, pointing it to that file:
