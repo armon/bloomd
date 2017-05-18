@@ -351,5 +351,5 @@ Here are some related works which we make use of:
 
 * Space/Time Trade-offs in Hash Coding with Allowable Errors (Bloom): http://www.lsi.upc.edu/~diaz/p422-bloom.pdf
 * Scalable Bloom Filters (Almeida et. al): http://gsd.di.uminho.pt/members/cbm/ps/dbloom.pdf
-* Less Hashing, Same Performance: Building a Better Bloom Filter (Kirsch and Mitzenmacher): http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf
+* Less Hashing, Same Performance: Building a Better Bloom Filter (Kirsch and Mitzenmacher): https://www.eecs.harvard.edu/~michaelm/postscripts/tr-02-05.pdf
 
