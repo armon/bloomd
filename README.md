@@ -95,6 +95,7 @@ Here is a list of known client implementations:
 * Node.js : https://github.com/majelbstoat/node-bloomd
 * PHP: https://github.com/mdlayher/php-bloomd
 * Java: https://github.com/casidiablo/java-bloomd-client
+* Lua/OpenResty: https://github.com/jie123108/lua-resty-bloomd
 
 Here is a list of "best-practices" for client implementations:
 
