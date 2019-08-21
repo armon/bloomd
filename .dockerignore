@@ -1,0 +1,8 @@
+.*
+integ/
+tests/
+bench.c
+*.mdown
+*.md
+LICENSE
+Vagrantfile
