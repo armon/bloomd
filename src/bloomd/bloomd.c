@@ -25,7 +25,7 @@ typedef struct {
     bloom_filtmgr *mgr;
     bloom_networking *netconf;
 } worker_args;
-static void worker_main(worker_args *args);
+static void *worker_main(worker_args *args);
 
 /**
  * By default we should run. Our signal
@@ -208,11 +208,13 @@ int main(int argc, char **argv) {
 }
 
 // Main entry point for the worker threads
-static void worker_main(worker_args *args) {
+static void *worker_main(worker_args *args) {
     // Perform the initial checkpoint with the manager
     filtmgr_client_checkpoint(args->mgr);
 
     // Enter the networking event loop forever
     start_networking_worker(args->netconf);
+
+    return NULL;
 }
 
