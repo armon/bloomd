@@ -350,7 +350,7 @@ References
 
 Here are some related works which we make use of:
 
-* Space/Time Trade-offs in Hash Coding with Allowable Errors (Bloom): http://www.lsi.upc.edu/~diaz/p422-bloom.pdf
+* Space/Time Trade-offs in Hash Coding with Allowable Errors (Bloom): https://dl.acm.org/doi/10.1145/362686.362692
 * Scalable Bloom Filters (Almeida et. al): http://gsd.di.uminho.pt/members/cbm/ps/dbloom.pdf
 * Less Hashing, Same Performance: Building a Better Bloom Filter (Kirsch and Mitzenmacher): https://www.eecs.harvard.edu/~michaelm/postscripts/tr-02-05.pdf
 
