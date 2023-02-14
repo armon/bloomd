@@ -64,6 +64,7 @@ int handle_client_connect(bloom_conn_handler *handle) {
     char *buf, *arg_buf;
     int buf_len, arg_buf_len, should_free;
     int status;
+    arg_buf_len = 0;
     while (1) {
         status = extract_to_terminator(handle->conn, '\n', &buf, &buf_len, &should_free);
         if (status == -1) break; // Return if no command is available
